@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IMG Europe · 应收到账平台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+<!-- ═══ Firebase 云端实时同步（架构与鲁商平台一致，数据存独立路径 img-ar/，互不干扰）═══ -->
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/firebase-database-compat.js" crossorigin="anonymous"></script>
+<script>
+var FIREBASE_CONFIG={
+  apiKey:"AIzaSyCL6zKrmfXH7PSpMZtkrnU7g3ND9ihndNs",
+  authDomain:"lushang-fund.firebaseapp.com",
+  databaseURL:"https://lushang-fund-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:"lushang-fund",
+  storageBucket:"lushang-fund.firebasestorage.app",
+  messagingSenderId:"1021492599548",
+  appId:"1:1021492599548:web:934ac5425e48bee44c9579"
+};
+var USE_CLOUD=(FIREBASE_CONFIG.apiKey!=="YOUR_API_KEY");
+var rtdb=null;
+/* 屏蔽 Firebase 往 localStorage 写缓存（与鲁商平台同款保护） */
+try{
+  var _origSet=localStorage.setItem.bind(localStorage);
+  localStorage.setItem=function(k,v){if(k&&String(k).indexOf("firebase:")===0)return;try{_origSet(k,v)}catch(e){}};
+  for(var _i=localStorage.length-1;_i>=0;_i--){var _k=localStorage.key(_i);if(_k&&_k.indexOf("firebase:")===0)localStorage.removeItem(_k);}
+}catch(e){}
+if(USE_CLOUD){
+  try{
+    if(typeof firebase==="undefined")throw new Error("sdk not loaded");
+    firebase.initializeApp(FIREBASE_CONFIG);
+    rtdb=firebase.database();
+  }catch(e){console.warn("Firebase init:",e.message);USE_CLOUD=false;}
+}
+</script>
+<style>
+:root{
+  --pine:#0E3B33;        /* 深松绿 · 主色 */
+  --pine-deep:#092A24;
+  --paper:#F5F7F6;       /* 冷调纸白 · 背景 */
+  --card:#FFFFFF;
+  --line:#DCE4E1;
+  --ink:#1B2B27;
+  --ink-soft:#5C6E68;
+  --brass:#A87E2F;       /* 黄铜 · 点缀 */
+  --ok:#1F7A4D;
+  --ok-bg:#E5F2EB;
+  --warn:#B7791F;
+  --warn-bg:#FBF1DD;
+  --bad:#B3372B;
+  --bad-bg:#FBE7E4;
+  --radius:10px;
+  --font-body:'IBM Plex Sans','PingFang SC','Microsoft YaHei',sans-serif;
+  --font-num:'IBM Plex Mono',monospace;
+  --font-display:'Space Grotesk','IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font-body);background:var(--paper);color:var(--ink);font-size:14px;line-height:1.55}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+
+/* ---------- 登录 ---------- */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:
+    radial-gradient(1100px 560px at 18% -12%, rgba(255,255,255,.07), transparent 60%),
+    repeating-linear-gradient(115deg, rgba(255,255,255,.022) 0 2px, transparent 2px 16px),
+    linear-gradient(160deg,#07201B 0%,var(--pine) 55%,#155247 100%)}
+.login-card{position:relative;background:var(--card);border-radius:18px;width:100%;max-width:430px;padding:42px 40px 34px;box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.login-card::before{content:'';position:absolute;top:0;left:24px;right:24px;height:3px;border-radius:0 0 3px 3px;
+  background:linear-gradient(90deg,transparent,var(--brass) 30%,var(--brass) 70%,transparent)}
+.l-eyebrow{font-family:var(--font-display);font-size:11px;letter-spacing:.34em;color:var(--brass);font-weight:600;text-align:center}
+.l-title{font-size:25px;font-weight:700;text-align:center;color:var(--pine);margin-top:12px;letter-spacing:.06em}
+.l-sub{text-align:center;font-size:12.5px;color:var(--ink-soft);margin-top:7px;letter-spacing:.02em}
+.l-divider{height:1px;background:linear-gradient(90deg,transparent,#D8C9A3,transparent);margin:22px 0 20px}
+.acct-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.acct-btn{border:1.5px solid var(--line);background:var(--card);border-radius:11px;padding:12px 14px;text-align:left;transition:border-color .15s,background .15s,transform .12s,box-shadow .15s}
+.acct-btn:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(14,59,51,.10);border-color:#B9C9C3}
+.acct-btn .r-title{font-weight:600;font-size:15px;color:var(--ink)}
+.acct-btn .r-desc{font-size:12px;color:var(--ink-soft);margin-top:2px}
+.acct-btn.active{background:var(--pine);border-color:var(--pine)}
+.acct-btn.active .r-title{color:#fff}
+.acct-btn.active .r-desc{color:#B9D2CA}
+.brand{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.brand-mark{font-family:var(--font-display);font-weight:700;font-size:26px;letter-spacing:.5px;color:var(--pine)}
+.brand-sub{font-size:12px;letter-spacing:.18em;color:var(--brass);text-transform:uppercase}
+.login-card h1{font-size:15px;font-weight:600;margin:10px 0 18px;color:var(--ink);text-align:center}
+.role-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.role-btn{border:1.5px solid var(--line);background:var(--card);border-radius:var(--radius);padding:14px 12px;text-align:left;transition:border-color .15s,background .15s}
+.role-btn .r-title{font-weight:600;font-size:15px}
+.role-btn .r-desc{font-size:12px;color:var(--ink-soft);margin-top:3px}
+.role-btn.active{border-color:var(--pine);background:#EDF3F1}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:9px 11px;background:#FCFDFD}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--pine);outline:none}
+.btn{border:none;border-radius:9px;padding:12px 18px;font-weight:600;font-size:14px}
+.btn-primary{background:var(--pine);color:#fff;width:100%;letter-spacing:.12em;box-shadow:0 6px 18px rgba(14,59,51,.28);transition:background .15s,box-shadow .15s}
+.btn-primary:hover{background:var(--pine-deep);box-shadow:0 8px 22px rgba(14,59,51,.36)}
+.login-err{color:var(--bad);font-size:13px;margin:-6px 0 12px;display:none}
+.login-note{font-size:12px;color:var(--ink-soft);margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+
+/* ---------- 主界面 ---------- */
+.app{display:none;min-height:100vh;flex-direction:column}
+header.topbar{background:var(--pine);color:#fff;padding:0 22px;display:flex;align-items:center;gap:16px;height:56px}
+.topbar .brand-mark{color:#fff;font-size:19px}
+.topbar .brand-sub{color:#CBB47A}
+.top-logo{display:inline-flex;align-items:center;justify-content:center;background:#fff;border-radius:7px;padding:4px 5px;line-height:0}
+.topbar .spacer{flex:1}
+.user-chip{display:flex;align-items:center;gap:8px;font-size:13px}
+.user-chip .tag{background:rgba(255,255,255,.15);border-radius:20px;padding:2px 10px;font-size:12px}
+.link-btn{background:none;border:none;color:#CFE0DB;font-size:13px;text-decoration:underline;text-underline-offset:3px}
+.link-btn:hover{color:#fff}
+
+main{flex:1;max-width:1180px;width:100%;margin:0 auto;padding:26px 22px 60px}
+
+/* 统计条 —— 台账式数字行 */
+.stat-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;border-left:3px solid var(--pine)}
+.stat.warn{border-left-color:var(--warn)}
+.stat.bad{border-left-color:var(--bad)}
+.stat .s-label{font-size:12px;color:var(--ink-soft);letter-spacing:.04em}
+.stat .s-value{font-family:var(--font-num);font-size:21px;font-weight:600;margin-top:4px;font-variant-numeric:tabular-nums}
+.stat .s-unit{font-size:12px;color:var(--ink-soft);font-family:var(--font-body)}
+
+/* 工具栏 */
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.toolbar input[type=month],.toolbar select,.toolbar input[type=search]{border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--card)}
+.toolbar input[type=search]{flex:1;min-width:160px}
+.toolbar .spacer{flex:1}
+.btn-ghost{background:var(--card);border:1.5px solid var(--line);color:var(--ink);border-radius:8px;padding:8px 14px;font-weight:600}
+.btn-ghost:hover{border-color:var(--pine);color:var(--pine)}
+.btn-add{background:var(--pine);color:#fff;border-radius:8px;padding:9px 16px;font-weight:600;border:none}
+.btn-add:hover{background:var(--pine-deep)}
+
+/* 台账表 */
+.ledger{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+table{width:100%;border-collapse:collapse}
+thead th{font-size:12.5px;color:#E4EEEA;text-align:center;font-weight:600;padding:12px 12px;background:var(--pine);letter-spacing:.06em;white-space:nowrap;border-bottom:none}
+tbody td{padding:12px 14px;border-bottom:1px solid #ECF0EF;vertical-align:top}
+tbody tr.row td:nth-child(1),tbody tr.row td:nth-child(4),tbody tr.row td:nth-child(6),tbody tr.row td:nth-child(7),tbody tr.row td:nth-child(8),tbody tr.row td:nth-child(9){text-align:center}
+tbody tr.row{cursor:pointer}
+tbody tr.row:hover{background:#F6F9F8}
+td.amount{text-align:right}
+td.amount{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.cur{font-size:11px;color:var(--ink-soft);margin-left:4px;font-family:var(--font-body);font-weight:500}
+.badge{display:inline-block;font-size:12px;font-weight:600;border-radius:20px;padding:2px 10px;white-space:nowrap}
+.badge.received{background:var(--ok-bg);color:var(--ok)}
+.badge.pending{background:var(--warn-bg);color:var(--warn)}
+.badge.issue{background:var(--bad-bg);color:var(--bad)}
+.cmt-count{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)}
+.cmt-count.has{color:var(--brass);font-weight:600}
+.empty{padding:46px;text-align:center;color:var(--ink-soft)}
+.empty b{display:block;font-size:15px;color:var(--ink);margin-bottom:6px}
+
+/* 详情行 */
+tr.detail td{background:#F7FAF9;padding:16px 18px 20px;border-bottom:1px solid var(--line)}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.d-info{font-size:13px}
+.d-info dt{color:var(--ink-soft);font-size:12px;margin-top:8px}
+.d-info dd{margin:1px 0 0}
+.d-actions{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+.btn-sm{border-radius:7px;padding:6px 12px;font-size:13px;font-weight:600;border:1.5px solid var(--line);background:var(--card)}
+.btn-sm:hover{border-color:var(--pine);color:var(--pine)}
+.btn-sm.danger:hover{border-color:var(--bad);color:var(--bad)}
+.comments h4{font-size:13px;margin-bottom:8px;color:var(--ink)}
+.cmt{border-left:2.5px solid var(--line);padding:6px 12px;margin-bottom:8px;background:var(--card);border-radius:0 8px 8px 0}
+.cmt.finance{border-left-color:var(--pine)}
+.cmt.business{border-left-color:var(--brass)}
+.cmt .meta{font-size:11.5px;color:var(--ink-soft);margin-bottom:2px}
+.cmt .meta b{color:var(--ink)}
+.cmt-form textarea{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical;min-height:56px;background:var(--card)}
+.cmt-form .cmt-row{display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap}
+.check{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--bad)}
+
+/* 弹窗 */
+.overlay{position:fixed;inset:0;background:rgba(9,42,36,.5);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:50}
+.overlay.open{display:flex}
+.modal{background:var(--card);border-radius:14px;width:100%;max-width:520px;padding:26px 26px 24px;box-shadow:0 24px 60px rgba(0,0,0,.3)}
+.modal h2{font-family:var(--font-display);font-size:18px;margin-bottom:18px;color:var(--pine)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid .full{grid-column:1/-1}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.btn-cancel{background:none;border:none;color:var(--ink-soft);font-weight:600;padding:10px 14px}
+.btn-cancel:hover{color:var(--ink)}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--pine-deep);color:#fff;padding:10px 20px;border-radius:30px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99}
+.toast.show{opacity:1}
+.loading{padding:60px;text-align:center;color:var(--ink-soft)}
+footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
+
+@media(max-width:820px){
+  .stat-strip{grid-template-columns:1fr 1fr}
+  .detail-grid{grid-template-columns:1fr}
+  .hide-m{display:none}
+  main{padding:18px 12px 50px}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+
+<!-- 登录 -->
+<div class="login-wrap" id="loginView">
+  <div class="login-card">
+    <div class="l-eyebrow">IMG&nbsp;EUROPE&nbsp;GMBH</div>
+    <div class="l-title">应收到账平台</div>
+    <div class="l-sub">Receivables Ledger · 每日进款登记与核对</div>
+    <div class="l-divider"></div>
+    <div class="acct-grid">
+      <button class="acct-btn active" data-acct="财务" type="button"><div class="r-title">财务</div><div class="r-desc">登记维护台账</div></button>
+      <button class="acct-btn" data-acct="业务1" type="button"><div class="r-title">业务1</div><div class="r-desc">核对与备注</div></button>
+      <button class="acct-btn" data-acct="业务2" type="button"><div class="r-title">业务2</div><div class="r-desc">核对与备注</div></button>
+      <button class="acct-btn" data-acct="业务3" type="button"><div class="r-title">业务3</div><div class="r-desc">核对与备注</div></button>
+    </div>
+    <div class="field">
+      <label for="loginPass">密码</label>
+      <input id="loginPass" type="password" placeholder="请输入密码" autocomplete="current-password">
+    </div>
+    <div class="login-err" id="loginErr"></div>
+    <button class="btn btn-primary" id="loginBtn" type="button">进入平台</button>
+    <div class="login-note">选择账户并输入密码进入。数据经云端实时同步，异地办公共享同一台账；离线时自动使用本机副本。</div>
+  </div>
+</div>
+
+<!-- 主界面 -->
+<div class="app" id="appView">
+  <header class="topbar">
+    <span class="top-logo" aria-hidden="true">
+      <svg width="26" height="24" viewBox="0 0 60 54">
+        <defs><clipPath id="triS"><polygon points="30,3 4,51 56,51"/></clipPath></defs>
+        <g clip-path="url(#triS)" stroke-width="5" fill="none">
+          <line x1="0" y1="48.5" x2="60" y2="48.5" stroke="#16337A"/>
+          <line x1="0" y1="41" x2="60" y2="41" stroke="#274FA3"/>
+          <line x1="30" y1="3" x2="4" y2="51" stroke="#00A99D"/>
+          <line x1="38.5" y1="3" x2="12.5" y2="51" stroke="#0072BC"/>
+          <line x1="30" y1="3" x2="56" y2="51" stroke="#FBB03B"/>
+          <line x1="21.5" y1="3" x2="47.5" y2="51" stroke="#ED1C24"/>
+        </g>
+      </svg>
+    </span>
+    <span class="brand-mark">IMG Europe</span>
+    <span class="brand-sub">应收到账台账</span>
+    <span class="spacer"></span>
+    <span class="user-chip"><b id="userName"></b><span class="tag" id="userRoleTag"></span></span>
+    <span class="tag" id="storeStatus" style="background:rgba(255,255,255,.15);border-radius:20px;padding:2px 10px;font-size:12px"></span>
+    <button class="link-btn" id="refreshBtn" type="button">刷新</button>
+    <button class="link-btn" id="logoutBtn" type="button">退出</button>
+  </header>
+
+  <main>
+    <div class="stat-strip">
+      <div class="stat"><div class="s-label">今日到账（EUR）</div><div class="s-value" id="stToday">—</div></div>
+      <div class="stat"><div class="s-label">本月到账（EUR）</div><div class="s-value" id="stMonth">—</div></div>
+      <div class="stat warn"><div class="s-label">待业务核对</div><div class="s-value" id="stPending">—<span class="s-unit"> 笔</span></div></div>
+      <div class="stat bad"><div class="s-label">问题笔数</div><div class="s-value" id="stIssue">—<span class="s-unit"> 笔</span></div></div>
+    </div>
+
+    <div class="toolbar">
+      <input type="month" id="fMonth" aria-label="按月份筛选">
+      <select id="fStatus" aria-label="按状态筛选">
+        <option value="">全部状态</option>
+        <option value="received">已到账</option>
+        <option value="pending">待确认</option>
+        <option value="issue">有问题</option>
+      </select>
+      <select id="fVerify" aria-label="按核对状态筛选">
+        <option value="">全部核对状态</option>
+        <option value="none">待核对</option>
+        <option value="ok">已确认</option>
+        <option value="wrong">单号有误</option>
+        <option value="fixed">已更正</option>
+      </select>
+      <input type="search" id="fSearch" placeholder="搜索客户 / 单号 / 业务负责人…">
+      <span class="spacer"></span>
+      <button class="btn-ghost" id="exportXlsxBtn" type="button">导出 Excel</button>
+      <button class="btn-ghost" id="exportCsvBtn" type="button">导出 CSV</button>
+      <button class="btn-add" id="addBtn" type="button" style="display:none">＋ 登记进款</button>
+    </div>
+
+    <div class="ledger">
+      <div class="loading" id="loadingBox">正在读取台账…</div>
+      <table id="ledgerTable" style="display:none">
+        <thead>
+          <tr>
+            <th>到账日期</th>
+            <th>客户</th>
+            <th class="amount">金额</th>
+            <th class="hide-m">付款方式</th>
+            <th class="hide-m">单号 / 参考</th>
+            <th>业务负责人</th>
+            <th>状态</th>
+            <th>核对</th>
+            <th>备注</th>
+          </tr>
+        </thead>
+        <tbody id="ledgerBody"></tbody>
+      </table>
+      <div class="empty" id="emptyBox" style="display:none">
+        <b>暂无进款记录</b>当前筛选条件下没有数据。财务同事可点击右上角「登记进款」新增记录。
+      </div>
+    </div>
+  </main>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示</footer>
+</div>
+
+<!-- 登记 / 编辑弹窗 -->
+<div class="overlay" id="payOverlay">
+  <div class="modal">
+    <h2 id="payModalTitle">登记进款</h2>
+    <div class="form-grid">
+      <div class="field"><label for="pDate">到账日期 *</label><input type="date" id="pDate"></div>
+      <div class="field"><label for="pCustomer">客户名称 *</label><input id="pCustomer" placeholder="例如：Müller GmbH"></div>
+      <div class="field"><label for="pAmount">金额 *</label><input type="number" id="pAmount" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label for="pCurrency">币种</label>
+        <select id="pCurrency"><option>EUR</option><option>USD</option><option>GBP</option><option>CNY</option></select>
+      </div>
+      <div class="field"><label for="pMethod">付款方式</label>
+        <select id="pMethod"><option>银行转账</option><option>SEPA</option><option>信用证</option><option>支票</option><option>现金</option><option>其他</option></select>
+      </div>
+      <div class="field"><label for="pRef">单号 / 参考号</label><input id="pRef" placeholder="发票号或银行参考号"></div>
+      <div class="field"><label for="pStatus">状态</label>
+        <select id="pStatus"><option value="received">已到账</option><option value="pending">待确认</option><option value="issue">有问题</option></select>
+      </div>
+      <div class="field full"><label for="pNote">财务备注</label><textarea id="pNote" rows="2" placeholder="可选，例如：部分到账，余款待收"></textarea></div>
+    </div>
+    <div class="login-err" id="payErr"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="payCancel" type="button">取消</button>
+      <button class="btn btn-primary" style="width:auto" id="paySave" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+const KEY_DATA='img-ar-payments';
+
+/* 存储兜底链：Claude共享存储 → 本机 localStorage → 内存；云端(Firebase)在其上实时同步 */
+const hasStore=()=>typeof window!=='undefined'&&window.storage&&typeof window.storage.get==='function';
+const hasLS=(function(){try{const t='__ls_test__';localStorage.setItem(t,'1');localStorage.removeItem(t);return true;}catch(e){return false;}})();
+const memStore={};
+const store={
+  async get(k){
+    if(hasStore())return await window.storage.get(k,true);
+    if(hasLS){const v=localStorage.getItem(k);return v==null?null:{key:k,value:v};}
+    return k in memStore?{key:k,value:memStore[k]}:null;
+  },
+  async set(k,v){
+    if(hasStore())return await window.storage.set(k,v,true);
+    if(hasLS){try{localStorage.setItem(k,v);return{key:k,value:v};}catch(e){return null;}}
+    memStore[k]=v;return{key:k,value:v};
+  }
+};
+
+/* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
+const CLOUD_PATH='img-ar/state';
+const CLOUD_CLIENT_ID='c'+Date.now()+Math.random().toString(36).slice(2,8);
+let CLOUD_CONN=false,CLOUD_LAST_AT=0,_cloudApplying=false,_cloudPushT=null,_cloudSeeding=false,_pendingRemote=null;
+
+function cloudPush(){
+  if(!USE_CLOUD||!rtdb||_cloudApplying)return;
+  if(_cloudPushT)clearTimeout(_cloudPushT);
+  _cloudPushT=setTimeout(function(){
+    try{
+      const payload={json:JSON.stringify(payments),_at:Date.now(),_by:(session&&session.name)||'unknown',_client:CLOUD_CLIENT_ID};
+      CLOUD_LAST_AT=payload._at;
+      rtdb.ref(CLOUD_PATH).set(payload).catch(function(e){console.warn('cloud push:',e.message);});
+    }catch(e){console.error('cloudPush:',e);}
+  },400);
+}
+function applyRemote(s){
+  if(editingNow()){_pendingRemote=s;return;} /* 用户正在填写：暂存，稍后应用 */
+  _cloudApplying=true;
+  try{
+    payments=JSON.parse(s.json||'[]');
+    lastJson=s.json||'[]';
+    store.set(KEY_DATA,lastJson); /* 落地本机离线副本 */
+  }catch(e){}
+  _cloudApplying=false;
+  if(session)render();
+  if(s._by)toast('☁ 已同步 '+s._by+' 的更新');
+}
+function cloudStart(){
+  if(!USE_CLOUD||!rtdb)return;
+  try{rtdb.ref('.info/connected').on('value',function(snap){CLOUD_CONN=!!snap.val();updateBadge();});}catch(e){}
+  rtdb.ref(CLOUD_PATH).on('value',function(snap){
+    const s=snap.val();
+    if(!s){
+      /* 云端为空：事务种入本端数据，多端竞争时只有一端成功 */
+      if(!_cloudSeeding&&payments.length){
+        _cloudSeeding=true;
+        try{
+          rtdb.ref(CLOUD_PATH).transaction(function(cur){
+            if(cur)return;
+            const payload={json:JSON.stringify(payments),_at:Date.now(),_by:(session&&session.name)||'unknown',_client:CLOUD_CLIENT_ID};
+            CLOUD_LAST_AT=payload._at;
+            return payload;
+          },function(){_cloudSeeding=false;});
+        }catch(e){_cloudSeeding=false;}
+      }
+      return;
+    }
+    _cloudSeeding=false;
+    if(s._client===CLOUD_CLIENT_ID){CLOUD_LAST_AT=Math.max(CLOUD_LAST_AT,s._at||0);return;} /* 回声跳过 */
+    if((s._at||0)<=CLOUD_LAST_AT)return; /* 只应用更新的数据 */
+    CLOUD_LAST_AT=s._at||0;
+    applyRemote(s);
+    updateBadge();
+  });
+}
+/* 暂存的远端更新：待用户停止填写后补应用 */
+setInterval(function(){if(_pendingRemote&&!editingNow()){const s=_pendingRemote;_pendingRemote=null;applyRemote(s);}},2000);
+
+let session=null;          // {name, role}
+let payments=[];           // 全部记录
+let editingId=null;
+let openDetailId=null;
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>Number(n).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
+const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const STATUS={received:'已到账',pending:'待确认',issue:'有问题'};
+
+/* 核对状态：none 待核对 / ok 已确认 / wrong 单号有误 / fixed 已更正 */
+function vState(p){
+  if(!p.verify)return 'none';
+  if(p.verify.result==='ok')return 'ok';
+  return p.verify.resolved?'fixed':'wrong';
+}
+const V_LABEL={none:'待核对',ok:'已确认',wrong:'单号有误',fixed:'已更正'};
+const V_CLASS={none:'pending',ok:'received',wrong:'issue',fixed:'received'};
+
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('show'),2200);}
+
+/* ---------- 存储 ---------- */
+async function loadAll(){
+  try{
+    const r=await store.get(KEY_DATA);
+    payments=r&&r.value?JSON.parse(r.value):[];
+  }catch(e){ payments=[]; }
+  await seedImport();
+}
+
+/* 一次性导入：2026-08-03 银行流水两笔（按 id 去重，不会重复写入） */
+const SEED=[
+  {id:'imp-20260803-hh',date:'2026-08-03',customer:'H + H GmbH',amount:23794.05,currency:'EUR',
+   method:'银行转账',ref:'202600491',status:'received',
+   note:'银行附言：202600491（本地清算汇入）',
+   createdBy:'银行流水导入',createdAt:Date.now(),comments:[]},
+  {id:'imp-20260803-ys',date:'2026-08-03',customer:'Youngstar International Freight Forwarding Co., Limited',
+   amount:23176.00,currency:'EUR',method:'银行转账',
+   ref:'202600374 / 375 / 376 / 529 / 530 / 531 / 532',status:'received',
+   note:'对应逾期发票 7 张（202600374–376、202600529–532），合计 23.176,00 EUR，与到账金额一致。银行附言：freight K X',
+   createdBy:'银行流水导入',createdAt:Date.now(),comments:[]}
+];
+async function seedImport(){
+  const have=new Set(payments.map(p=>p.id));
+  let added=false;
+  for(const s of SEED){
+    if(!have.has(s.id)){payments.push(JSON.parse(JSON.stringify(s)));added=true;}
+  }
+  if(added){try{await store.set(KEY_DATA,JSON.stringify(payments));}catch(e){}}
+}
+async function savePayments(){
+  try{
+    /* 保存前先合并远端：避免覆盖其他同事同一时间的新增/备注 */
+    try{
+      const r=await store.get(KEY_DATA);
+      if(r&&r.value)mergeRemote(JSON.parse(r.value));
+    }catch(e){}
+    const j=JSON.stringify(payments);
+    const res=await store.set(KEY_DATA,j);
+    if(!res){toast('保存失败，请重试');return false;}
+    lastJson=j;
+    cloudPush(); /* 推送云端，其他在线端实时收到 */
+    return true;
+  }catch(e){toast('保存失败：网络或存储异常');return false;}
+}
+
+/* 合并远端记录：新增补入、备注取并集、删除标记以删除为准、其余以本地（刚操作方）为准 */
+function mergeRemote(remote){
+  const byId=new Map(payments.map(p=>[p.id,p]));
+  for(const r of remote){
+    const l=byId.get(r.id);
+    if(!l){payments.push(r);continue;}
+    if(r.deleted)l.deleted=true;
+    const seen=new Set((l.comments||[]).map(c=>c.time+'|'+c.author+'|'+c.text));
+    for(const c of (r.comments||[])){
+      const k=c.time+'|'+c.author+'|'+c.text;
+      if(!seen.has(k)){(l.comments=l.comments||[]).push(c);seen.add(k);}
+    }
+    if(l.comments)l.comments.sort((a,b)=>(a.time||0)-(b.time||0));
+    /* 对方已核对而本地未动过核对信息时，保留对方的核对结果 */
+    if(r.verify&&!l.verify)l.verify=r.verify;
+    if(r.owner&&!l.owner)l.owner=r.owner;
+  }
+}
+/* ---------- 登录 ---------- */
+const PASSWORD='123';
+let pickedAcct='财务';
+document.querySelectorAll('.acct-btn').forEach(b=>{
+  b.onclick=()=>{
+    pickedAcct=b.dataset.acct;
+    document.querySelectorAll('.acct-btn').forEach(x=>x.classList.toggle('active',x===b));
+    $('loginPass').focus();
+  };
+});
+
+$('loginBtn').onclick=async()=>{
+  const err=$('loginErr');
+  err.style.display='none';
+  if($('loginPass').value!==PASSWORD){
+    err.textContent='密码不正确。';err.style.display='block';return;
+  }
+  $('loginBtn').textContent='正在进入…';
+  await loadAll();
+  $('loginBtn').textContent='进入平台';
+  session={name:pickedAcct,role:pickedAcct==='财务'?'finance':'business'};
+  enterApp();
+};
+$('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click();});
+
+function enterApp(){
+  $('loginView').style.display='none';
+  const app=$('appView');app.style.display='flex';
+  $('userName').textContent=session.name;
+  const tag=$('userRoleTag');
+  if(session.role==='finance'){tag.style.display='none';}
+  else{tag.style.display='';tag.textContent='业务';}
+  $('addBtn').style.display=session.role==='finance'?'':'none';
+  $('fMonth').value=todayStr().slice(0,7);
+  $('loadingBox').style.display='none';
+  updateBadge();
+  if(!USE_CLOUD&&!hasStore()&&!hasLS)toast('注意：当前环境无任何存储可用，退出后数据会丢失。');
+  startSync();
+  cloudStart();
+  render();
+}
+
+function updateBadge(){
+  const st=$('storeStatus');if(!st)return;
+  if(USE_CLOUD){
+    if(CLOUD_CONN){st.textContent='☁ 云端已连接 · 异地实时同步';st.style.color='#9FDCC4';}
+    else{st.textContent='☁ 正在连接云端…';st.style.color='#FFD9A0';}
+  }else if(hasStore()){st.textContent='✓ 共享存储';st.style.color='#9FDCC4';}
+  else if(hasLS){st.textContent='◐ 本机模式 · 数据仅存本机';st.style.color='#FFD9A0';}
+  else{st.textContent='⚠ 内存模式 · 数据不会保存';st.style.color='#FFB4A6';}
+}
+
+/* 自动同步：每 8 秒从共享存储拉取；用户正在填写时暂停，避免打断输入 */
+let lastJson=null,syncTimer=null;
+function editingNow(){
+  if($('payOverlay').classList.contains('open'))return true;
+  const ae=document.activeElement;
+  if(ae&&ae.closest&&ae.closest('tr.detail'))return true;
+  for(const el of document.querySelectorAll('tr.detail textarea, tr.detail input')){
+    if(el.type==='checkbox'){if(el.checked)return true;continue;}
+    if((el.value||'')!==(el.dataset.init||''))return true;
+  }
+  return false;
+}
+async function pullLatest(showToast){
+  if(USE_CLOUD)return; /* 云端为实时推送，无需轮询 */
+  if(!hasStore()&&!hasLS)return;
+  if(editingNow())return;
+  try{
+    const r=await store.get(KEY_DATA);
+    const v=r&&r.value?r.value:'[]';
+    if(lastJson===null)lastJson=JSON.stringify(payments);
+    if(v!==lastJson&&v!==JSON.stringify(payments)){
+      payments=JSON.parse(v);
+      lastJson=v;
+      render();
+      if(showToast)toast('台账已同步最新数据');
+    }else{lastJson=v;}
+  }catch(e){}
+}
+function startSync(){
+  clearInterval(syncTimer);
+  if(USE_CLOUD)return; /* 云端实时推送，无需轮询 */
+  syncTimer=setInterval(()=>pullLatest(true),8000);
+}
+$('logoutBtn').onclick=()=>{
+  try{if(USE_CLOUD&&rtdb){rtdb.ref(CLOUD_PATH).off();rtdb.ref('.info/connected').off();}}catch(e){}
+  location.reload();
+};
+$('refreshBtn').onclick=async()=>{
+  if(USE_CLOUD&&rtdb){
+    try{
+      const snap=await rtdb.ref(CLOUD_PATH).once('value');
+      const s=snap.val();
+      if(s&&(s._at||0)>CLOUD_LAST_AT){CLOUD_LAST_AT=s._at;applyRemote(s);}
+      toast('已刷新（云端实时同步中）');
+    }catch(e){toast('云端读取失败：'+e.message);}
+    return;
+  }
+  if(!hasStore()&&!hasLS){toast('无可用存储，无法同步');return;}
+  await pullLatest(false);
+  toast('已刷新');
+};
+
+/* ---------- 渲染 ---------- */
+function filtered(){
+  const m=$('fMonth').value, st=$('fStatus').value, vf=$('fVerify').value, q=$('fSearch').value.trim().toLowerCase();
+  return payments
+    .filter(p=>!p.deleted)
+    .filter(p=>!m||((p.date||'').slice(0,7)===m))
+    .filter(p=>!st||p.status===st)
+    .filter(p=>!vf||vState(p)===vf)
+    .filter(p=>{
+      if(!q)return true;
+      return [p.customer,p.ref,p.owner,p.note].some(v=>(v||'').toLowerCase().includes(q));
+    })
+    .sort((a,b)=>a.date===b.date?(b.createdAt||0)-(a.createdAt||0):(a.date<b.date?1:-1));
+}
+
+function renderStats(){
+  const t=todayStr(), m=t.slice(0,7);
+  let sumT=0,sumM=0,pend=0,iss=0;
+  for(const p of payments){
+    if(p.deleted)continue;
+    const vs=vState(p);
+    if(vs==='none')pend++;
+    if(p.status==='issue'||vs==='wrong')iss++;
+    if(p.currency==='EUR'&&p.status!=='issue'){
+      if(p.date===t)sumT+=Number(p.amount)||0;
+      if((p.date||'').slice(0,7)===m)sumM+=Number(p.amount)||0;
+    }
+  }
+  $('stToday').textContent='€ '+fmt(sumT);
+  $('stMonth').textContent='€ '+fmt(sumM);
+  $('stPending').innerHTML=pend+'<span class="s-unit"> 笔</span>';
+  $('stIssue').innerHTML=iss+'<span class="s-unit"> 笔</span>';
+}
+
+function render(){
+  renderStats();
+  const list=filtered();
+  const tb=$('ledgerBody');
+  $('ledgerTable').style.display=list.length?'':'none';
+  $('emptyBox').style.display=list.length?'none':'';
+  tb.innerHTML='';
+  for(const p of list){
+    const tr=document.createElement('tr');
+    tr.className='row';
+    const cn=(p.comments||[]).length;
+    const vs=vState(p);
+    tr.innerHTML=
+      '<td style="font-family:var(--font-num);white-space:nowrap">'+esc(p.date)+'</td>'+
+      '<td><b>'+esc(p.customer)+'</b></td>'+
+      '<td class="amount">'+fmt(p.amount)+'<span class="cur">'+esc(p.currency)+'</span></td>'+
+      '<td class="hide-m">'+esc(p.method||'—')+'</td>'+
+      '<td class="hide-m">'+esc(p.ref||'—')+'</td>'+
+      '<td>'+esc(p.owner||'—')+'</td>'+
+      '<td><span class="badge '+p.status+'">'+STATUS[p.status]+'</span></td>'+
+      '<td><span class="badge '+V_CLASS[vs]+'">'+V_LABEL[vs]+'</span></td>'+
+      '<td><span class="cmt-count'+(cn?' has':'')+'">💬 '+cn+'</span></td>';
+    tr.onclick=()=>toggleDetail(p.id);
+    tb.appendChild(tr);
+    if(openDetailId===p.id){
+      const dtr=document.createElement('tr');
+      dtr.className='detail';
+      const td=document.createElement('td');
+      td.colSpan=9;
+      td.appendChild(buildDetail(p));
+      dtr.appendChild(td);
+      tb.appendChild(dtr);
+    }
+  }
+}
+
+function toggleDetail(id){
+  openDetailId=openDetailId===id?null:id;
+  render();
+}
+
+function buildDetail(p){
+  const wrap=document.createElement('div');
+  wrap.className='detail-grid';
+
+  // 左：信息与操作
+  const left=document.createElement('div');
+  left.className='d-info';
+  const vs=vState(p);
+  let vHtml='';
+  if(p.verify){
+    vHtml='<dt>核对情况</dt><dd><span class="badge '+V_CLASS[vs]+'">'+V_LABEL[vs]+'</span> · '+
+      esc(p.verify.by||'—')+' · '+(p.verify.time?new Date(p.verify.time).toLocaleString('zh-CN'):'')+
+      (p.verify.result==='wrong'?'<br>正确单号：<b style="font-family:var(--font-num)">'+esc(p.verify.correctRef||'—')+'</b>'+
+        (p.verify.note?'<br>说明：'+esc(p.verify.note):''):'')+
+      (vs==='fixed'?'<br><span style="color:var(--ok)">财务已处理'+(p.verify.resolvedBy?'（'+esc(p.verify.resolvedBy)+'）':'')+'</span>':'')+
+      '</dd>';
+  }
+  left.innerHTML=
+    '<dl>'+
+    '<dt>登记人</dt><dd>'+esc(p.createdBy||'—')+' · '+(p.createdAt?new Date(p.createdAt).toLocaleString('zh-CN'):'—')+'</dd>'+
+    '<dt>付款方式</dt><dd>'+esc(p.method||'—')+'</dd>'+
+    '<dt>单号 / 参考</dt><dd style="font-family:var(--font-num)">'+esc(p.ref||'—')+'</dd>'+
+    '<dt>业务负责人</dt><dd>'+esc(p.owner||'尚未认领')+'</dd>'+
+    '<dt>财务备注</dt><dd>'+esc(p.note||'—')+'</dd>'+
+    vHtml+
+    '</dl>';
+
+  /* 业务核对区：待核对或单号有误未处理时，业务可认领并核对 */
+  if(session.role==='business'&&(vs==='none'||vs==='wrong')){
+    const box=document.createElement('div');
+    box.style.cssText='margin-top:14px;padding:12px;border:1.5px dashed var(--brass);border-radius:10px;background:#FBF7EE';
+    box.innerHTML='<div style="font-weight:600;font-size:13px;margin-bottom:8px">发票单号核对</div>';
+    const nameIn=document.createElement('input');
+    nameIn.placeholder='负责人姓名';
+    nameIn.value=p.owner||session.name;
+    nameIn.dataset.init=nameIn.value;
+    nameIn.style.cssText='width:100%;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:#fff';
+    nameIn.onclick=e=>e.stopPropagation();
+    box.appendChild(nameIn);
+
+    const btnRow=document.createElement('div');
+    btnRow.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
+    const bOk=document.createElement('button');bOk.className='btn-sm';
+    bOk.style.borderColor='var(--ok)';bOk.style.color='var(--ok)';
+    bOk.textContent='✓ 单号无误，确认';
+    const bNo=document.createElement('button');bNo.className='btn-sm danger';
+    bNo.textContent='✗ 单号有误';
+    btnRow.append(bOk,bNo);
+    box.appendChild(btnRow);
+
+    const wrongBox=document.createElement('div');
+    wrongBox.style.cssText='display:none;margin-top:8px';
+    const refIn=document.createElement('input');
+    refIn.placeholder='请填写正确的发票单号';
+    refIn.dataset.init='';
+    refIn.style.cssText='width:100%;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:6px;background:#fff';
+    refIn.onclick=e=>e.stopPropagation();
+    const noteIn=document.createElement('input');
+    noteIn.placeholder='补充说明（可选）';
+    noteIn.dataset.init='';
+    noteIn.style.cssText='width:100%;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:#fff';
+    noteIn.onclick=e=>e.stopPropagation();
+    const bSubmitWrong=document.createElement('button');bSubmitWrong.className='btn-sm danger';
+    bSubmitWrong.textContent='提交更正';
+    wrongBox.append(refIn,noteIn,bSubmitWrong);
+    box.appendChild(wrongBox);
+
+    bOk.onclick=async e=>{e.stopPropagation();
+      const nm=nameIn.value.trim();
+      if(!nm){toast('请先填写负责人姓名');return;}
+      p.owner=nm;
+      p.verify={result:'ok',by:nm,time:Date.now()};
+      p.comments=p.comments||[];
+      p.comments.push({author:nm,role:'business',text:'已核对发票单号，确认无误。',time:Date.now()});
+      if(await savePayments()){toast('核对确认已提交');render();}};
+    bNo.onclick=e=>{e.stopPropagation();
+      wrongBox.style.display=wrongBox.style.display==='none'?'':'none';};
+    bSubmitWrong.onclick=async e=>{e.stopPropagation();
+      const nm=nameIn.value.trim(), cr=refIn.value.trim();
+      if(!nm){toast('请先填写负责人姓名');return;}
+      if(!cr){toast('请填写正确的发票单号');return;}
+      p.owner=nm;
+      p.verify={result:'wrong',by:nm,time:Date.now(),correctRef:cr,note:noteIn.value.trim(),resolved:false};
+      p.comments=p.comments||[];
+      p.comments.push({author:nm,role:'business',text:'核对发现单号有误，正确单号应为：'+cr+(noteIn.value.trim()?'。'+noteIn.value.trim():''),time:Date.now()});
+      if(await savePayments()){toast('更正信息已提交，待财务查看');render();}};
+    box.onclick=e=>e.stopPropagation();
+    left.appendChild(box);
+  }
+
+  /* 财务处理区：业务反馈单号有误后，财务核实处理 */
+  if(session.role==='finance'&&vs==='wrong'){
+    const fBox=document.createElement('div');
+    fBox.style.cssText='margin-top:14px;padding:12px;border:1.5px solid var(--bad);border-radius:10px;background:var(--bad-bg)';
+    fBox.innerHTML='<div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--bad)">业务反馈单号有误，待财务核实</div>'+
+      '<div style="font-size:13px;margin-bottom:8px">原单号：<b style="font-family:var(--font-num)">'+esc(p.ref||'—')+'</b>　→　业务提供：<b style="font-family:var(--font-num)">'+esc(p.verify.correctRef||'—')+'</b></div>';
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
+    const bAdopt=document.createElement('button');bAdopt.className='btn-sm';
+    bAdopt.style.borderColor='var(--ok)';bAdopt.style.color='var(--ok)';
+    bAdopt.textContent='采用更正单号';
+    bAdopt.onclick=async e=>{e.stopPropagation();
+      const old=p.ref;
+      p.ref=p.verify.correctRef;
+      p.verify.resolved=true;p.verify.resolvedBy=session.name;
+      p.comments=p.comments||[];
+      p.comments.push({author:session.name,role:'finance',text:'已核实，单号由「'+(old||'—')+'」更正为「'+p.ref+'」。',time:Date.now()});
+      if(await savePayments()){toast('单号已更正');render();}};
+    const bKeep=document.createElement('button');bKeep.className='btn-sm';
+    bKeep.textContent='维持原单号，标记已处理';
+    bKeep.onclick=async e=>{e.stopPropagation();
+      p.verify.resolved=true;p.verify.resolvedBy=session.name;
+      p.comments=p.comments||[];
+      p.comments.push({author:session.name,role:'finance',text:'已核实，维持原单号「'+(p.ref||'—')+'」，问题已处理。',time:Date.now()});
+      if(await savePayments()){toast('已标记处理');render();}};
+    row.append(bAdopt,bKeep);
+    fBox.appendChild(row);
+    fBox.onclick=e=>e.stopPropagation();
+    left.appendChild(fBox);
+  }
+
+  if(session.role==='finance'){
+    const act=document.createElement('div');
+    act.className='d-actions';
+    const bE=document.createElement('button');bE.className='btn-sm';bE.textContent='编辑';
+    bE.onclick=e=>{e.stopPropagation();openPayModal(p);};
+    const bS=document.createElement('button');bS.className='btn-sm';
+    bS.textContent=p.status==='received'?'标为待确认':'标为已到账';
+    bS.onclick=async e=>{e.stopPropagation();
+      p.status=p.status==='received'?'pending':'received';
+      if(await savePayments()){toast('状态已更新');render();}};
+    const bD=document.createElement('button');bD.className='btn-sm danger';bD.textContent='删除';
+    bD.onclick=async e=>{e.stopPropagation();
+      if(!confirm('确认删除这条进款记录？该操作不可恢复。'))return;
+      p.deleted=true;
+      openDetailId=null;
+      if(await savePayments()){toast('记录已删除');render();}};
+    act.append(bE,bS,bD);
+    left.appendChild(act);
+  }
+
+  // 右：备注区
+  const right=document.createElement('div');
+  right.className='comments';
+  const h=document.createElement('h4');
+  h.textContent='沟通备注（'+(p.comments||[]).length+'）';
+  right.appendChild(h);
+  const listBox=document.createElement('div');
+  if(!(p.comments||[]).length){
+    const e=document.createElement('div');e.style.cssText='font-size:13px;color:var(--ink-soft);margin-bottom:8px';
+    e.textContent='暂无备注。业务同事可在下方留言反馈问题。';
+    listBox.appendChild(e);
+  }else{
+    for(const c of p.comments){
+      const d=document.createElement('div');
+      d.className='cmt '+(c.role==='finance'?'finance':'business');
+      d.innerHTML='<div class="meta"><b>'+esc(c.author)+'</b>（'+(c.role==='finance'?'财务':'业务')+'） · '+new Date(c.time).toLocaleString('zh-CN')+'</div><div>'+esc(c.text)+'</div>';
+      listBox.appendChild(d);
+    }
+  }
+  right.appendChild(listBox);
+
+  const form=document.createElement('div');
+  form.className='cmt-form';
+  const ta=document.createElement('textarea');
+  ta.placeholder='写下备注，例如：客户称已付款，请核对银行流水…';
+  ta.dataset.init='';
+  ta.onclick=e=>e.stopPropagation();
+  const row=document.createElement('div');row.className='cmt-row';
+  let flagBox=null;
+  if(session.role==='business'&&p.status!=='issue'){
+    const lbl=document.createElement('label');lbl.className='check';
+    flagBox=document.createElement('input');flagBox.type='checkbox';
+    lbl.append(flagBox,document.createTextNode('同时标记为「有问题」'));
+    lbl.onclick=e=>e.stopPropagation();
+    row.appendChild(lbl);
+  }
+  if(session.role==='finance'&&p.status==='issue'){
+    const bR=document.createElement('button');bR.className='btn-sm';bR.textContent='问题已解决，恢复为已到账';
+    bR.onclick=async e=>{e.stopPropagation();
+      p.status='received';
+      p.comments=p.comments||[];
+      p.comments.push({author:session.name,role:'finance',text:'（问题已解决，状态恢复为已到账）',time:Date.now()});
+      if(await savePayments()){toast('已恢复为已到账');render();}};
+    row.appendChild(bR);
+  }
+  const sp=document.createElement('span');sp.style.flex='1';row.appendChild(sp);
+  const bSend=document.createElement('button');bSend.className='btn-sm';bSend.style.borderColor='var(--pine)';bSend.style.color='var(--pine)';
+  bSend.textContent='提交备注';
+  bSend.onclick=async e=>{
+    e.stopPropagation();
+    const text=ta.value.trim();
+    if(!text){toast('请先输入备注内容');return;}
+    p.comments=p.comments||[];
+    p.comments.push({author:session.name,role:session.role,text,time:Date.now()});
+    if(flagBox&&flagBox.checked)p.status='issue';
+    bSend.disabled=true;bSend.textContent='提交中…';
+    if(await savePayments()){toast('备注已提交');render();}
+    else{bSend.disabled=false;bSend.textContent='提交备注';}
+  };
+  row.appendChild(bSend);
+  form.append(ta,row);
+  right.appendChild(form);
+
+  wrap.append(left,right);
+  wrap.onclick=e=>e.stopPropagation();
+  return wrap;
+}
+
+/* ---------- 登记 / 编辑 ---------- */
+function openPayModal(p){
+  editingId=p?p.id:null;
+  $('payModalTitle').textContent=p?'编辑进款记录':'登记进款';
+  $('pDate').value=p?p.date:todayStr();
+  $('pCustomer').value=p?p.customer:'';
+  $('pAmount').value=p?p.amount:'';
+  $('pCurrency').value=p?p.currency:'EUR';
+  $('pMethod').value=p?p.method:'银行转账';
+  $('pRef').value=p?p.ref:'';
+  $('pStatus').value=p?p.status:'received';
+  $('pNote').value=p?p.note:'';
+  $('payErr').style.display='none';
+  $('payOverlay').classList.add('open');
+  $('pDate').focus();
+}
+$('addBtn').onclick=()=>openPayModal(null);
+$('payCancel').onclick=()=>$('payOverlay').classList.remove('open');
+
+$('paySave').onclick=async()=>{
+  const err=$('payErr');err.style.display='none';
+  const date=$('pDate').value, customer=$('pCustomer').value.trim(),
+        amount=parseFloat($('pAmount').value);
+  if(!date||!customer||!(amount>0)){
+    err.textContent='请完整填写：到账日期、客户名称、金额（大于 0）。';
+    err.style.display='block';return;
+  }
+  const data={
+    date,customer,amount:Math.round(amount*100)/100,
+    currency:$('pCurrency').value,method:$('pMethod').value,
+    ref:$('pRef').value.trim(),status:$('pStatus').value,
+    note:$('pNote').value.trim()
+  };
+  $('paySave').disabled=true;$('paySave').textContent='保存中…';
+  if(editingId){
+    const p=payments.find(x=>x.id===editingId);
+    if(p)Object.assign(p,data);
+  }else{
+    payments.push(Object.assign({
+      id:'p'+Date.now()+Math.random().toString(36).slice(2,7),
+      createdBy:session.name,createdAt:Date.now(),comments:[]
+    },data));
+  }
+  const ok=await savePayments();
+  $('paySave').disabled=false;$('paySave').textContent='保存';
+  if(ok){
+    $('payOverlay').classList.remove('open');
+    toast(editingId?'记录已更新':'进款已登记');
+    editingId=null;
+    render();
+  }
+};
+
+/* ---------- 导出 ---------- */
+function exportRows(){
+  const list=filtered();
+  if(!list.length){toast('当前筛选下没有可导出的数据');return null;}
+  const head=['到账日期','客户','金额','币种','付款方式','单号','业务负责人','状态','核对状态','业务更正单号','财务备注','备注条数'];
+  const rows=list.map(p=>[p.date,p.customer,Number(p.amount),p.currency,p.method,p.ref,p.owner||'',STATUS[p.status],V_LABEL[vState(p)],(p.verify&&p.verify.correctRef)||'',p.note||'',(p.comments||[]).length]);
+  const fname='IMG-Europe-到账台账-'+($('fMonth').value||'全部');
+  return {head,rows,fname};
+}
+function exportCsv(){
+  const d=exportRows();if(!d)return;
+  const line=r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');
+  const csv='\uFEFF'+line(d.head)+'\n'+d.rows.map(line).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=d.fname+'.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function ensureXLSX(){
+  if(window.XLSX)return Promise.resolve();
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload=()=>window.XLSX?res():rej(new Error('load'));
+    s.onerror=()=>rej(new Error('load'));
+    setTimeout(()=>window.XLSX?res():rej(new Error('timeout')),7000);
+    document.head.appendChild(s);
+  });
+}
+async function exportXlsx(){
+  const d=exportRows();if(!d)return;
+  const btn=$('exportXlsxBtn');
+  btn.disabled=true;btn.textContent='生成中…';
+  try{
+    await ensureXLSX();
+    const ws=XLSX.utils.aoa_to_sheet([d.head,...d.rows]);
+    ws['!cols']=[{wch:12},{wch:38},{wch:12},{wch:6},{wch:10},{wch:30},{wch:10},{wch:8},{wch:9},{wch:16},{wch:40},{wch:8}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'到账台账');
+    XLSX.writeFile(wb,d.fname+'.xlsx');
+  }catch(e){
+    toast('Excel 组件加载失败（可能无网络），已改为导出 CSV');
+    exportCsv();
+  }
+  btn.disabled=false;btn.textContent='导出 Excel';
+}
+$('exportCsvBtn').onclick=exportCsv;
+$('exportXlsxBtn').onclick=exportXlsx;
+
+/* ---------- 筛选 ---------- */
+$('fMonth').onchange=render;
+$('fStatus').onchange=render;
+$('fVerify').onchange=render;
+$('fSearch').oninput=render;
+
+/* 弹窗点击遮罩关闭 */
+$('payOverlay').addEventListener('click',e=>{if(e.target===$('payOverlay'))$('payOverlay').classList.remove('open');});
+})();
+</script>
+</body>
+</html>
