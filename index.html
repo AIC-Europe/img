@@ -147,6 +147,7 @@ td.amount{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-wei
 .badge.received{background:var(--ok-bg);color:var(--ok)}
 .badge.pending{background:var(--warn-bg);color:var(--warn)}
 .badge.issue{background:var(--bad-bg);color:var(--bad)}
+.badge.booked{background:var(--pine);color:#fff}
 .cmt-count{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)}
 .cmt-count.has{color:var(--brass);font-weight:600}
 .empty{padding:46px;text-align:center;color:var(--ink-soft)}
@@ -277,6 +278,8 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
         <option value="ok">已确认</option>
         <option value="wrong">单号有误</option>
         <option value="fixed">已更正</option>
+        <option value="tobook">待记账</option>
+        <option value="booked">已清</option>
       </select>
       <input type="search" id="fSearch" placeholder="搜索客户 / 单号 / 业务负责人…">
       <span class="spacer"></span>
@@ -308,7 +311,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v3.4</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v3.5</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -454,8 +457,10 @@ function vState(p){
   if(p.verify.result==='ok')return 'ok';
   return p.verify.resolved?'fixed':'wrong';
 }
-const V_LABEL={none:'待核对',ok:'已确认',wrong:'单号有误',fixed:'已更正'};
-const V_CLASS={none:'pending',ok:'received',wrong:'issue',fixed:'received'};
+const V_LABEL={none:'待核对',ok:'已确认',wrong:'单号有误',fixed:'已更正',booked:'已清'};
+const V_CLASS={none:'pending',ok:'received',wrong:'issue',fixed:'received',booked:'booked'};
+/* 展示状态：已记账(booking)覆盖核对状态，作为流程终态 */
+function dState(p){return (p.booking&&!p.booking.cleared)?'booked':vState(p);}
 
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('show'),2200);}
 
@@ -520,6 +525,7 @@ function mergeRemote(remote){
     /* 对方已核对而本地未动过核对信息时，保留对方的核对结果 */
     if(r.verify&&!l.verify)l.verify=r.verify;
     if(r.owner&&!l.owner)l.owner=r.owner;
+    if(r.booking&&!l.booking)l.booking=r.booking;
   }
 }
 /* ---------- 登录 ---------- */
@@ -639,7 +645,7 @@ function filtered(){
     .filter(p=>!p.deleted)
     .filter(p=>!m||((p.date||'').slice(0,7)===m))
     .filter(p=>!st||p.status===st)
-    .filter(p=>!vf||vState(p)===vf)
+    .filter(p=>{if(!vf)return true;if(vf==='tobook'){const s=vState(p);return !p.booking&&(s==='ok'||s==='fixed');}return dState(p)===vf;})
     .filter(p=>{
       if(!q)return true;
       return [p.customer,p.ref,p.owner,p.note].some(v=>(v||'').toLowerCase().includes(q));
@@ -677,7 +683,7 @@ function render(){
     const tr=document.createElement('tr');
     tr.className='row';
     const cn=(p.comments||[]).length;
-    const vs=vState(p);
+    const vs=dState(p);
     tr.innerHTML=
       '<td style="font-family:var(--font-num);white-space:nowrap">'+esc(p.date)+'</td>'+
       '<td><b>'+esc(p.customer)+'</b></td>'+
@@ -723,6 +729,9 @@ function buildDetail(p){
         (p.verify.note?'<br>说明：'+esc(p.verify.note):''):'')+
       (vs==='fixed'?'<br><span style="color:var(--ok)">财务已处理'+(p.verify.resolvedBy?'（'+esc(p.verify.resolvedBy)+'）':'')+'</span>':'')+
       '</dd>';
+  }
+  if(p.booking&&!p.booking.cleared){
+    vHtml+='<dt>记账情况</dt><dd><span class="badge booked">已清</span> · '+esc(p.booking.by||'')+' · '+new Date(p.booking.time).toLocaleString('zh-CN')+' · 开票系统已 Booking</dd>';
   }
   left.innerHTML=
     '<dl>'+
@@ -826,6 +835,24 @@ function buildDetail(p){
     fBox.appendChild(row);
     fBox.onclick=e=>e.stopPropagation();
     left.appendChild(fBox);
+  }
+
+  /* 财务记账区：业务确认(或已更正)后，财务在开票系统 Booking 完成后标记已清 */
+  if(session.role==='finance'&&dState(p)!=='booked'&&(vState(p)==='ok'||vState(p)==='fixed')){
+    const bBox=document.createElement('div');
+    bBox.style.cssText='margin-top:14px;padding:12px;border:1.5px solid var(--ok);border-radius:10px;background:var(--ok-bg)';
+    bBox.innerHTML='<div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--ok)">业务已确认单号 · 待开票系统 Booking</div>';
+    const bDone=document.createElement('button');bDone.className='btn-sm';
+    bDone.style.borderColor='var(--ok)';bDone.style.color='var(--ok)';
+    bDone.textContent='✓ 开票系统已 Booking，标记已清';
+    bDone.onclick=async e=>{e.stopPropagation();
+      p.booking={by:session.name,time:Date.now()};
+      p.comments=p.comments||[];
+      p.comments.push({author:session.name,role:'finance',text:'回款已在开票系统完成 Booking，本笔到账已清。',time:Date.now()});
+      if(await savePayments()){toast('已标记为已清，业务端可见');render();}};
+    bBox.appendChild(bDone);
+    bBox.onclick=e=>e.stopPropagation();
+    left.appendChild(bBox);
   }
 
   if(session.role==='finance'){
@@ -961,7 +988,7 @@ $('paySave').onclick=async()=>{
           changes.push(label[k]+'：'+((p[k]===''||p[k]==null)?'—':(k==='status'?STATUS[p[k]]:p[k]))+' → '+(k==='status'?STATUS[data[k]]:data[k]));
       }
       if((p.note||'')!==(data.note||''))changes.push('财务备注已更新');
-      const oldRef=p.ref||'';
+      const oldRef=p.ref||'', oldAmount=p.amount;
       Object.assign(p,data);
       if(changes.length){
         p.comments=p.comments||[];
@@ -978,6 +1005,12 @@ $('paySave').onclick=async()=>{
           p.verify={cleared:true,by:session.name,time:Date.now()};
           p.comments.push({author:session.name,role:'finance',text:'单号已修改，原核对结果失效，请业务重新核对。',time:Date.now()});
         }
+      }
+      /* 单号或金额变更后，撤销原「已清」记账标记 */
+      if(p.booking&&!p.booking.cleared&&(oldRef!==(p.ref||'')||String(oldAmount)!==String(p.amount))){
+        p.booking={cleared:true,by:session.name,time:Date.now()};
+        p.comments=p.comments||[];
+        p.comments.push({author:session.name,role:'finance',text:'关键信息已修改，原「已清」标记已撤销，请在开票系统核实后重新确认。',time:Date.now()});
       }
     }
   }else{
@@ -1000,8 +1033,8 @@ $('paySave').onclick=async()=>{
 function exportRows(){
   const list=filtered();
   if(!list.length){toast('当前筛选下没有可导出的数据');return null;}
-  const head=['到账日期','客户','金额','币种','付款方式','单号','业务负责人','状态','核对状态','业务更正单号','财务备注','备注条数'];
-  const rows=list.map(p=>[p.date,p.customer,Number(p.amount),p.currency,p.method,p.ref,p.owner||'',STATUS[p.status],V_LABEL[vState(p)],(p.verify&&p.verify.correctRef)||'',p.note||'',(p.comments||[]).length]);
+  const head=['到账日期','客户','金额','币种','付款方式','单号','业务负责人','状态','核对状态','记账','业务更正单号','财务备注','备注条数'];
+  const rows=list.map(p=>[p.date,p.customer,Number(p.amount),p.currency,p.method,p.ref,p.owner||'',STATUS[p.status],V_LABEL[dState(p)],(dState(p)==='booked'?'已清':''),(p.verify&&p.verify.correctRef)||'',p.note||'',(p.comments||[]).length]);
   const fname='IMG-Europe-到账台账-'+($('fMonth').value||'全部');
   return {head,rows,fname};
 }
