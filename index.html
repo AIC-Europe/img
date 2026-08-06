@@ -313,7 +313,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v3.1</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v3.2</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -371,7 +371,17 @@ const store={
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
 const CLOUD_CLIENT_ID='c'+Date.now()+Math.random().toString(36).slice(2,8);
-let CLOUD_CONN=false,CLOUD_LAST_AT=0,_cloudApplying=false,_cloudPushT=null,_cloudSeeding=false,_pendingRemote=null;
+let CLOUD_CONN=false,CLOUD_LAST_AT=0,CLOUD_ERR='',CLOUD_LAST_SYNC=0,_cloudApplying=false,_cloudPushT=null,_cloudSeeding=false,_pendingRemote=null,_permToastShown=false;
+
+function cloudFail(e){
+  const msg=(e&&e.message)||String(e);
+  CLOUD_ERR=/permission/i.test(msg)?'denied':msg;
+  updateBadge();
+  if(CLOUD_ERR==='denied'&&!_permToastShown){
+    _permToastShown=true;
+    toast('⚠ 云端拒绝访问：Firebase 规则未开放 img-ar 路径，数据暂无法异地同步');
+  }
+}
 
 function cloudPush(){
   if(!USE_CLOUD||!rtdb||_cloudApplying)return;
@@ -380,8 +390,10 @@ function cloudPush(){
     try{
       const payload={json:JSON.stringify(payments),_at:Date.now(),_by:(session&&session.name)||'unknown',_client:CLOUD_CLIENT_ID};
       CLOUD_LAST_AT=payload._at;
-      rtdb.ref(CLOUD_PATH).set(payload).catch(function(e){console.warn('cloud push:',e.message);});
-    }catch(e){console.error('cloudPush:',e);}
+      rtdb.ref(CLOUD_PATH).set(payload)
+        .then(function(){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();})
+        .catch(function(e){console.warn('cloud push:',e.message);cloudFail(e);});
+    }catch(e){console.error('cloudPush:',e);cloudFail(e);}
   },400);
 }
 function applyRemote(s){
@@ -400,6 +412,7 @@ function cloudStart(){
   if(!USE_CLOUD||!rtdb)return;
   try{rtdb.ref('.info/connected').on('value',function(snap){CLOUD_CONN=!!snap.val();updateBadge();});}catch(e){}
   rtdb.ref(CLOUD_PATH).on('value',function(snap){
+    CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();
     const s=snap.val();
     if(!s){
       /* 云端为空：事务种入本端数据，多端竞争时只有一端成功 */
@@ -411,8 +424,8 @@ function cloudStart(){
             const payload={json:JSON.stringify(payments),_at:Date.now(),_by:(session&&session.name)||'unknown',_client:CLOUD_CLIENT_ID};
             CLOUD_LAST_AT=payload._at;
             return payload;
-          },function(){_cloudSeeding=false;});
-        }catch(e){_cloudSeeding=false;}
+          },function(err){_cloudSeeding=false;if(err)cloudFail(err);});
+        }catch(e){_cloudSeeding=false;cloudFail(e);}
       }
       return;
     }
@@ -422,6 +435,8 @@ function cloudStart(){
     CLOUD_LAST_AT=s._at||0;
     applyRemote(s);
     updateBadge();
+  },function(err){ /* 读取被拒等错误 */
+    cloudFail(err);
   });
 }
 /* 暂存的远端更新：待用户停止填写后补应用 */
@@ -557,11 +572,17 @@ function enterApp(){
 function updateBadge(){
   const st=$('storeStatus');if(!st)return;
   if(USE_CLOUD){
-    if(CLOUD_CONN){st.textContent='☁ 云端已连接 · 异地实时同步';st.style.color='#9FDCC4';}
+    if(CLOUD_ERR==='denied'){st.textContent='⛔ 云端拒绝访问 · 需配置 img-ar 规则';st.style.color='#FFB4A6';}
+    else if(CLOUD_ERR){st.textContent='⚠ 云端异常：'+CLOUD_ERR.slice(0,24);st.style.color='#FFB4A6';}
+    else if(CLOUD_CONN){st.textContent='☁ 云端已连接 · 异地实时同步';st.style.color='#9FDCC4';}
     else{st.textContent='☁ 正在连接云端…';st.style.color='#FFD9A0';}
   }else if(hasStore()){st.textContent='✓ 共享存储';st.style.color='#9FDCC4';}
   else if(hasLS){st.textContent='◐ 本机模式 · 数据仅存本机';st.style.color='#FFD9A0';}
   else{st.textContent='⚠ 内存模式 · 数据不会保存';st.style.color='#FFB4A6';}
+  st.style.cursor='pointer';
+  st.onclick=function(){
+    toast('诊断：云端='+(USE_CLOUD?'启用':'关闭')+' | 连接='+(CLOUD_CONN?'是':'否')+' | 错误='+(CLOUD_ERR||'无')+' | 最近同步='+(CLOUD_LAST_SYNC?new Date(CLOUD_LAST_SYNC).toLocaleTimeString('zh-CN'):'从未'));
+  };
 }
 
 /* 自动同步：每 8 秒从共享存储拉取；用户正在填写时暂停，避免打断输入 */
