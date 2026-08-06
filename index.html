@@ -11,16 +11,11 @@
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/firebase-app-compat.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/firebase-database-compat.js" crossorigin="anonymous"></script>
 <script>
+/* 云端配置：IMG 公司 img-ledger 项目，独立路径 img-ar/，与原有平台数据完全隔离 */
 var FIREBASE_CONFIG={
-  apiKey:"AIzaSyCL6zKrmfXH7PSpMZtkrnU7g3ND9ihndNs",
-  authDomain:"lushang-fund.firebaseapp.com",
-  databaseURL:"https://lushang-fund-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId:"lushang-fund",
-  storageBucket:"lushang-fund.firebasestorage.app",
-  messagingSenderId:"1021492599548",
-  appId:"1:1021492599548:web:934ac5425e48bee44c9579"
+  databaseURL:"https://img-ledger-default-rtdb.europe-west1.firebasedatabase.app"
 };
-var USE_CLOUD=(FIREBASE_CONFIG.apiKey!=="YOUR_API_KEY");
+var USE_CLOUD=!!FIREBASE_CONFIG.databaseURL;
 var rtdb=null;
 /* 屏蔽 Firebase 往 localStorage 写缓存（与鲁商平台同款保护） */
 try{
@@ -313,7 +308,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v3.2</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v3.3</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
