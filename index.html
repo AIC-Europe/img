@@ -308,7 +308,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v3.3</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v3.4</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -450,7 +450,7 @@ const STATUS={received:'已到账',pending:'待确认',issue:'有问题'};
 
 /* 核对状态：none 待核对 / ok 已确认 / wrong 单号有误 / fixed 已更正 */
 function vState(p){
-  if(!p.verify)return 'none';
+  if(!p.verify||p.verify.cleared)return 'none';
   if(p.verify.result==='ok')return 'ok';
   return p.verify.resolved?'fixed':'wrong';
 }
@@ -716,7 +716,7 @@ function buildDetail(p){
   left.className='d-info';
   const vs=vState(p);
   let vHtml='';
-  if(p.verify){
+  if(p.verify&&!p.verify.cleared){
     vHtml='<dt>核对情况</dt><dd><span class="badge '+V_CLASS[vs]+'">'+V_LABEL[vs]+'</span> · '+
       esc(p.verify.by||'—')+' · '+(p.verify.time?new Date(p.verify.time).toLocaleString('zh-CN'):'')+
       (p.verify.result==='wrong'?'<br>正确单号：<b style="font-family:var(--font-num)">'+esc(p.verify.correctRef||'—')+'</b>'+
@@ -952,7 +952,34 @@ $('paySave').onclick=async()=>{
   $('paySave').disabled=true;$('paySave').textContent='保存中…';
   if(editingId){
     const p=payments.find(x=>x.id===editingId);
-    if(p)Object.assign(p,data);
+    if(p){
+      /* 修改留痕：逐项对比并写入沟通备注 */
+      const label={date:'到账日期',customer:'客户',amount:'金额',currency:'币种',method:'付款方式',ref:'单号',status:'状态'};
+      const changes=[];
+      for(const k in label){
+        if(String(p[k]??'')!==String(data[k]??''))
+          changes.push(label[k]+'：'+((p[k]===''||p[k]==null)?'—':(k==='status'?STATUS[p[k]]:p[k]))+' → '+(k==='status'?STATUS[data[k]]:data[k]));
+      }
+      if((p.note||'')!==(data.note||''))changes.push('财务备注已更新');
+      const oldRef=p.ref||'';
+      Object.assign(p,data);
+      if(changes.length){
+        p.comments=p.comments||[];
+        p.comments.push({author:session.name,role:'finance',text:'✎ 财务修改：'+changes.join('；'),time:Date.now()});
+      }
+      /* 单号变更联动核对状态 */
+      if(oldRef!==(p.ref||'')){
+        if(p.verify&&p.verify.result==='wrong'&&p.ref===p.verify.correctRef){
+          /* 恰好改成了业务提供的正确单号 → 视为问题已处理 */
+          p.verify.resolved=true;p.verify.resolvedBy=session.name;
+          p.comments.push({author:session.name,role:'finance',text:'单号已按业务更正修改为「'+p.ref+'」，问题已处理。',time:Date.now()});
+        }else if(p.verify){
+          /* 其他情况：原核对结果失效，重置为待核对（cleared 标记防止被远端合并还原） */
+          p.verify={cleared:true,by:session.name,time:Date.now()};
+          p.comments.push({author:session.name,role:'finance',text:'单号已修改，原核对结果失效，请业务重新核对。',time:Date.now()});
+        }
+      }
+    }
   }else{
     payments.push(Object.assign({
       id:'p'+Date.now()+Math.random().toString(36).slice(2,7),
