@@ -311,7 +311,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v3.5</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v3.6</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -353,6 +353,11 @@ const KEY_DATA='img-ar-payments';
 const hasStore=()=>typeof window!=='undefined'&&window.storage&&typeof window.storage.get==='function';
 const hasLS=(function(){try{const t='__ls_test__';localStorage.setItem(t,'1');localStorage.removeItem(t);return true;}catch(e){return false;}})();
 const memStore={};
+/* 记住每个业务账户的真实姓名（本机） */
+const isAcctName=v=>/^业务[0-9]*$/.test(String(v||'').trim());
+let _memName='';
+function myNameGet(){if(hasLS){try{return localStorage.getItem('img-ar-myname-'+(session?session.name:''))||'';}catch(e){}}return _memName;}
+function myNameSet(n){_memName=n;if(hasLS){try{localStorage.setItem('img-ar-myname-'+(session?session.name:''),n);}catch(e){}}}
 const store={
   async get(k){
     if(hasStore())return await window.storage.get(k,true);
@@ -743,14 +748,36 @@ function buildDetail(p){
     vHtml+
     '</dl>';
 
+  /* 修改负责人姓名（业务与财务均可操作，核对署名同步更新） */
+  {
+    const ownBtn=document.createElement('button');
+    ownBtn.className='btn-sm';
+    ownBtn.style.marginTop='10px';
+    ownBtn.textContent='✎ 修改负责人姓名';
+    ownBtn.onclick=async e=>{e.stopPropagation();
+      const cur=(p.owner&&!isAcctName(p.owner))?p.owner:myNameGet();
+      const nm=(window.prompt('请输入负责人真实姓名：',cur||'')||'').trim();
+      if(!nm)return;
+      if(isAcctName(nm)){toast('请填写真实姓名，不能使用账户名');return;}
+      if(nm===p.owner)return;
+      const old=p.owner||'—';
+      p.owner=nm;
+      if(p.verify&&p.verify.by&&!p.verify.cleared)p.verify.by=nm; /* 核对署名一并更新 */
+      if(session.role==='business')myNameSet(nm);
+      p.comments=p.comments||[];
+      p.comments.push({author:session.role==='business'?nm:session.name,role:session.role,text:'负责人由「'+old+'」更新为「'+nm+'」。',time:Date.now()});
+      if(await savePayments()){toast('负责人已更新为 '+nm);render();}};
+    left.appendChild(ownBtn);
+  }
+
   /* 业务核对区：待核对或单号有误未处理时，业务可认领并核对 */
   if(session.role==='business'&&(vs==='none'||vs==='wrong')){
     const box=document.createElement('div');
     box.style.cssText='margin-top:14px;padding:12px;border:1.5px dashed var(--brass);border-radius:10px;background:#FBF7EE';
     box.innerHTML='<div style="font-weight:600;font-size:13px;margin-bottom:8px">发票单号核对</div>';
     const nameIn=document.createElement('input');
-    nameIn.placeholder='负责人姓名';
-    nameIn.value=p.owner||session.name;
+    nameIn.placeholder='请输入您的真实姓名（用于负责人署名）';
+    nameIn.value=(p.owner&&!isAcctName(p.owner))?p.owner:myNameGet();
     nameIn.dataset.init=nameIn.value;
     nameIn.style.cssText='width:100%;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:#fff';
     nameIn.onclick=e=>e.stopPropagation();
@@ -785,8 +812,8 @@ function buildDetail(p){
 
     bOk.onclick=async e=>{e.stopPropagation();
       const nm=nameIn.value.trim();
-      if(!nm){toast('请先填写负责人姓名');return;}
-      p.owner=nm;
+      if(!nm||isAcctName(nm)){toast('请填写您的真实姓名（例如：Chenxia），不能使用账户名');return;}
+      p.owner=nm;myNameSet(nm);
       p.verify={result:'ok',by:nm,time:Date.now()};
       p.comments=p.comments||[];
       p.comments.push({author:nm,role:'business',text:'已核对发票单号，确认无误。',time:Date.now()});
@@ -795,9 +822,9 @@ function buildDetail(p){
       wrongBox.style.display=wrongBox.style.display==='none'?'':'none';};
     bSubmitWrong.onclick=async e=>{e.stopPropagation();
       const nm=nameIn.value.trim(), cr=refIn.value.trim();
-      if(!nm){toast('请先填写负责人姓名');return;}
+      if(!nm||isAcctName(nm)){toast('请填写您的真实姓名（例如：Chenxia），不能使用账户名');return;}
       if(!cr){toast('请填写正确的发票单号');return;}
-      p.owner=nm;
+      p.owner=nm;myNameSet(nm);
       p.verify={result:'wrong',by:nm,time:Date.now(),correctRef:cr,note:noteIn.value.trim(),resolved:false};
       p.comments=p.comments||[];
       p.comments.push({author:nm,role:'business',text:'核对发现单号有误，正确单号应为：'+cr+(noteIn.value.trim()?'。'+noteIn.value.trim():''),time:Date.now()});
