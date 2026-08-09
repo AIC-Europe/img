@@ -73,6 +73,7 @@ input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
 .l-sub{text-align:center;font-size:12.5px;color:var(--ink-soft);margin-top:7px;letter-spacing:.02em}
 .l-divider{height:1px;background:linear-gradient(90deg,transparent,#D8C9A3,transparent);margin:22px 0 20px}
 .acct-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.acct-btn[data-acct='财务']{grid-column:1/-1}
 .acct-btn{border:1.5px solid var(--line);background:var(--card);border-radius:11px;padding:12px 14px;text-align:left;transition:border-color .15s,background .15s,transform .12s,box-shadow .15s}
 .acct-btn:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(14,59,51,.10);border-color:#B9C9C3}
 .acct-btn .r-title{font-weight:600;font-size:15px;color:var(--ink)}
@@ -150,6 +151,13 @@ td.amount{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-wei
 .badge.booked{background:var(--pine);color:#fff}
 .cmt-count{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)}
 .cmt-count.has{color:var(--brass);font-weight:600}
+.cmt-new{display:inline-block;background:var(--bad);color:#fff;font-size:11.5px;font-weight:600;border-radius:20px;padding:2px 9px;white-space:nowrap;animation:pulse 1.8s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.62}}
+tbody tr.row.unread{background:#FFF9F2}
+tbody tr.row.unread:hover{background:#FFF3E4}
+tbody tr.row.unread td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+.stat.unread-stat{border-left-color:var(--bad)}
+@media (prefers-reduced-motion: reduce){.cmt-new{animation:none}}
 .empty{padding:46px;text-align:center;color:var(--ink-soft)}
 .empty b{display:block;font-size:15px;color:var(--ink);margin-bottom:6px}
 
@@ -217,9 +225,11 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
     <div class="l-divider"></div>
     <div class="acct-grid">
       <button class="acct-btn active" data-acct="财务" type="button"><div class="r-title">财务</div><div class="r-desc">登记维护台账</div></button>
-      <button class="acct-btn" data-acct="业务1" type="button"><div class="r-title">业务1</div><div class="r-desc">核对与备注</div></button>
-      <button class="acct-btn" data-acct="业务2" type="button"><div class="r-title">业务2</div><div class="r-desc">核对与备注</div></button>
-      <button class="acct-btn" data-acct="业务3" type="button"><div class="r-title">业务3</div><div class="r-desc">核对与备注</div></button>
+      <button class="acct-btn" data-acct="Minglu" type="button"><div class="r-title">Minglu</div><div class="r-desc">核对与备注</div></button>
+      <button class="acct-btn" data-acct="Chenxia" type="button"><div class="r-title">Chenxia</div><div class="r-desc">核对与备注</div></button>
+      <button class="acct-btn" data-acct="Bowen" type="button"><div class="r-title">Bowen</div><div class="r-desc">核对与备注</div></button>
+      <button class="acct-btn" data-acct="Lucy" type="button"><div class="r-title">Lucy</div><div class="r-desc">核对与备注</div></button>
+      <button class="acct-btn" data-acct="Christina" type="button"><div class="r-title">Christina</div><div class="r-desc">核对与备注</div></button>
     </div>
     <div class="field">
       <label for="loginPass">密码</label>
@@ -261,7 +271,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <div class="stat"><div class="s-label">今日到账（EUR）</div><div class="s-value" id="stToday">—</div></div>
       <div class="stat"><div class="s-label">本月到账（EUR）</div><div class="s-value" id="stMonth">—</div></div>
       <div class="stat warn"><div class="s-label">待业务核对</div><div class="s-value" id="stPending">—<span class="s-unit"> 笔</span></div></div>
-      <div class="stat bad"><div class="s-label">问题笔数</div><div class="s-value" id="stIssue">—<span class="s-unit"> 笔</span></div></div>
+      <div class="stat bad"><div class="s-label">问题笔数 · 新消息</div><div class="s-value" id="stIssue">—<span class="s-unit"> 笔</span></div></div>
     </div>
 
     <div class="toolbar">
@@ -285,6 +295,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <span class="spacer"></span>
       <button class="btn-ghost" id="exportXlsxBtn" type="button">导出 Excel</button>
       <button class="btn-ghost" id="exportCsvBtn" type="button">导出 CSV</button>
+      <button class="btn-ghost" id="backupBtn" type="button" style="display:none">🗄 备份</button>
       <button class="btn-add" id="addBtn" type="button" style="display:none">＋ 登记进款</button>
     </div>
 
@@ -311,7 +322,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v3.6</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v4.1</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -342,6 +353,37 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
   </div>
 </div>
 
+<!-- 备份 / 恢复弹窗（财务） -->
+<div class="overlay" id="bkOverlay">
+  <div class="modal" style="max-width:560px">
+    <h2>数据备份与恢复</h2>
+    <div style="font-size:13px;color:var(--ink-soft);margin-bottom:16px">备份文件为完整台账快照（含核对、记账、沟通备注），建议每月底导出一次留存。</div>
+
+    <div style="border:1.5px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:4px">导出备份</div>
+      <div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">下载 .json 备份文件到本机保存。</div>
+      <button class="btn-sm" id="bkExport" type="button" style="border-color:var(--pine);color:var(--pine)">⬇ 下载备份文件</button>
+      <span id="bkInfo" style="font-size:12px;color:var(--ink-soft);margin-left:10px"></span>
+    </div>
+
+    <div style="border:1.5px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:4px">自动云端快照</div>
+      <div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">平台每日自动在云端保留一份快照，可在此回滚到最近的快照。</div>
+      <div id="bkSnapList" style="font-size:12.5px;color:var(--ink-soft)">读取中…</div>
+    </div>
+
+    <div style="border:1.5px solid var(--bad);border-radius:10px;padding:14px;background:var(--bad-bg)">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:4px;color:var(--bad)">从备份文件恢复</div>
+      <div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px">恢复会用备份内容<b>覆盖当前云端台账</b>，所有人可见，请谨慎操作。</div>
+      <input type="file" id="bkFile" accept="application/json,.json" style="font-size:12.5px">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="bkClose" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -354,10 +396,25 @@ const hasStore=()=>typeof window!=='undefined'&&window.storage&&typeof window.st
 const hasLS=(function(){try{const t='__ls_test__';localStorage.setItem(t,'1');localStorage.removeItem(t);return true;}catch(e){return false;}})();
 const memStore={};
 /* 记住每个业务账户的真实姓名（本机） */
-const isAcctName=v=>/^业务[0-9]*$/.test(String(v||'').trim());
+const isAcctName=v=>/^(业务[0-9]*|财务)$/.test(String(v||'').trim());
 let _memName='';
 function myNameGet(){if(hasLS){try{return localStorage.getItem('img-ar-myname-'+(session?session.name:''))||'';}catch(e){}}return _memName;}
 function myNameSet(n){_memName=n;if(hasLS){try{localStorage.setItem('img-ar-myname-'+(session?session.name:''),n);}catch(e){}}}
+/* 未读备注提醒：记录本人对每笔的最后查看时间 */
+let _seenMem={};
+function seenKey(){return 'img-ar-seen-'+(session?session.name:'');}
+function seenLoad(){
+  if(hasLS){try{_seenMem=JSON.parse(localStorage.getItem(seenKey())||'{}');}catch(e){_seenMem={};}}
+}
+function seenMark(id){
+  _seenMem[id]=Date.now();
+  if(hasLS){try{localStorage.setItem(seenKey(),JSON.stringify(_seenMem));}catch(e){}}
+}
+/* 未读条数：他人在我最后查看后新增的备注 */
+function unreadCount(p){
+  const t=_seenMem[p.id]||0;
+  return (p.comments||[]).filter(c=>(c.time||0)>t&&c.author!==(session?session.name:'')).length;
+}
 const store={
   async get(k){
     if(hasStore())return await window.storage.get(k,true);
@@ -373,6 +430,26 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
+const APP_VERSION=4.1; /* 与页脚版本号保持一致 */
+/* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
+function versionWatch(){
+  if(!USE_CLOUD||!rtdb)return;
+  try{
+    const ref=rtdb.ref('img-ar/meta/version');
+    ref.transaction(function(cur){if(!cur||cur<APP_VERSION)return APP_VERSION;});
+    ref.on('value',function(snap){
+      const v=snap.val();
+      if(v&&v>APP_VERSION&&!document.getElementById('verBanner')){
+        const b=document.createElement('div');
+        b.id='verBanner';
+        b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:999;background:var(--brass);color:#fff;text-align:center;padding:9px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.25)';
+        b.textContent='🔔 检测到平台新版本，点击此处刷新获取最新功能';
+        b.onclick=function(){location.href=location.pathname+'?v='+Date.now();};
+        document.body.appendChild(b);
+      }
+    });
+  }catch(e){}
+}
 const CLOUD_CLIENT_ID='c'+Date.now()+Math.random().toString(36).slice(2,8);
 let CLOUD_CONN=false,CLOUD_LAST_AT=0,CLOUD_ERR='',CLOUD_LAST_SYNC=0,_cloudApplying=false,_cloudPushT=null,_cloudSeeding=false,_pendingRemote=null,_permToastShown=false;
 
@@ -566,12 +643,16 @@ function enterApp(){
   if(session.role==='finance'){tag.style.display='none';}
   else{tag.style.display='';tag.textContent='业务';}
   $('addBtn').style.display=session.role==='finance'?'':'none';
+  $('backupBtn').style.display=session.role==='finance'?'':'none';
   $('fMonth').value=todayStr().slice(0,7);
   $('loadingBox').style.display='none';
   updateBadge();
   if(!USE_CLOUD&&!hasStore()&&!hasLS)toast('注意：当前环境无任何存储可用，退出后数据会丢失。');
+  seenLoad();
+  setTimeout(autoDailySnapshot,3000);
   startSync();
   cloudStart();
+  versionWatch();
   render();
 }
 
@@ -671,10 +752,18 @@ function renderStats(){
       if((p.date||'').slice(0,7)===m)sumM+=Number(p.amount)||0;
     }
   }
+  /* 其他币种按币种分别小计，避免被忽略 */
+  const oth={};
+  for(const p of payments){
+    if(p.deleted||p.currency==='EUR'||p.status==='issue')continue;
+    if((p.date||'').slice(0,7)===m)oth[p.currency]=(oth[p.currency]||0)+(Number(p.amount)||0);
+  }
+  const othTxt=Object.keys(oth).sort().map(k=>k+' '+fmt(oth[k])).join(' · ');
   $('stToday').textContent='€ '+fmt(sumT);
-  $('stMonth').textContent='€ '+fmt(sumM);
+  $('stMonth').innerHTML='€ '+fmt(sumM)+(othTxt?'<div style="font-size:11.5px;color:var(--ink-soft);font-family:var(--font-body);margin-top:3px">另有 '+esc(othTxt)+'</div>':'');
   $('stPending').innerHTML=pend+'<span class="s-unit"> 笔</span>';
-  $('stIssue').innerHTML=iss+'<span class="s-unit"> 笔</span>';
+  const unr=payments.filter(p=>!p.deleted&&unreadCount(p)>0).length;
+  $('stIssue').innerHTML=iss+'<span class="s-unit"> 笔</span>'+(unr?' <span style="color:var(--bad);font-size:15px"> · '+unr+' 条新消息</span>':'');
 }
 
 function render(){
@@ -688,6 +777,7 @@ function render(){
     const tr=document.createElement('tr');
     tr.className='row';
     const cn=(p.comments||[]).length;
+    const un=unreadCount(p);
     const vs=dState(p);
     tr.innerHTML=
       '<td style="font-family:var(--font-num);white-space:nowrap">'+esc(p.date)+'</td>'+
@@ -698,7 +788,8 @@ function render(){
       '<td>'+esc(p.owner||'—')+'</td>'+
       '<td><span class="badge '+p.status+'">'+STATUS[p.status]+'</span></td>'+
       '<td><span class="badge '+V_CLASS[vs]+'">'+V_LABEL[vs]+'</span></td>'+
-      '<td><span class="cmt-count'+(cn?' has':'')+'">💬 '+cn+'</span></td>';
+      '<td>'+(un?'<span class="cmt-new">'+un+' 条新消息</span>':'<span class="cmt-count'+(cn?' has':'')+'">💬 '+cn+'</span>')+'</td>';
+    if(un)tr.classList.add('unread');
     tr.onclick=()=>toggleDetail(p.id);
     tb.appendChild(tr);
     if(openDetailId===p.id){
@@ -715,6 +806,7 @@ function render(){
 
 function toggleDetail(id){
   openDetailId=openDetailId===id?null:id;
+  if(openDetailId)seenMark(openDetailId);
   render();
 }
 
@@ -777,7 +869,7 @@ function buildDetail(p){
     box.innerHTML='<div style="font-weight:600;font-size:13px;margin-bottom:8px">发票单号核对</div>';
     const nameIn=document.createElement('input');
     nameIn.placeholder='请输入您的真实姓名（用于负责人署名）';
-    nameIn.value=(p.owner&&!isAcctName(p.owner))?p.owner:myNameGet();
+    nameIn.value=(p.owner&&!isAcctName(p.owner))?p.owner:(myNameGet()||(session.role==='business'?session.name:''));
     nameIn.dataset.init=nameIn.value;
     nameIn.style.cssText='width:100%;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:#fff';
     nameIn.onclick=e=>e.stopPropagation();
@@ -987,6 +1079,10 @@ function openPayModal(p){
   $('pDate').focus();
 }
 $('addBtn').onclick=()=>openPayModal(null);
+/* 弹窗内回车快速保存 */
+for(const id of ['pCustomer','pAmount','pRef']){
+  $(id).addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('paySave').click();}});
+}
 $('payCancel').onclick=()=>$('payOverlay').classList.remove('open');
 
 $('paySave').onclick=async()=>{
@@ -1003,6 +1099,7 @@ $('paySave').onclick=async()=>{
     ref:$('pRef').value.trim(),status:$('pStatus').value,
     note:$('pNote').value.trim()
   };
+  if($('paySave').disabled)return;
   $('paySave').disabled=true;$('paySave').textContent='保存中…';
   if(editingId){
     const p=payments.find(x=>x.id===editingId);
@@ -1106,6 +1203,100 @@ async function exportXlsx(){
 $('exportCsvBtn').onclick=exportCsv;
 $('exportXlsxBtn').onclick=exportXlsx;
 
+/* ---------- 备份与恢复（财务） ---------- */
+const SNAP_PATH='img-ar/snapshots';
+function bkStamp(){const d=new Date();const z=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+'-'+z(d.getHours())+z(d.getMinutes());}
+
+$('backupBtn').onclick=()=>{
+  const live=payments.filter(p=>!p.deleted);
+  $('bkInfo').textContent='当前 '+live.length+' 笔有效记录';
+  $('bkOverlay').classList.add('open');
+  loadSnapshots();
+};
+$('bkClose').onclick=()=>$('bkOverlay').classList.remove('open');
+
+$('bkExport').onclick=()=>{
+  const data={_meta:{app:'IMG Europe 应收到账平台',version:APP_VERSION,exportedAt:new Date().toISOString(),exportedBy:session.name,count:payments.length},payments:payments};
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  a.download='IMG-到账台账-备份-'+bkStamp()+'.json';
+  a.click();URL.revokeObjectURL(a.href);
+  toast('备份文件已下载');
+};
+
+$('bkFile').onchange=function(){
+  const f=this.files&&this.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=async()=>{
+    let data;
+    try{data=JSON.parse(rd.result);}catch(e){toast('文件格式错误，无法解析');this.value='';return;}
+    const arr=Array.isArray(data)?data:data.payments;
+    if(!Array.isArray(arr)){toast('不是有效的备份文件');this.value='';return;}
+    const n=arr.filter(x=>!x.deleted).length;
+    if(!confirm('确认用此备份覆盖当前台账？\n\n备份含 '+n+' 笔有效记录，当前台账 '+payments.filter(p=>!p.deleted).length+' 笔。\n此操作影响所有人，且不可撤销。')){this.value='';return;}
+    await saveSnapshot('恢复前自动快照');
+    payments=arr;
+    if(await savePayments()){toast('已从备份恢复 '+n+' 笔记录');$('bkOverlay').classList.remove('open');render();}
+    this.value='';
+  };
+  rd.readAsText(f);
+};
+
+/* 云端快照：保存 / 列出 / 回滚 */
+async function saveSnapshot(label){
+  if(!USE_CLOUD||!rtdb)return false;
+  try{
+    await rtdb.ref(SNAP_PATH+'/'+bkStamp().replace(/-/g,'_')).set({
+      json:JSON.stringify(payments),at:Date.now(),by:(session&&session.name)||'',label:label||'每日快照'
+    });
+    return true;
+  }catch(e){return false;}
+}
+async function loadSnapshots(){
+  const box=$('bkSnapList');
+  if(!USE_CLOUD||!rtdb){box.textContent='当前未连接云端，无自动快照。';return;}
+  box.textContent='读取中…';
+  try{
+    const snap=await rtdb.ref(SNAP_PATH).once('value');
+    const all=snap.val()||{};
+    const keys=Object.keys(all).sort().reverse().slice(0,7);
+    if(!keys.length){box.textContent='暂无快照（首次使用会在今日自动生成）。';return;}
+    box.innerHTML='';
+    for(const k of keys){
+      const s=all[k];let cnt=0;
+      try{cnt=JSON.parse(s.json||'[]').filter(x=>!x.deleted).length;}catch(e){}
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid #EEF2F1';
+      row.innerHTML='<span style="font-family:var(--font-num)">'+new Date(s.at).toLocaleString('zh-CN')+'</span><span>'+cnt+' 笔</span><span style="color:var(--ink-soft)">'+esc(s.label||'')+'</span>';
+      const b=document.createElement('button');
+      b.className='btn-sm';b.style.marginLeft='auto';b.textContent='回滚到此版本';
+      b.onclick=async()=>{
+        if(!confirm('确认回滚到 '+new Date(s.at).toLocaleString('zh-CN')+' 的快照（'+cnt+' 笔）？\n此操作影响所有人。'))return;
+        await saveSnapshot('回滚前自动快照');
+        try{payments=JSON.parse(s.json);}catch(e){toast('快照数据损坏');return;}
+        if(await savePayments()){toast('已回滚到该快照');$('bkOverlay').classList.remove('open');render();}
+      };
+      row.appendChild(b);
+      box.appendChild(row);
+    }
+  }catch(e){box.textContent='读取快照失败：'+(e.message||'');}
+}
+/* 财务登录后，当日无快照则自动生成一份 */
+async function autoDailySnapshot(){
+  if(!USE_CLOUD||!rtdb||!session||session.role!=='finance'||!payments.length)return;
+  try{
+    const today=bkStamp().slice(0,8);
+    const snap=await rtdb.ref(SNAP_PATH).once('value');
+    const all=snap.val()||{};
+    if(Object.keys(all).some(k=>k.startsWith(today)))return;
+    await saveSnapshot('每日自动快照');
+    /* 只保留最近 14 份 */
+    const keys=Object.keys(all).sort();
+    if(keys.length>14){for(const k of keys.slice(0,keys.length-14)){try{await rtdb.ref(SNAP_PATH+'/'+k).remove();}catch(e){}}}
+  }catch(e){}
+}
+
 /* ---------- 筛选 ---------- */
 $('fMonth').onchange=render;
 $('fStatus').onchange=render;
@@ -1114,6 +1305,7 @@ $('fSearch').oninput=render;
 
 /* 弹窗点击遮罩关闭 */
 $('payOverlay').addEventListener('click',e=>{if(e.target===$('payOverlay'))$('payOverlay').classList.remove('open');});
+$('bkOverlay').addEventListener('click',e=>{if(e.target===$('bkOverlay'))$('bkOverlay').classList.remove('open');});
 })();
 </script>
 </body>
