@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IMG Europe · 应收到账平台</title>
+<title>IMG Europe · 应收应付管理平台</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 
 <!-- ═══ Firebase 云端实时同步（架构与鲁商平台一致，数据存独立路径 img-ar/，互不干扰）═══ -->
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/firebase-app-compat.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/firebase-database-compat.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/firebase-storage-compat.js" crossorigin="anonymous"></script>
 <script>
 /* 云端配置：IMG 公司 img-ledger 项目，独立路径 img-ar/，与原有平台数据完全隔离 */
 var FIREBASE_CONFIG={
@@ -118,6 +119,8 @@ header.topbar{background:var(--pine);color:#fff;padding:0 22px;display:flex;alig
 .badge.paid{background:var(--pine);color:#fff}
 .badge.overdue{background:var(--bad);color:#fff}
 .badge.soon{background:var(--warn-bg);color:var(--warn)}
+@keyframes rowFlash{0%{background:#DFF3E9}100%{background:transparent}}
+tbody tr.row.flash{animation:rowFlash 2.2s ease-out}
 tbody tr.row.od td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
 tbody tr.row.od{background:#FFF6F5}
 tbody tr.row.od:hover{background:#FFEDEA}
@@ -242,8 +245,8 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
 <div class="login-wrap" id="loginView">
   <div class="login-card">
     <div class="l-eyebrow">IMG&nbsp;EUROPE&nbsp;GMBH</div>
-    <div class="l-title">应收到账平台</div>
-    <div class="l-sub">Receivables Ledger · 每日进款登记与核对</div>
+    <div class="l-title">应收应付管理平台</div>
+    <div class="l-sub">Receivables &amp; Payables · 到账核对 · 发票付款</div>
     <div class="l-divider"></div>
     <div class="acct-grid">
       <button class="acct-btn active" data-acct="财务" type="button"><div class="r-title">财务</div><div class="r-desc">登记维护台账</div></button>
@@ -366,8 +369,9 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
         <option value="overdue">已逾期</option>
         <option value="soon">7天内到期</option>
       </select>
-      <input type="search" id="apFSearch" placeholder="搜索供应商 / 发票号 / 上传人…">
+      <input type="search" id="apFSearch" placeholder="搜索供应商 / 发票号 / 成单号 / 上传人…">
       <span class="spacer"></span>
+      <button class="btn-ghost" id="apStmtBtn" type="button">📑 供应商对账单</button>
       <button class="btn-ghost" id="apExportBtn" type="button">导出 Excel</button>
       <button class="btn-add" id="apUploadBtn" type="button">⬆ 上传发票</button>
       <input type="file" id="apFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;z-index:-1">
@@ -377,7 +381,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <table id="apTable" style="display:none">
         <thead>
           <tr>
-            <th>发票日期</th><th>供应商</th><th>发票号</th><th class="amount">金额</th>
+            <th>发票日期</th><th>供应商</th><th>发票号</th><th>IMG 成单号</th><th class="amount">金额</th>
             <th>到期日</th><th class="amount">已付</th><th>状态</th><th>附件</th><th>备注</th>
           </tr>
         </thead>
@@ -388,7 +392,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v5.2</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v6.4</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -450,12 +454,47 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
   </div>
 </div>
 
+<!-- 应付：供应商对账单 -->
+<div class="overlay" id="apStmtOverlay">
+  <div class="modal" style="max-width:780px">
+    <h2>供应商对账单</h2>
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <select id="stmtSupplier" style="flex:1;min-width:200px;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;background:#FCFDFD"></select>
+      <select id="stmtYear" style="border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;background:#FCFDFD"></select>
+      <button class="btn-ghost" id="stmtExport" type="button">导出 Excel</button>
+    </div>
+    <div id="stmtBody" style="max-height:56vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:14px;background:#FCFDFD"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="stmtClose" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 应付：业务上传发票（含成单号） -->
+<div class="overlay" id="apUpOverlay">
+  <div class="modal" style="max-width:460px">
+    <h2>上传供应商发票</h2>
+    <div class="field"><label for="apUpOrder">IMG 成单号 *</label><input id="apUpOrder" placeholder="例如：IMG-2026-0158"></div>
+    <div class="field"><label>发票文件 *</label>
+      <button class="btn-ghost" id="apUpPick" type="button" style="width:100%">📄 选择文件（PDF / 图片）</button>
+      <div id="apUpFileName" style="font-size:12.5px;color:var(--ink-soft);margin-top:6px">未选择文件</div>
+      <div id="apUpStatus" style="display:none;margin-top:10px;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:600"></div>
+    </div>
+    <div class="field"><label for="apUpRemark">备注（可选）</label><input id="apUpRemark" placeholder="例如：8 月海运费"></div>
+    <div class="login-err" id="apUpErr"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="apUpCancel" type="button">取消</button>
+      <button class="btn btn-primary" style="width:auto" id="apUpSave" type="button">上传</button>
+    </div>
+  </div>
+</div>
+
 <!-- 应付：财务录入发票信息 -->
 <div class="overlay" id="apEntryOverlay">
   <div class="modal">
     <h2 id="apEntryTitle">录入发票信息</h2>
     <div class="form-grid">
-      <div class="field"><label for="apSupplier">供应商名称 *</label><input id="apSupplier" placeholder="例如：Hamburg Logistics GmbH"></div>
+      <div class="field"><label for="apSupplier">供应商名称 *</label><input id="apSupplier" list="supplierList" placeholder="输入或从历史供应商中选择"><datalist id="supplierList"></datalist></div>
       <div class="field"><label for="apInvNo">发票号 *</label><input id="apInvNo" placeholder="供应商发票号"></div>
       <div class="field"><label for="apAmount">付款金额 *</label><input type="number" id="apAmount" min="0" step="0.01" placeholder="0.00"></div>
       <div class="field"><label for="apCurrency">币种</label>
@@ -544,7 +583,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=5.2; /* 与页脚版本号保持一致 */
+const APP_VERSION=6.4; /* 与页脚版本号保持一致 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -652,6 +691,13 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmt=n=>Number(n).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
 const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 const STATUS={received:'已到账',pending:'待确认',issue:'有问题'};
+
+/* 二次删除确认：所有删除操作统一走此入口 */
+function confirmDelete(what){
+  if(!confirm('确认删除'+what+'？'))return false;
+  if(!confirm('⚠ 再次确认\n\n删除后不可恢复，确定要删除'+what+'吗？'))return false;
+  return true;
+}
 
 /* 核对状态：none 待核对 / ok 已确认 / wrong 单号有误 / fixed 已更正 */
 function vState(p){
@@ -770,6 +816,7 @@ function enterApp(){
   if(!USE_CLOUD&&!hasStore()&&!hasLS)toast('注意：当前环境无任何存储可用，退出后数据会丢失。');
   seenLoad();
   apLoad().then(()=>{apCloudStart();apAlertUpdate();});
+  if(USE_CLOUD)setTimeout(function(){gsProbeOnce();},800); /* 后台预热 Storage 探针 */
   setTimeout(autoDailySnapshot,3000);
   startSync();
   cloudStart();
@@ -1107,7 +1154,7 @@ function buildDetail(p){
       if(await savePayments()){toast('状态已更新');render();}};
     const bD=document.createElement('button');bD.className='btn-sm danger';bD.textContent='删除';
     bD.onclick=async e=>{e.stopPropagation();
-      if(!confirm('确认删除这条进款记录？该操作不可恢复。'))return;
+      if(!confirmDelete('这条进款记录（'+esc(p.customer)+'）'))return;
       p.deleted=true;
       openDetailId=null;
       if(await savePayments()){toast('记录已删除');render();}};
@@ -1338,7 +1385,7 @@ $('backupBtn').onclick=()=>{
 $('bkClose').onclick=()=>$('bkOverlay').classList.remove('open');
 
 $('bkExport').onclick=()=>{
-  const data={_meta:{app:'IMG Europe 应收到账平台',version:APP_VERSION,exportedAt:new Date().toISOString(),exportedBy:session.name,count:payments.length,apCount:(typeof apItems!=='undefined'?apItems.length:0)},payments:payments,apItems:(typeof apItems!=='undefined'?apItems:[])};
+  const data={_meta:{app:'IMG Europe 应收应付管理平台',version:APP_VERSION,exportedAt:new Date().toISOString(),exportedBy:session.name,count:payments.length,apCount:(typeof apItems!=='undefined'?apItems.length:0)},payments:payments,apItems:(typeof apItems!=='undefined'?apItems:[])};
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   a.download='IMG-到账台账-备份-'+bkStamp()+'.json';
@@ -1440,7 +1487,62 @@ $('bkOverlay').addEventListener('click',e=>{if(e.target===$('bkOverlay'))$('bkOv
 const AP_KEY='img-ap-items';
 const AP_PATH='img-ap/state';
 const AP_FILES='img-ap/files';
-const AP_MAX_MB=3;
+const AP_MAX_MB=3;          /* 数据库直存上限（Storage不可用时） */
+const AP_MAX_MB_GS=15;      /* Firebase Storage 上限 */
+const STG_BUCKETS=['img-ledger.firebasestorage.app','img-ledger.appspot.com'];
+let _gsBucket=null,_gsProbe=null,_gsLastPct=-1;
+
+/* 快速探针：8秒内确定 Storage 是否可用（只探一次，结果缓存本会话） */
+async function gsProbeOnce(){
+  if(_gsProbe!==null)return _gsProbe;
+  if(typeof firebase==='undefined'||!firebase.storage){_gsProbe=false;return false;}
+  for(const b of STG_BUCKETS){
+    try{
+      const s=firebase.app().storage('gs://'+b);
+      const pref=s.ref('img-ap/_probe_'+CLOUD_CLIENT_ID);
+      const t=pref.put(new Blob(['1']));
+      await Promise.race([
+        t,
+        new Promise(function(_,rej){setTimeout(function(){try{t.cancel&&t.cancel();}catch(e){}rej(new Error('probe timeout'));},5000);})
+      ]);
+      _gsBucket=b;_gsProbe=true;
+      try{pref.delete&&pref.delete().catch(function(){});}catch(e){}
+      return true;
+    }catch(e){}
+  }
+  _gsProbe=false;
+  return false;
+}
+
+/* 经 Firebase Storage 上传：探针确认可用后才传，带进度与超时取消 */
+async function apPutFileGS(fid,file){
+  if(!(await gsProbeOnce()))throw new Error('storage unavailable');
+  const safe=String(file.name||'file').replace(/[^\w.\-]+/g,'_').slice(0,80);
+  const path='img-ap/'+fid+'_'+safe;
+  const s=firebase.app().storage('gs://'+_gsBucket);
+  const task=s.ref(path).put(file);
+  _gsLastPct=-1;
+  try{
+    if(task.on)task.on('state_changed',function(snap){
+      try{
+        const pct=Math.round(snap.bytesTransferred/snap.totalBytes*100);
+        if(pct-_gsLastPct>=20||pct===100){_gsLastPct=pct;toast('上传中 '+pct+'%…');}
+      }catch(e){}
+    });
+  }catch(e){}
+  await Promise.race([
+    task,
+    new Promise(function(_,rej){setTimeout(function(){try{task.cancel&&task.cancel();}catch(e){}rej(new Error('上传超时，请检查网络后重试'));},90000);})
+  ]);
+  return {bucket:_gsBucket,path:path};
+}
+async function apGetFileGS(meta){
+  const s=firebase.app().storage('gs://'+meta.bucket);
+  const url=await s.ref(meta.path).getDownloadURL();
+  const resp=await fetch(url);
+  if(!resp.ok)throw new Error('下载失败 HTTP '+resp.status);
+  return await resp.blob();
+}
 let apItems=[];
 let apOpenId=null;
 let apEditingId=null;
@@ -1485,12 +1587,19 @@ function apMergeRemote(remote){
       if(!seen.has(k)){(l.comments=l.comments||[]).push(c);seen.add(k);}
     }
     if(l.comments)l.comments.sort((a,b)=>(a.time||0)-(b.time||0));
+    /* 付款删除墓碑取并集，防止已删付款被远端合并复活 */
+    const delSet=new Set([].concat(l.payDeleted||[],r.payDeleted||[]));
+    if(delSet.size)l.payDeleted=[...delSet];
     const pd=new Set((l.payments||[]).map(x=>x.time+'|'+x.amount));
     for(const x of (r.payments||[])){
       const k=x.time+'|'+x.amount;
+      if(delSet.has(k))continue;
       if(!pd.has(k)){(l.payments=l.payments||[]).push(x);pd.add(k);}
     }
-    if(l.payments)l.payments.sort((a,b)=>(a.time||0)-(b.time||0));
+    if(l.payments){
+      l.payments=l.payments.filter(x=>!delSet.has(x.time+'|'+x.amount));
+      l.payments.sort((a,b)=>(a.time||0)-(b.time||0));
+    }
     if(r.files&&(!l.files||!l.files.length))l.files=r.files;
   }
 }
@@ -1572,18 +1681,23 @@ async function apFetchFile(fid){
   }
   return null;
 }
-async function apDownload(fid,name){
+async function apDownload(f){
   toast('正在读取附件…');
   try{
-    const f=await apFetchFile(fid);
-    if(!f||!f.data){toast('附件不存在或已被清理');return;}
-    const bin=atob(f.data);
-    const arr=new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
-    const blob=new Blob([arr],{type:f.type||'application/octet-stream'});
+    let blob;
+    if(f&&f.store==='gs'){
+      blob=await apGetFileGS(f);
+    }else{
+      const rec=await apFetchFile(f.fid);
+      if(!rec||!rec.data){toast('附件不存在或已被清理');return;}
+      const bin=atob(rec.data);
+      const arr=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+      blob=new Blob([arr],{type:rec.type||'application/octet-stream'});
+    }
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
-    a.download=name||f.name||'invoice';
+    a.download=f.name||'invoice';
     a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),1500);
     toast('附件已下载');
@@ -1602,52 +1716,92 @@ function apUploadFail(e){
     alert('上传失败：'+msg+'\n\n如反复出现，请把此提示截图发给管理员。');
   }
 }
-function apHandleUpload(file,attachTo){
-  if(!file){toast('未选择文件');return;}
-  if(!session){toast('请先登录');return;}
-  if(file.size>AP_MAX_MB*1024*1024){
-    alert('文件 '+(file.size/1048576).toFixed(1)+'MB，超过 '+AP_MAX_MB+'MB 上限。\n\n请压缩后再上传（PDF 可用在线压缩工具，照片可降低分辨率）。');
-    return;
+async function apHandleUpload(file,attachTo,extra){
+  if(!file){toast('未选择文件');return false;}
+  if(!session){toast('请先登录');return false;}
+  if(file.size===0){toast('文件为空，请重新选择');return false;}
+  if(file.size>AP_MAX_MB_GS*1024*1024){
+    alert('文件 '+(file.size/1048576).toFixed(1)+'MB，超过 '+AP_MAX_MB_GS+'MB 上限。\n\n请压缩后再上传。');
+    return false;
   }
-  if(file.size===0){toast('文件为空，请重新选择');return;}
-  toast('正在读取文件…');
-  let rd;
-  try{rd=new FileReader();}catch(e){apUploadFail(e);return;}
-  rd.onerror=()=>apUploadFail(new Error('文件读取失败，请重试或换一个文件'));
-  rd.onload=async()=>{
+  const fid='f'+Date.now()+Math.random().toString(36).slice(2,7);
+  let meta={fid:fid,name:file.name,type:file.type||'application/octet-stream',size:file.size};
+  toast('正在上传附件…');
+  /* 优先走 Firebase Storage（支持大文件）；不可用时降级为数据库直存（≤3MB） */
+  let stored=false;
+  if(USE_CLOUD){
+    /* 决定是否走 Storage：探针已有结果直接用；未出结果时，
+       小文件最多等 1.5 秒即走数据库快速通道，大文件必须等探针 */
+    let useGS=false;
+    if(_gsProbe===true)useGS=true;
+    else if(_gsProbe===null){
+      if(file.size>AP_MAX_MB*1024*1024){
+        useGS=await gsProbeOnce();
+      }else{
+        useGS=await Promise.race([
+          gsProbeOnce(),
+          new Promise(function(r){setTimeout(function(){r(false);},1500);})
+        ]);
+      }
+    }
+    if(useGS){
+      try{
+        const gs=await apPutFileGS(fid,file);
+        meta.store='gs';meta.bucket=gs.bucket;meta.path=gs.path;
+        stored=true;
+      }catch(e){/* 降级 */}
+    }
+  }
+  if(!stored){
+    if(file.size>AP_MAX_MB*1024*1024){
+      alert('文件 '+(file.size/1048576).toFixed(1)+'MB。\n\nFirebase Storage 尚未启用，当前仅支持 '+AP_MAX_MB+'MB 以内的文件。\n\n请在 Firebase 控制台启用 Storage（构建 → Storage → 开始使用）并配置规则后，即可上传至 '+AP_MAX_MB_GS+'MB。');
+      return false;
+    }
+    let data;
     try{
-      const raw=String(rd.result||'');
-      const data=raw.includes(',')?raw.split(',')[1]:'';
-      if(!data){throw new Error('文件内容为空或格式不支持');}
-      const fid='f'+Date.now()+Math.random().toString(36).slice(2,7);
-      const meta={fid:fid,name:file.name,type:file.type||'application/octet-stream',size:file.size};
-      toast('正在上传附件…');
-      /* 云端写入带 25 秒超时，避免无限等待 */
+      data=await new Promise(function(res,rej){
+        const rd=new FileReader();
+        rd.onerror=function(){rej(new Error('文件读取失败，请重试或换一个文件'));};
+        rd.onload=function(){
+          const raw=String(rd.result||'');
+          const d=raw.includes(',')?raw.split(',')[1]:'';
+          d?res(d):rej(new Error('文件内容为空或格式不支持'));
+        };
+        rd.readAsDataURL(file);
+      });
+    }catch(e){apUploadFail(e);return false;}
+    try{
       await Promise.race([
         apStoreFile(fid,{name:file.name,type:meta.type,data:data,size:file.size,at:Date.now(),by:session.name}),
-        new Promise((_,rej)=>setTimeout(()=>rej(new Error('上传超时（network timeout），请检查网络后重试')),25000))
+        new Promise(function(_,rej){setTimeout(function(){rej(new Error('上传超时（network timeout），请检查网络后重试'));},25000);})
       ]);
-      if(attachTo){
-        const it=apItems.find(x=>x.id===attachTo);
-        if(!it)throw new Error('目标记录不存在，请刷新后重试');
-        it.files=it.files||[];it.files.push(meta);
-        it.comments=it.comments||[];
-        it.comments.push({author:session.name,role:session.role,text:'追加附件：'+file.name,time:Date.now()});
-      }else{
-        apItems.push({
-          id:'ap'+Date.now()+Math.random().toString(36).slice(2,7),
-          files:[meta],uploadedBy:session.name,uploadedAt:Date.now(),
-          supplier:'',invNo:'',amount:null,currency:'EUR',invDate:'',term:null,due:'',note:'',
-          payments:[],comments:[{author:session.name,role:session.role,text:'上传供应商发票：'+file.name,time:Date.now()}]
-        });
-      }
-      const ok=await apSave();
-      if(!ok)throw new Error('记录保存失败');
-      toast(attachTo?'✓ 附件已追加':'✓ 发票已上传，等待财务录入');
-      renderAP();apAlertUpdate();
-    }catch(e){apUploadFail(e);}
-  };
-  try{rd.readAsDataURL(file);}catch(e){apUploadFail(e);}
+    }catch(e){apUploadFail(e);return false;}
+  }
+  try{
+    if(attachTo){
+      const it=apItems.find(x=>x.id===attachTo);
+      if(!it)throw new Error('目标记录不存在，请刷新后重试');
+      it.files=it.files||[];it.files.push(meta);
+      it.comments=it.comments||[];
+      it.comments.push({author:session.name,role:session.role,text:'追加附件：'+file.name,time:Date.now()});
+    }else{
+      const ordNo=(extra&&extra.orderNo)||'';
+      const remark=(extra&&extra.remark)||'';
+      apItems.push({
+        id:'ap'+Date.now()+Math.random().toString(36).slice(2,7),
+        files:[meta],uploadedBy:session.name,uploadedAt:Date.now(),
+        orderNo:ordNo,
+        supplier:'',invNo:'',amount:null,currency:'EUR',invDate:'',term:null,due:'',note:'',
+        payments:[],
+        comments:[{author:session.name,role:session.role,
+          text:'上传供应商发票：'+file.name+(ordNo?'（成单号 '+ordNo+'）':'')+(remark?'。'+remark:''),time:Date.now()}]
+      });
+    }
+    await apSave();
+    toast(attachTo?'✓ 附件已追加':'✓ 发票已上传，等待财务录入');
+    renderAP();apAlertUpdate();
+    return true;
+  }catch(e){apUploadFail(e);return false;}
 }
 
 /* ---- 渲染 ---- */
@@ -1664,7 +1818,7 @@ function apFiltered(){
     })
     .filter(x=>{
       if(!q)return true;
-      return [x.supplier,x.invNo,x.uploadedBy,x.note].some(v=>(v||'').toLowerCase().includes(q));
+      return [x.supplier,x.invNo,x.orderNo,x.uploadedBy,x.note].some(v=>(v||'').toLowerCase().includes(q));
     })
     .sort((a,b)=>{
       const sa=apState(a),sb=apState(b);
@@ -1710,6 +1864,7 @@ function renderAP(){
     tr.className='row';
     if(s==='overdue')tr.classList.add('od');
     if(un)tr.classList.add('unread');
+    if(_apFlashId===it.id){tr.classList.add('flash');setTimeout(function(){_apFlashId=null;},2500);}
     let dueTxt='—';
     if(it.due){
       dueTxt=it.due;
@@ -1720,6 +1875,7 @@ function renderAP(){
       '<td style="font-family:var(--font-num);white-space:nowrap">'+esc(it.invDate||'—')+'</td>'+
       '<td><b>'+esc(it.supplier||'（待录入）')+'</b></td>'+
       '<td style="font-family:var(--font-num)">'+esc(it.invNo||'—')+'</td>'+
+      '<td style="font-family:var(--font-num)">'+esc(it.orderNo||'—')+'</td>'+
       '<td class="amount">'+(amt?fmt(amt)+'<span class="cur">'+esc(it.currency)+'</span>':'—')+'</td>'+
       '<td style="white-space:nowrap">'+dueTxt+'</td>'+
       '<td class="amount">'+(paid?fmt(paid):'—')+'</td>'+
@@ -1730,7 +1886,7 @@ function renderAP(){
     tb.appendChild(tr);
     if(apOpenId===it.id){
       const dtr=document.createElement('tr');dtr.className='detail';
-      const td=document.createElement('td');td.colSpan=9;
+      const td=document.createElement('td');td.colSpan=10;
       td.appendChild(apDetail(it));
       dtr.appendChild(td);tb.appendChild(dtr);
     }
@@ -1747,16 +1903,70 @@ function apDetail(it){
   if((it.payments||[]).length){
     payHtml='<dt>付款记录</dt><dd>'+it.payments.map(x=>
       '<div style="font-family:var(--font-num)">'+esc(x.date)+' · '+fmt(x.amount)+' '+esc(it.currency||'')+
-      '<span style="font-family:var(--font-body);color:var(--ink-soft)"> · '+esc(x.by||'')+(x.note?' · '+esc(x.note):'')+'</span></div>').join('')+
+      '<span style="font-family:var(--font-body);color:var(--ink-soft)"> · '+esc(x.by||'')+(x.note?' · '+esc(x.note):'')+'</span>'+
+      (session.role==='finance'?'<button class="btn-sm danger pay-del" data-t="'+x.time+'" style="padding:0 8px;font-size:11px;margin-left:8px" title="删除此条付款记录">✕</button>':'')+
+      '</div>').join('')+
       '<div style="margin-top:4px;font-weight:600">已付 '+fmt(paid)+' / '+fmt(amt)+(paid<amt?'　<span style="color:var(--warn)">尚欠 '+fmt(amt-paid)+'</span>':'　<span style="color:var(--ok)">已付清</span>')+'</div></dd>';
   }
   left.innerHTML='<dl>'+
     '<dt>上传人</dt><dd>'+esc(it.uploadedBy||'—')+' · '+(it.uploadedAt?new Date(it.uploadedAt).toLocaleString('zh-CN'):'—')+'</dd>'+
+    '<dt>IMG 成单号</dt><dd style="font-family:var(--font-num)">'+esc(it.orderNo||'—')+'</dd>'+
     (it.invDate?'<dt>发票日期 / 账期</dt><dd>'+esc(it.invDate)+(it.term!==null&&it.term!==undefined?' · '+it.term+' 天':'')+'</dd>':'')+
     (it.due?'<dt>到期日</dt><dd style="font-family:var(--font-num)">'+esc(it.due)+'</dd>':'')+
     (it.note?'<dt>备注</dt><dd>'+esc(it.note)+'</dd>':'')+
     payHtml+
     '</dl>';
+
+  /* 付款记录删除（财务，双确认，墓碑防复活） */
+  if(session.role==='finance'){
+    left.querySelectorAll('.pay-del').forEach(function(b){
+      b.onclick=async function(e){
+        e.stopPropagation();
+        const t=Number(b.dataset.t);
+        const pr=(it.payments||[]).find(x=>x.time===t);
+        if(!pr)return;
+        if(!confirmDelete('这条付款记录（'+pr.date+' · '+fmt(pr.amount)+' '+(it.currency||'')+'）'))return;
+        const key=pr.time+'|'+pr.amount;
+        (it.payDeleted=it.payDeleted||[]).push(key);
+        it.payments=it.payments.filter(x=>(x.time+'|'+x.amount)!==key);
+        it.comments=it.comments||[];
+        it.comments.push({author:session.name,role:'finance',text:'删除付款记录：'+pr.date+' '+fmt(pr.amount)+' '+(it.currency||'')+'。',time:Date.now()});
+        try{await apSave();toast('付款记录已删除');renderAP();}catch(e2){toast('保存失败：'+(e2.message||''));}
+      };
+    });
+  }
+
+  /* 修改成单号（业务与财务均可，留痕） */
+  {
+    const obtn=document.createElement('button');
+    obtn.className='btn-sm';obtn.style.marginTop='10px';obtn.style.marginRight='8px';
+    obtn.textContent='✎ 修改成单号';
+    obtn.onclick=async function(e){
+      e.stopPropagation();
+      const nv=(window.prompt('请输入 IMG 成单号：',it.orderNo||'')||'').trim();
+      if(!nv||nv===it.orderNo)return;
+      const old=it.orderNo||'—';
+      it.orderNo=nv;
+      it.comments=it.comments||[];
+      it.comments.push({author:session.name,role:session.role,text:'成单号由「'+old+'」更新为「'+nv+'」。',time:Date.now()});
+      try{await apSave();toast('成单号已更新');renderAP();}catch(e2){toast('保存失败：'+(e2.message||''));}
+    };
+    left.appendChild(obtn);
+  }
+
+  /* 业务删除自己上传的待录入发票（双确认） */
+  if(session.role==='business'&&s==='new'&&it.uploadedBy===session.name){
+    const dbtn=document.createElement('button');
+    dbtn.className='btn-sm danger';dbtn.style.marginTop='10px';
+    dbtn.textContent='删除此上传';
+    dbtn.onclick=async function(e){
+      e.stopPropagation();
+      if(!confirmDelete('自己上传的这张发票（'+((it.files&&it.files[0]&&it.files[0].name)||it.orderNo||'')+'）'))return;
+      it.deleted=true;apOpenId=null;
+      try{await apSave();toast('已删除');renderAP();}catch(e2){toast('保存失败：'+(e2.message||''));}
+    };
+    left.appendChild(dbtn);
+  }
 
   /* 附件区 */
   const fbox=document.createElement('div');
@@ -1770,7 +1980,7 @@ function apDetail(it){
       row.style.cssText='display:flex;align-items:center;gap:8px;padding:3px 0';
       const b=document.createElement('button');b.className='ap-file';
       b.textContent='⬇ '+f.name;
-      b.onclick=e=>{e.stopPropagation();apDownload(f.fid,f.name);};
+      b.onclick=e=>{e.stopPropagation();apDownload(f);};
       const sz=document.createElement('span');sz.style.cssText='font-size:11.5px;color:var(--ink-soft)';
       sz.textContent=(f.size/1024).toFixed(0)+' KB';
       row.append(b,sz);fbox.appendChild(row);
@@ -1800,7 +2010,7 @@ function apDetail(it){
     }
     const bD=document.createElement('button');bD.className='btn-sm danger';bD.textContent='删除';
     bD.onclick=async e=>{e.stopPropagation();
-      if(!confirm('确认删除这张应付发票记录？该操作不可恢复。'))return;
+      if(!confirmDelete('这张应付发票记录（'+(it.supplier||it.orderNo||'待录入')+'）'))return;
       it.deleted=true;apOpenId=null;
       try{await apSave();toast('记录已删除');renderAP();}catch(e){toast('保存失败：'+(e.message||''));}};
     act.appendChild(bD);
@@ -1861,6 +2071,10 @@ function apCalcDue(){
 }
 function apOpenEntry(it){
   apEditingId=it.id;
+  /* 供应商记忆：历史录入过的供应商生成下拉建议 */
+  const dlEl=$('supplierList');dlEl.innerHTML='';
+  [...new Set(apItems.filter(x=>!x.deleted&&x.supplier).map(x=>x.supplier))].sort()
+    .forEach(function(s){const o=document.createElement('option');o.value=s;dlEl.appendChild(o);});
   $('apEntryTitle').textContent=apState(it)==='new'?'录入发票信息':'编辑发票信息';
   $('apSupplier').value=it.supplier||'';
   $('apInvNo').value=it.invNo||'';
@@ -1944,10 +2158,10 @@ async function apSavePay(){
 function apExportRows(){
   const list=apFiltered();
   if(!list.length){toast('当前筛选下没有可导出的数据');return null;}
-  const head=['发票日期','供应商','发票号','金额','币种','账期(天)','到期日','已付金额','尚欠','状态','上传人','录入人','付款记录','备注'];
+  const head=['发票日期','供应商','发票号','IMG成单号','金额','币种','账期(天)','到期日','已付金额','尚欠','状态','上传人','录入人','付款记录','备注'];
   const rows=list.map(it=>{
     const paid=apPaid(it), amt=Number(it.amount)||0;
-    return [it.invDate||'',it.supplier||'',it.invNo||'',amt||'',it.currency||'',
+    return [it.invDate||'',it.supplier||'',it.invNo||'',it.orderNo||'',amt||'',it.currency||'',
       (it.term===null||it.term===undefined)?'':it.term,it.due||'',paid||'',amt?Math.max(0,amt-paid):'',
       AP_LABEL[apState(it)],it.uploadedBy||'',it.enteredBy||'',
       (it.payments||[]).map(x=>x.date+' '+fmt(x.amount)).join(' / '),it.note||''];
@@ -1960,7 +2174,7 @@ async function apExport(){
   try{
     await ensureXLSX();
     const ws=XLSX.utils.aoa_to_sheet([d.head,...d.rows]);
-    ws['!cols']=[{wch:12},{wch:32},{wch:18},{wch:12},{wch:6},{wch:9},{wch:12},{wch:12},{wch:12},{wch:10},{wch:10},{wch:10},{wch:26},{wch:30}];
+    ws['!cols']=[{wch:12},{wch:32},{wch:18},{wch:16},{wch:12},{wch:6},{wch:9},{wch:12},{wch:12},{wch:12},{wch:10},{wch:10},{wch:10},{wch:26},{wch:30}];
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,'应付台账');
     XLSX.writeFile(wb,d.fname+'.xlsx');
@@ -2004,16 +2218,209 @@ async function apRulesCheck(){
     if(v&&!document.getElementById('apRuleWarn')){box.id='apRuleWarn';v.insertBefore(box,v.firstChild);}
   }
 }
+let _apUpFile=null;
 $('apUploadBtn').onclick=()=>{
+  apPendingAttach=null;_apUpFile=null;_apUpToken++;
+  $('apUpOrder').value='';$('apUpRemark').value='';
+  $('apUpFileName').textContent='未选择文件';
+  $('apUpErr').style.display='none';
+  apUpStatus('');
+  const b=$('apUpSave');b.disabled=false;b.textContent='上传';b.style.background='';
+  $('apUpOverlay').classList.add('open');
+  $('apUpOrder').focus();
+};
+$('apUpPick').onclick=()=>{
   apPendingAttach=null;
   try{$('apFileInput').click();}
   catch(e){alert('无法打开文件选择器：'+(e.message||'')+'\n\n请尝试用 Chrome/Edge 浏览器打开本平台。');}
 };
 $('apFileInput').onchange=function(){
   const f=this.files&&this.files[0];
-  if(f)apHandleUpload(f,apPendingAttach);
-  apPendingAttach=null;this.value='';
+  this.value='';
+  if(!f)return;
+  if(apPendingAttach){ /* 追加附件：直接上传，无需成单号 */
+    apHandleUpload(f,apPendingAttach);
+    apPendingAttach=null;
+    return;
+  }
+  /* 新发票：暂存文件，回上传弹窗填成单号 */
+  _apUpFile=f;
+  if(!$('apUpOverlay').classList.contains('open'))$('apUpOverlay').classList.add('open');
+  $('apUpFileName').textContent='📄 '+f.name+'（'+(f.size/1024).toFixed(0)+' KB）';
 };
+$('apUpCancel').onclick=()=>{_apUpToken++;$('apUpOverlay').classList.remove('open');_apUpFile=null;};
+$('apUpOverlay').addEventListener('click',e=>{if(e.target===$('apUpOverlay')){$('apUpOverlay').classList.remove('open');_apUpFile=null;}});
+let _apUpToken=0,_apFlashId=null;
+function apUpStatus(msg,kind){
+  const el=$('apUpStatus');
+  if(!msg){el.style.display='none';return;}
+  el.style.display='';
+  el.textContent=msg;
+  if(kind==='ok'){el.style.background='var(--ok-bg)';el.style.color='var(--ok)';el.style.border='1.5px solid var(--ok)';}
+  else if(kind==='err'){el.style.background='var(--bad-bg)';el.style.color='var(--bad)';el.style.border='1.5px solid var(--bad)';}
+  else{el.style.background='#EFF3F2';el.style.color='var(--ink-soft)';el.style.border='1.5px solid var(--line)';}
+}
+$('apUpSave').onclick=async()=>{
+  const err=$('apUpErr');err.style.display='none';
+  const ordNo=$('apUpOrder').value.trim();
+  if(!ordNo){err.textContent='请填写对应的 IMG 成单号。';err.style.display='block';return;}
+  if(!_apUpFile){err.textContent='请选择发票文件。';err.style.display='block';return;}
+  const btn=$('apUpSave');
+  const token=++_apUpToken;
+  btn.disabled=true;btn.textContent='上传中…';
+  apUpStatus('⏳ 正在上传发票，请稍候…');
+  const before=new Set(apItems.map(x=>x.id));
+  const ok=await apHandleUpload(_apUpFile,null,{orderNo:ordNo,remark:$('apUpRemark').value.trim()});
+  if(token!==_apUpToken)return; /* 弹窗已被重新打开，忽略旧结果 */
+  if(ok){
+    /* 成功：绿色成功态 → 1.2 秒后自动关闭并高亮新行 */
+    btn.textContent='✓ 上传成功';
+    btn.style.background='var(--ok)';
+    apUpStatus('✓ 发票已上传成功，等待财务录入','ok');
+    const newRec=apItems.find(x=>!before.has(x.id));
+    _apFlashId=newRec?newRec.id:null;
+    setTimeout(function(){
+      if(token!==_apUpToken)return;
+      $('apUpOverlay').classList.remove('open');
+      _apUpFile=null;
+      btn.disabled=false;btn.textContent='上传';btn.style.background='';
+      apUpStatus('');
+      renderAP(); /* 触发新行高亮 */
+    },1200);
+  }else{
+    btn.disabled=false;btn.textContent='上传';btn.style.background='';
+    apUpStatus('✗ 上传失败，请查看提示后重试','err');
+  }
+};
+$('apUpOrder').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('apUpSave').click();}});
+
+/* ═══════════ 供应商对账单 ═══════════ */
+function stmtData(sup,year){
+  const inv=apItems.filter(x=>!x.deleted&&x.supplier===sup&&apState(x)!=='new')
+    .filter(x=>year==='all'||(x.invDate||'').slice(0,4)===year)
+    .sort((a,b)=>(a.invDate||'')<(b.invDate||'')?-1:1);
+  const pays=[];
+  for(const it of inv)for(const x of (it.payments||[]))pays.push({date:x.date,amount:x.amount,cur:it.currency,invNo:it.invNo,by:x.by,note:x.note});
+  pays.sort((a,b)=>a.date<b.date?-1:1);
+  /* 按币种小计 */
+  const tot={};
+  for(const it of inv){
+    const c=it.currency||'EUR';
+    tot[c]=tot[c]||{amt:0,paid:0};
+    tot[c].amt+=Number(it.amount)||0;
+    tot[c].paid+=apPaid(it);
+  }
+  return {inv,pays,tot};
+}
+function stmtRender(){
+  const sup=$('stmtSupplier').value, year=$('stmtYear').value;
+  const box=$('stmtBody');
+  if(!sup){box.innerHTML='<div style="color:var(--ink-soft);text-align:center;padding:30px">暂无已录入供应商信息的发票</div>';return;}
+  const d=stmtData(sup,year);
+  if(!d.inv.length){box.innerHTML='<div style="color:var(--ink-soft);text-align:center;padding:30px">该供应商在所选年份没有发票记录</div>';return;}
+  let h='<div style="font-weight:700;font-size:15px;margin-bottom:2px">'+esc(sup)+'</div>'+
+    '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px">对账期间：'+(year==='all'?'全部':year+' 年度')+' · 生成于 '+new Date().toLocaleDateString('zh-CN')+' · IMG Europe GmbH</div>';
+  h+='<table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>';
+  for(const th of ['发票日期','发票号','成单号','金额','已付','尚欠','状态'])
+    h+='<th style="background:var(--pine);color:#E4EEEA;padding:7px 9px;text-align:center;white-space:nowrap">'+th+'</th>';
+  h+='</tr></thead><tbody>';
+  for(const it of d.inv){
+    const paid=apPaid(it),amt=Number(it.amount)||0,rest=Math.max(0,amt-paid);
+    h+='<tr>'+
+      '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num);text-align:center">'+esc(it.invDate||'—')+'</td>'+
+      '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num)">'+esc(it.invNo||'—')+'</td>'+
+      '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num)">'+esc(it.orderNo||'—')+'</td>'+
+      '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num);text-align:right">'+fmt(amt)+' '+esc(it.currency)+'</td>'+
+      '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num);text-align:right">'+(paid?fmt(paid):'—')+'</td>'+
+      '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num);text-align:right;'+(rest>0.005?'color:var(--bad);font-weight:600':'')+'">'+(rest>0.005?fmt(rest):'—')+'</td>'+
+      '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;text-align:center"><span class="badge '+AP_CLASS[apState(it)]+'">'+AP_LABEL[apState(it)]+'</span></td>'+
+      '</tr>';
+  }
+  h+='</tbody></table>';
+  h+='<div style="margin-top:10px;padding:10px 12px;background:#EFF3F2;border-radius:8px;font-size:13px">';
+  for(const c in d.tot){
+    const t=d.tot[c],rest=Math.max(0,t.amt-t.paid);
+    h+='<div style="font-family:var(--font-num)"><b>'+c+'</b>　发票合计 '+fmt(t.amt)+'　已付 '+fmt(t.paid)+'　'+
+       (rest>0.005?'<span style="color:var(--bad);font-weight:700">尚欠 '+fmt(rest)+'</span>':'<span style="color:var(--ok);font-weight:700">已结清</span>')+'</div>';
+  }
+  h+='</div>';
+  if(d.pays.length){
+    h+='<div style="font-weight:600;font-size:13px;margin:14px 0 6px">付款明细（'+d.pays.length+' 笔）</div>';
+    h+='<table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>';
+    for(const th of ['付款日期','金额','对应发票号','经手人','备注'])
+      h+='<th style="background:#DCE4E1;color:var(--ink);padding:6px 9px;text-align:center">'+th+'</th>';
+    h+='</tr></thead><tbody>';
+    for(const x of d.pays){
+      h+='<tr>'+
+        '<td style="padding:5px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num);text-align:center">'+esc(x.date)+'</td>'+
+        '<td style="padding:5px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num);text-align:right">'+fmt(x.amount)+' '+esc(x.cur)+'</td>'+
+        '<td style="padding:5px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num)">'+esc(x.invNo||'—')+'</td>'+
+        '<td style="padding:5px 9px;border-bottom:1px solid #ECF0EF;text-align:center">'+esc(x.by||'—')+'</td>'+
+        '<td style="padding:5px 9px;border-bottom:1px solid #ECF0EF">'+esc(x.note||'')+'</td>'+
+        '</tr>';
+    }
+    h+='</tbody></table>';
+  }
+  box.innerHTML=h;
+}
+function stmtOpen(){
+  const sups=[...new Set(apItems.filter(x=>!x.deleted&&x.supplier).map(x=>x.supplier))].sort();
+  const sSel=$('stmtSupplier');sSel.innerHTML='';
+  for(const s of sups){const o=document.createElement('option');o.value=s;o.textContent=s;sSel.appendChild(o);}
+  const years=[...new Set(apItems.filter(x=>!x.deleted&&x.invDate).map(x=>x.invDate.slice(0,4)))].sort().reverse();
+  const ySel=$('stmtYear');ySel.innerHTML='<option value="all">全部年份</option>';
+  const cy=todayStr().slice(0,4);
+  for(const y of years){const o=document.createElement('option');o.value=y;o.textContent=y+' 年';ySel.appendChild(o);}
+  if(years.includes(cy))ySel.value=cy;
+  $('apStmtOverlay').classList.add('open');
+  stmtRender();
+}
+async function stmtExport(){
+  const sup=$('stmtSupplier').value, year=$('stmtYear').value;
+  if(!sup){toast('暂无可导出的供应商');return;}
+  const d=stmtData(sup,year);
+  if(!d.inv.length){toast('所选年份没有发票记录');return;}
+  const btn=$('stmtExport');btn.disabled=true;btn.textContent='生成中…';
+  const aoa=[
+    ['供应商对账单 · '+sup],
+    ['对账期间：'+(year==='all'?'全部':year+' 年度')+'　生成日期：'+todayStr()+'　IMG Europe GmbH'],
+    [],
+    ['发票日期','发票号','IMG成单号','金额','币种','到期日','已付','尚欠','状态']
+  ];
+  for(const it of d.inv){
+    const paid=apPaid(it),amt=Number(it.amount)||0;
+    aoa.push([it.invDate||'',it.invNo||'',it.orderNo||'',amt,it.currency||'',it.due||'',paid,Math.max(0,amt-paid),AP_LABEL[apState(it)]]);
+  }
+  aoa.push([]);
+  for(const c in d.tot){
+    const t=d.tot[c];
+    aoa.push(['合计（'+c+'）','','',t.amt,'','',t.paid,Math.max(0,t.amt-t.paid),'']);
+  }
+  aoa.push([],['付款明细'],['付款日期','金额','币种','对应发票号','经手人','备注']);
+  for(const x of d.pays)aoa.push([x.date,x.amount,x.cur,x.invNo||'',x.by||'',x.note||'']);
+  try{
+    await ensureXLSX();
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols']=[{wch:12},{wch:20},{wch:16},{wch:12},{wch:6},{wch:12},{wch:12},{wch:12},{wch:10}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'对账单');
+    XLSX.writeFile(wb,'对账单-'+sup.slice(0,20)+'-'+(year==='all'?'全部':year)+'.xlsx');
+  }catch(e){
+    const line=r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');
+    const csv='\uFEFF'+aoa.map(line).join('\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    a.download='对账单-'+sup.slice(0,20)+'.csv';a.click();URL.revokeObjectURL(a.href);
+    toast('Excel 组件不可用，已导出 CSV');
+  }
+  btn.disabled=false;btn.textContent='导出 Excel';
+}
+$('apStmtBtn').onclick=stmtOpen;
+$('stmtClose').onclick=()=>$('apStmtOverlay').classList.remove('open');
+$('apStmtOverlay').addEventListener('click',e=>{if(e.target===$('apStmtOverlay'))$('apStmtOverlay').classList.remove('open');});
+$('stmtSupplier').onchange=stmtRender;
+$('stmtYear').onchange=stmtRender;
+$('stmtExport').onclick=stmtExport;
 $('apFStatus').onchange=renderAP;
 $('apFSearch').oninput=renderAP;
 $('apExportBtn').onclick=apExport;
