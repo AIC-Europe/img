@@ -159,7 +159,11 @@ main{flex:1;max-width:1180px;width:100%;margin:0 auto;padding:26px 22px 60px}
 .btn-add:hover{background:var(--pine-deep)}
 
 /* 台账表 */
-.ledger{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.ledger{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow-x:auto;-webkit-overflow-scrolling:touch}
+#ledgerTable,#apTable{min-width:960px}
+/* 长单号列限宽换行，避免挤掉右侧列 */
+#ledgerTable tbody tr.row td:nth-child(5){max-width:300px;word-break:break-all}
+#ledgerTable thead th:nth-child(5){min-width:180px}
 table{width:100%;border-collapse:collapse}
 thead th{font-size:12.5px;color:#E4EEEA;text-align:center;font-weight:600;padding:12px 12px;background:var(--pine);letter-spacing:.06em;white-space:nowrap;border-bottom:none}
 tbody td{padding:12px 14px;border-bottom:1px solid #ECF0EF;vertical-align:top}
@@ -227,8 +231,6 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
   .detail-grid{grid-template-columns:1fr}
   main{padding:18px 12px 50px}
   /* 表格横向滑动：完整列都可左右滑查看 */
-  .ledger{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  #ledgerTable,#apTable{min-width:920px}
   /* 顶栏紧凑：单行品牌+按钮，状态徽标换行到第二行 */
   header.topbar{height:auto;min-height:50px;padding:8px 12px;flex-wrap:wrap;row-gap:4px}
   .topbar .brand-mark{font-size:16px}
@@ -392,7 +394,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v6.4</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v6.5</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -583,7 +585,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=6.4; /* 与页脚版本号保持一致 */
+const APP_VERSION=6.5; /* 与页脚版本号保持一致 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1681,27 +1683,59 @@ async function apFetchFile(fid){
   }
   return null;
 }
+function saveBlob(blob,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=name||'invoice';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+}
 async function apDownload(f){
   toast('正在读取附件…');
-  try{
-    let blob;
-    if(f&&f.store==='gs'){
-      blob=await apGetFileGS(f);
-    }else{
-      const rec=await apFetchFile(f.fid);
-      if(!rec||!rec.data){toast('附件不存在或已被清理');return;}
-      const bin=atob(rec.data);
-      const arr=new Uint8Array(bin.length);
-      for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
-      blob=new Blob([arr],{type:rec.type||'application/octet-stream'});
+  /* Storage 文件：三层降级 → ① fetch保留文件名下载 ② 新窗口直开 ③ 明确报错 */
+  if(f&&f.store==='gs'){
+    let url=null;
+    try{
+      const s=firebase.app().storage('gs://'+f.bucket);
+      url=await s.ref(f.path).getDownloadURL();
+    }catch(e){
+      const msg=(e&&e.message)||String(e);
+      if(/unauthorized|permission|403/i.test(msg)){
+        alert('下载失败：Storage 访问被拒。\n\n请到 Firebase 控制台 → Storage → Rules，确认已发布 img-ap 路径的读写规则。\n\n技术信息：'+msg);
+      }else if(/not.?found|404|object/i.test(msg)){
+        alert('下载失败：云端找不到该文件（可能上传未完成或已被清理）。\n\n技术信息：'+msg);
+      }else{
+        alert('下载失败：无法获取文件地址。\n\n技术信息：'+msg);
+      }
+      return;
     }
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=f.name||'invoice';
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+    try{
+      const resp=await fetch(url);
+      if(!resp.ok)throw new Error('HTTP '+resp.status);
+      saveBlob(await resp.blob(),f.name);
+      toast('附件已下载');
+      return;
+    }catch(e){
+      /* fetch 被 CORS/网络策略拦截：改用新窗口直开，浏览器会直接下载 */
+      try{
+        window.open(url,'_blank');
+        toast('已在新窗口打开附件下载');
+        return;
+      }catch(e2){}
+      alert('下载失败：'+((e&&e.message)||'')+'\n\n如反复出现，请把此提示截图发给管理员。');
+      return;
+    }
+  }
+  /* 数据库直存文件 */
+  try{
+    const rec=await apFetchFile(f.fid);
+    if(!rec||!rec.data){alert('附件不存在或已被清理。\n\n可能原因：上传时云端写入被拒。请重新上传该发票。');return;}
+    const bin=atob(rec.data);
+    const arr=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+    saveBlob(new Blob([arr],{type:rec.type||'application/octet-stream'}),f.name);
     toast('附件已下载');
-  }catch(e){toast('下载失败：'+(e.message||''));}
+  }catch(e){alert('下载失败：'+((e&&e.message)||'')+'\n\n请把此提示截图发给管理员。');}
 }
 function apUploadFail(e){
   const msg=(e&&e.message)||String(e||'未知错误');
