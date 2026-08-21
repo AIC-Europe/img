@@ -362,6 +362,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
     </div>
 
     <div class="toolbar">
+      <input type="month" id="apFMonth" aria-label="按发票月份筛选" title="按发票日期月份筛选；留空显示全部月份">
       <select id="apFStatus" aria-label="按状态筛选">
         <option value="">全部状态</option>
         <option value="new">待录入</option>
@@ -395,7 +396,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v6.8</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v6.9</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -586,7 +587,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=6.8; /* 与页脚版本号保持一致 */
+const APP_VERSION=6.9; /* 与页脚版本号保持一致 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1870,7 +1871,14 @@ async function apHandleUpload(file,attachTo,extra){
 /* ---- 渲染 ---- */
 function apFiltered(){
   const st=$('apFStatus').value, q=$('apFSearch').value.trim().toLowerCase();
+  const m=$('apFMonth').value;
   return apItems.filter(x=>!x.deleted)
+    .filter(x=>{
+      if(!m)return true;
+      /* 待录入还没有发票日期，始终显示，避免被月份筛选埋没 */
+      if(!x.invDate)return true;
+      return x.invDate.slice(0,7)===m;
+    })
     .filter(x=>{
       if(!st)return true;
       const s=apState(x);
@@ -2564,6 +2572,7 @@ $('apStmtOverlay').addEventListener('click',e=>{if(e.target===$('apStmtOverlay')
 $('stmtSupplier').onchange=stmtRender;
 $('stmtYear').onchange=stmtRender;
 $('stmtExport').onclick=stmtExport;
+$('apFMonth').onchange=renderAP;
 $('apFStatus').onchange=renderAP;
 $('apFSearch').oninput=renderAP;
 $('apExportBtn').onclick=apExport;
