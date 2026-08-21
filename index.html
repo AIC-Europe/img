@@ -394,7 +394,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v6.5</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v6.7</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -585,7 +585,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=6.5; /* 与页脚版本号保持一致 */
+const APP_VERSION=6.7; /* 与页脚版本号保持一致 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1602,7 +1602,14 @@ function apMergeRemote(remote){
       l.payments=l.payments.filter(x=>!delSet.has(x.time+'|'+x.amount));
       l.payments.sort((a,b)=>(a.time||0)-(b.time||0));
     }
-    if(r.files&&(!l.files||!l.files.length))l.files=r.files;
+    /* 附件：删除墓碑并集，其余按 fid 取并集（双端追加互不覆盖，已删不复活） */
+    const fdel=new Set([].concat(l.fileDeleted||[],r.fileDeleted||[]));
+    if(fdel.size)l.fileDeleted=[...fdel];
+    const have=new Set((l.files||[]).map(f=>f.fid));
+    for(const f of (r.files||[])){
+      if(f&&f.fid&&!fdel.has(f.fid)&&!have.has(f.fid)){(l.files=l.files||[]).push(f);have.add(f.fid);}
+    }
+    if(l.files)l.files=l.files.filter(f=>!fdel.has(f.fid));
   }
 }
 function apPush(){
@@ -1690,9 +1697,41 @@ function saveBlob(blob,name){
   a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1500);
 }
+async function apRtdbBlob(fid){
+  const rec=await apFetchFile(fid);
+  if(!rec||!rec.data)return null;
+  const bin=atob(rec.data);
+  const arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+  return new Blob([arr],{type:rec.type||'application/octet-stream'});
+}
+/* 自愈：Storage 文件被欧洲端成功下载后，静默在数据库生成大陆可访问副本 */
+async function apSelfHeal(f,blob){
+  try{
+    if(f.dual||blob.size>AP_MAX_MB*1024*1024)return;
+    const data=await new Promise(function(res,rej){
+      const rd=new FileReader();
+      rd.onerror=function(){rej(new Error('read'));};
+      rd.onload=function(){const raw=String(rd.result||'');res(raw.includes(',')?raw.split(',')[1]:'');};
+      rd.readAsDataURL(blob);
+    });
+    if(!data)return;
+    await apStoreFile(f.fid,{name:f.name,type:f.type||'application/octet-stream',data:data,size:blob.size,at:Date.now(),by:(session&&session.name)||''});
+    for(const it of apItems){
+      const m=(it.files||[]).find(x=>x.fid===f.fid);
+      if(m){m.dual=true;await apSave();break;}
+    }
+  }catch(e){/* 自愈失败不打扰用户 */}
+}
 async function apDownload(f){
   toast('正在读取附件…');
-  /* Storage 文件：三层降级 → ① fetch保留文件名下载 ② 新窗口直开 ③ 明确报错 */
+  /* Storage 文件已有数据库副本（dual）：直接走数据库，中德两地均可 */
+  if(f&&f.store==='gs'&&f.dual){
+    try{
+      const blob=await apRtdbBlob(f.fid);
+      if(blob){saveBlob(blob,f.name);toast('附件已下载');return;}
+    }catch(e){/* 副本读取失败则继续尝试 Storage */}
+  }
   if(f&&f.store==='gs'){
     let url=null;
     try{
@@ -1700,7 +1739,9 @@ async function apDownload(f){
       url=await s.ref(f.path).getDownloadURL();
     }catch(e){
       const msg=(e&&e.message)||String(e);
-      if(/unauthorized|permission|403/i.test(msg)){
+      if(/retry-limit|network/i.test(msg)){
+        alert('下载失败：无法连接 Firebase Storage。\n\n该附件存放于 Storage，中国大陆网络无法直接访问。\n\n解决办法（任选其一）：\n① 请德国办公室同事打开此发票下载一次——系统会自动生成大陆可访问的副本，之后即可正常下载；\n② 请上传者将文件压缩至 3MB 内重新上传。\n\n技术信息：'+msg);
+      }else if(/unauthorized|permission|403/i.test(msg)){
         alert('下载失败：Storage 访问被拒。\n\n请到 Firebase 控制台 → Storage → Rules，确认已发布 img-ap 路径的读写规则。\n\n技术信息：'+msg);
       }else if(/not.?found|404|object/i.test(msg)){
         alert('下载失败：云端找不到该文件（可能上传未完成或已被清理）。\n\n技术信息：'+msg);
@@ -1712,11 +1753,12 @@ async function apDownload(f){
     try{
       const resp=await fetch(url);
       if(!resp.ok)throw new Error('HTTP '+resp.status);
-      saveBlob(await resp.blob(),f.name);
+      const blob=await resp.blob();
+      saveBlob(blob,f.name);
       toast('附件已下载');
+      apSelfHeal(f,blob); /* 后台静默生成大陆副本 */
       return;
     }catch(e){
-      /* fetch 被 CORS/网络策略拦截：改用新窗口直开，浏览器会直接下载 */
       try{
         window.open(url,'_blank');
         toast('已在新窗口打开附件下载');
@@ -1728,12 +1770,9 @@ async function apDownload(f){
   }
   /* 数据库直存文件 */
   try{
-    const rec=await apFetchFile(f.fid);
-    if(!rec||!rec.data){alert('附件不存在或已被清理。\n\n可能原因：上传时云端写入被拒。请重新上传该发票。');return;}
-    const bin=atob(rec.data);
-    const arr=new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
-    saveBlob(new Blob([arr],{type:rec.type||'application/octet-stream'}),f.name);
+    const blob=await apRtdbBlob(f.fid);
+    if(!blob){alert('附件不存在或已被清理。\n\n可能原因：上传时云端写入被拒。请重新上传该发票。');return;}
+    saveBlob(blob,f.name);
     toast('附件已下载');
   }catch(e){alert('下载失败：'+((e&&e.message)||'')+'\n\n请把此提示截图发给管理员。');}
 }
@@ -1763,21 +1802,10 @@ async function apHandleUpload(file,attachTo,extra){
   toast('正在上传附件…');
   /* 优先走 Firebase Storage（支持大文件）；不可用时降级为数据库直存（≤3MB） */
   let stored=false;
-  if(USE_CLOUD){
-    /* 决定是否走 Storage：探针已有结果直接用；未出结果时，
-       小文件最多等 1.5 秒即走数据库快速通道，大文件必须等探针 */
-    let useGS=false;
-    if(_gsProbe===true)useGS=true;
-    else if(_gsProbe===null){
-      if(file.size>AP_MAX_MB*1024*1024){
-        useGS=await gsProbeOnce();
-      }else{
-        useGS=await Promise.race([
-          gsProbeOnce(),
-          new Promise(function(r){setTimeout(function(){r(false);},1500);})
-        ]);
-      }
-    }
+  /* 存储策略（兼顾中国大陆访问）：≤3MB 一律存数据库（中德两地均可下载）；
+     >3MB 走 Firebase Storage（大陆网络无法直连，下载时有自愈机制） */
+  if(USE_CLOUD&&file.size>AP_MAX_MB*1024*1024){
+    const useGS=await gsProbeOnce();
     if(useGS){
       try{
         const gs=await apPutFileGS(fid,file);
@@ -2013,11 +2041,35 @@ function apDetail(it){
       const row=document.createElement('div');
       row.style.cssText='display:flex;align-items:center;gap:8px;padding:3px 0';
       const b=document.createElement('button');b.className='ap-file';
-      b.textContent='⬇ '+f.name;
+      b.textContent='⬇ '+f.name+(f.store==='gs'&&!f.dual?' ☁':'');
+      if(f.store==='gs'&&!f.dual)b.title='存于 Storage：中国大陆同事需先由欧洲同事下载一次生成副本';
       b.onclick=e=>{e.stopPropagation();apDownload(f);};
       const sz=document.createElement('span');sz.style.cssText='font-size:11.5px;color:var(--ink-soft)';
       sz.textContent=(f.size/1024).toFixed(0)+' KB';
-      row.append(b,sz);fbox.appendChild(row);
+      row.append(b,sz);
+      /* 财务可删除单个附件（双确认 + 墓碑防复活 + 清理云端文件） */
+      if(session.role==='finance'){
+        const del=document.createElement('button');
+        del.className='btn-sm danger';
+        del.style.cssText='padding:0 8px;font-size:11px;margin-left:auto';
+        del.textContent='✕';del.title='删除此附件';
+        del.onclick=async e=>{
+          e.stopPropagation();
+          if(!confirmDelete('附件「'+f.name+'」'))return;
+          (it.fileDeleted=it.fileDeleted||[]).push(f.fid);
+          it.files=it.files.filter(x=>x.fid!==f.fid);
+          it.comments=it.comments||[];
+          it.comments.push({author:session.name,role:'finance',text:'删除附件：'+f.name+'。',time:Date.now()});
+          /* 尽力清理云端文件本体（失败不影响记录） */
+          try{if(USE_CLOUD&&rtdb)rtdb.ref(AP_FILES+'/'+f.fid).remove().catch(function(){});}catch(e2){}
+          try{if(f.store==='gs')firebase.app().storage('gs://'+f.bucket).ref(f.path).delete().catch(function(){});}catch(e2){}
+          delete _apFileMem[f.fid];
+          try{await apSave();toast('附件已删除');renderAP();}
+          catch(e2){toast('保存失败：'+(e2.message||''));}
+        };
+        row.appendChild(del);
+      }
+      fbox.appendChild(row);
     }
   }
   const addF=document.createElement('button');
