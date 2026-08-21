@@ -373,6 +373,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </select>
       <input type="search" id="apFSearch" placeholder="搜索供应商 / 发票号 / 成单号 / 上传人…">
       <span class="spacer"></span>
+      <button class="btn-ghost" id="apHealBtn" type="button" style="display:none">🌏 生成大陆副本</button>
       <button class="btn-ghost" id="apStmtBtn" type="button">📑 供应商对账单</button>
       <button class="btn-ghost" id="apExportBtn" type="button">导出 Excel</button>
       <button class="btn-add" id="apUploadBtn" type="button">⬆ 上传发票</button>
@@ -394,7 +395,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v6.7</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v6.8</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -585,7 +586,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=6.7; /* 与页脚版本号保持一致 */
+const APP_VERSION=6.8; /* 与页脚版本号保持一致 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1954,6 +1955,7 @@ function renderAP(){
     }
   }
   apAlertUpdate();
+  apHealBtnUpdate();
 }
 function apDetail(it){
   const wrap=document.createElement('div');wrap.className='detail-grid';
@@ -2501,6 +2503,61 @@ async function stmtExport(){
   }
   btn.disabled=false;btn.textContent='导出 Excel';
 }
+/* ═══ 一键生成大陆副本：把所有无副本的 Storage 附件批量下载并存数据库 ═══ */
+function apHealTargets(){
+  const t=[];
+  for(const it of apItems){
+    if(it.deleted)continue;
+    for(const f of (it.files||[])){
+      if(f.store==='gs'&&!f.dual)t.push({it:it,f:f});
+    }
+  }
+  return t;
+}
+function apHealBtnUpdate(){
+  const btn=$('apHealBtn');
+  if(!btn)return;
+  const n=session&&session.role==='finance'?apHealTargets().length:0;
+  btn.style.display=n?'':'none';
+  if(n)btn.textContent='🌏 生成大陆副本（'+n+'）';
+}
+$('apHealBtn').onclick=async function(){
+  const targets=apHealTargets();
+  if(!targets.length){toast('没有需要处理的附件');return;}
+  if(!confirm('将为 '+targets.length+' 个 Storage 附件生成中国大陆可访问的数据库副本。\n\n此操作需要当前网络能访问 Firebase Storage（请在德国办公室执行）。\n\n开始吗？'))return;
+  const btn=$('apHealBtn');
+  btn.disabled=true;
+  let ok=0,fails=[];
+  for(let i=0;i<targets.length;i++){
+    const {it,f}=targets[i];
+    btn.textContent='处理中 '+(i+1)+'/'+targets.length+'…';
+    try{
+      const s=firebase.app().storage('gs://'+f.bucket);
+      const url=await s.ref(f.path).getDownloadURL();
+      const resp=await fetch(url);
+      if(!resp.ok)throw new Error('HTTP '+resp.status);
+      const blob=await resp.blob();
+      if(blob.size>AP_MAX_MB*1024*1024)throw new Error('超过 '+AP_MAX_MB+'MB，无法存副本，请压缩后重新上传');
+      const data=await new Promise(function(res,rej){
+        const rd=new FileReader();
+        rd.onerror=function(){rej(new Error('读取失败'));};
+        rd.onload=function(){const raw=String(rd.result||'');res(raw.includes(',')?raw.split(',')[1]:'');};
+        rd.readAsDataURL(blob);
+      });
+      if(!data)throw new Error('内容为空');
+      await apStoreFile(f.fid,{name:f.name,type:f.type||'application/octet-stream',data:data,size:blob.size,at:Date.now(),by:session.name});
+      f.dual=true;ok++;
+    }catch(e){
+      fails.push(f.name+'：'+((e&&e.message)||e));
+    }
+  }
+  if(ok){
+    try{await apSave();}catch(e){}
+  }
+  btn.disabled=false;
+  apHealBtnUpdate();renderAP();
+  alert('大陆副本生成完成：成功 '+ok+' 个'+(fails.length?'，失败 '+fails.length+' 个：\n\n'+fails.join('\n')+'\n\n失败附件请把此提示截图发给管理员。':'。\n\n中国同事现在可以直接下载这些发票了。'));
+};
 $('apStmtBtn').onclick=stmtOpen;
 $('stmtClose').onclick=()=>$('apStmtOverlay').classList.remove('open');
 $('apStmtOverlay').addEventListener('click',e=>{if(e.target===$('apStmtOverlay'))$('apStmtOverlay').classList.remove('open');});
