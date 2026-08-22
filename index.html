@@ -396,7 +396,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v6.9</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v7.0</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -406,7 +406,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
     <div class="form-grid">
       <div class="field"><label for="pDate">到账日期 *</label><input type="date" id="pDate"></div>
       <div class="field"><label for="pCustomer">客户名称 *</label><input id="pCustomer" placeholder="例如：Müller GmbH"></div>
-      <div class="field"><label for="pAmount">金额 *</label><input type="number" id="pAmount" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label for="pAmount">金额 *</label><input type="number" id="pAmount" step="0.01" placeholder="0.00"></div>
       <div class="field"><label for="pCurrency">币种</label>
         <select id="pCurrency"><option>EUR</option><option>USD</option><option>GBP</option><option>CNY</option></select>
       </div>
@@ -500,7 +500,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
     <div class="form-grid">
       <div class="field"><label for="apSupplier">供应商名称 *</label><input id="apSupplier" list="supplierList" placeholder="输入或从历史供应商中选择"><datalist id="supplierList"></datalist></div>
       <div class="field"><label for="apInvNo">发票号 *</label><input id="apInvNo" placeholder="供应商发票号"></div>
-      <div class="field"><label for="apAmount">付款金额 *</label><input type="number" id="apAmount" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label for="apAmount">付款金额 *</label><input type="number" id="apAmount" step="0.01" placeholder="0.00，负数表示 Credit Note / 红字冲抵"></div>
       <div class="field"><label for="apCurrency">币种</label>
         <select id="apCurrency"><option>EUR</option><option>USD</option><option>GBP</option><option>CNY</option></select>
       </div>
@@ -530,7 +530,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
     <div id="apPaySummary" style="font-size:13px;color:var(--ink-soft);margin-bottom:14px"></div>
     <div class="form-grid">
       <div class="field"><label for="apPayDate">付款日期 *</label><input type="date" id="apPayDate"></div>
-      <div class="field"><label for="apPayAmount">付款金额 *</label><input type="number" id="apPayAmount" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label for="apPayAmount">付款金额 *</label><input type="number" id="apPayAmount" step="0.01" placeholder="0.00"></div>
       <div class="field full"><label for="apPayNote">付款备注</label><input id="apPayNote" placeholder="可选，例如：银行流水号"></div>
     </div>
     <div class="login-err" id="apPayErr"></div>
@@ -587,7 +587,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=6.9; /* 与页脚版本号保持一致 */
+const APP_VERSION=7.0; /* 与页脚版本号保持一致 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1661,9 +1661,16 @@ function apDaysLeft(it){
   return Math.round((d-t)/86400000);
 }
 function apState(it){
-  if(!it.amount||!it.invNo)return 'new';
+  if(it.amount===null||it.amount===undefined||it.amount===''||!it.invNo)return 'new';
   const paid=apPaid(it), amt=Number(it.amount)||0;
-  if(paid>=amt-0.005)return 'paid';
+  /* 结清判定对正负金额对称：正数=已付足额；负数(Credit Note)=已冲抵/退回足额 */
+  const settled = amt>=0 ? paid>=amt-0.005 : paid<=amt+0.005;
+  if(settled&&!(amt<0&&paid===0&&(it.payments||[]).length===0)){}
+  if(amt>=0){
+    if(paid>=amt-0.005)return 'paid';
+  }else{
+    if((it.payments||[]).length&&paid<=amt+0.005)return 'paid';
+  }
   const dl=apDaysLeft(it);
   if(dl!==null&&dl<0)return 'overdue';
   if(paid>0)return 'partial';
@@ -1978,7 +1985,7 @@ function apDetail(it){
       '<span style="font-family:var(--font-body);color:var(--ink-soft)"> · '+esc(x.by||'')+(x.note?' · '+esc(x.note):'')+'</span>'+
       (session.role==='finance'?'<button class="btn-sm danger pay-del" data-t="'+x.time+'" style="padding:0 8px;font-size:11px;margin-left:8px" title="删除此条付款记录">✕</button>':'')+
       '</div>').join('')+
-      '<div style="margin-top:4px;font-weight:600">已付 '+fmt(paid)+' / '+fmt(amt)+(paid<amt?'　<span style="color:var(--warn)">尚欠 '+fmt(amt-paid)+'</span>':'　<span style="color:var(--ok)">已付清</span>')+'</div></dd>';
+      '<div style="margin-top:4px;font-weight:600">已付 '+fmt(paid)+' / '+fmt(amt)+(apState(it)!=='paid'?'　<span style="color:var(--warn)">尚欠 '+fmt(amt-paid)+'</span>':'　<span style="color:var(--ok)">已付清</span>')+'</div></dd>';
   }
   left.innerHTML='<dl>'+
     '<dt>上传人</dt><dd>'+esc(it.uploadedBy||'—')+' · '+(it.uploadedAt?new Date(it.uploadedAt).toLocaleString('zh-CN'):'—')+'</dd>'+
@@ -2189,8 +2196,8 @@ async function apSaveEntry(){
   const err=$('apEntryErr');err.style.display='none';
   const sup=$('apSupplier').value.trim(), no=$('apInvNo').value.trim();
   const amt=parseFloat($('apAmount').value), d=$('apInvDate').value, due=$('apDue').value;
-  if(!sup||!no||!(amt>0)||!d){
-    err.textContent='请完整填写：供应商、发票号、金额（大于 0）、发票日期。';err.style.display='block';return;
+  if(!sup||!no||isNaN(amt)||amt===0||!d){
+    err.textContent='请完整填写：供应商、发票号、金额（非零，负数表示 Credit Note）、发票日期。';err.style.display='block';return;
   }
   const it=apItems.find(x=>x.id===apEditingId);
   if(!it)return;
@@ -2220,10 +2227,13 @@ async function apSaveEntry(){
 function apOpenPay(it){
   apPayingId=it.id;
   const paid=apPaid(it), amt=Number(it.amount)||0, rest=amt-paid;
-  $('apPaySummary').innerHTML='<b>'+esc(it.supplier)+'</b> · '+esc(it.invNo)+'<br>发票金额 '+fmt(amt)+' '+esc(it.currency)+
-    (paid?'　已付 '+fmt(paid)+'　<span style="color:var(--warn)">尚欠 '+fmt(rest)+'</span>':'');
+  const isCN=amt<0;
+  $('apPaySummary').innerHTML='<b>'+esc(it.supplier)+'</b> · '+esc(it.invNo)+
+    (isCN?'　<span style="color:var(--brass);font-weight:600">Credit Note</span>':'')+
+    '<br>发票金额 '+fmt(amt)+' '+esc(it.currency)+
+    (paid?'　已'+(isCN?'冲':'付')+' '+fmt(paid)+'　<span style="color:var(--warn)">尚'+(isCN?'冲':'欠')+' '+fmt(rest)+'</span>':'');
   $('apPayDate').value=todayStr();
-  $('apPayAmount').value=rest>0?rest.toFixed(2):'';
+  $('apPayAmount').value=Math.abs(rest)>0.005?rest.toFixed(2):'';
   $('apPayNote').value='';
   $('apPayErr').style.display='none';
   $('apPayOverlay').classList.add('open');
@@ -2231,17 +2241,19 @@ function apOpenPay(it){
 async function apSavePay(){
   const err=$('apPayErr');err.style.display='none';
   const d=$('apPayDate').value, amt=parseFloat($('apPayAmount').value);
-  if(!d||!(amt>0)){err.textContent='请填写付款日期与金额（大于 0）。';err.style.display='block';return;}
+  if(!d||isNaN(amt)||amt===0){err.textContent='请填写付款日期与金额（非零；负数表示收到退款/冲抵）。';err.style.display='block';return;}
   const it=apItems.find(x=>x.id===apPayingId);
   if(!it)return;
-  const rest=(Number(it.amount)||0)-apPaid(it);
-  if(amt>rest+0.005&&!confirm('付款金额 '+fmt(amt)+' 超过尚欠金额 '+fmt(rest)+'，确认继续？'))return;
+  const total=Number(it.amount)||0;
+  const rest=total-apPaid(it);
+  if(total>=0&&amt>rest+0.005&&!confirm('付款金额 '+fmt(amt)+' 超过尚欠金额 '+fmt(rest)+'，确认继续？'))return;
+  if(total<0&&amt<rest-0.005&&!confirm('冲抵金额 '+fmt(amt)+' 超过应冲金额 '+fmt(rest)+'，确认继续？'))return;
   it.payments=it.payments||[];
   it.payments.push({date:d,amount:Math.round(amt*100)/100,by:session.name,note:$('apPayNote').value.trim(),time:Date.now()});
   it.comments=it.comments||[];
-  const nowPaid=apPaid(it), total=Number(it.amount)||0;
+  const nowPaid=apPaid(it), invTotal=Number(it.amount)||0;
   it.comments.push({author:session.name,role:'finance',
-    text:'已付款 '+fmt(amt)+' '+it.currency+'（'+d+'）'+(nowPaid>=total-0.005?'，本张发票已付清。':'，累计已付 '+fmt(nowPaid)+' / '+fmt(total)+'。'),time:Date.now()});
+    text:'已付款 '+fmt(amt)+' '+it.currency+'（'+d+'）'+(apState(it)==='paid'?'，本张发票已'+(invTotal<0?'冲抵完成':'付清')+'。':'，累计已付 '+fmt(nowPaid)+' / '+fmt(invTotal)+'。'),time:Date.now()});
   $('apPaySave').disabled=true;$('apPaySave').textContent='保存中…';
   try{
     await apSave();
