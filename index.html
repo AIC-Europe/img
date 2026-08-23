@@ -368,19 +368,18 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
     <div class="l-title">IMG Europe 管理平台</div>
     <div class="l-sub">订单 · 应收 · 应付 · 业财一体化</div>
     <div class="l-divider"></div>
-    <div class="acct-grid">
-      <button class="acct-btn active" data-acct="财务" type="button"><div class="r-title">财务</div><div class="r-desc">登记维护台账</div></button>
-      <button class="acct-btn" data-acct="Minglu" type="button"><div class="r-title">Minglu</div><div class="r-desc">核对与备注</div></button>
-      <button class="acct-btn" data-acct="Teri" type="button"><div class="r-title">Teri</div><div class="r-desc">核对与备注</div></button>
-      <button class="acct-btn" data-acct="Bowen" type="button"><div class="r-title">Bowen</div><div class="r-desc">核对与备注</div></button>
-      <button class="acct-btn" data-acct="Lucy" type="button"><div class="r-title">Lucy</div><div class="r-desc">核对与备注</div></button>
-      <button class="acct-btn" data-acct="Peter" type="button"><div class="r-title">Peter</div><div class="r-desc">管理与分析</div></button>
-      <button class="acct-btn" data-acct="Christina" type="button"><div class="r-title">Christina</div><div class="r-desc">核对与备注</div></button>
-    </div>
+    <div class="field">
+        <label for="loginUser">用户名</label>
+        <input id="loginUser" list="acctDL" placeholder="Emma / Steven / Minglu / Teri / Bowen / Lucy / Peter / Christina" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+        <datalist id="acctDL"><option value="Emma"></option><option value="Steven"></option><option value="Minglu"></option><option value="Teri"></option><option value="Bowen"></option><option value="Lucy"></option><option value="Peter"></option><option value="Christina"></option></datalist>
+      </div>
     <div class="field">
       <label for="loginPass">密码</label>
       <input id="loginPass" type="password" placeholder="请输入密码" autocomplete="current-password" enterkeyhint="go" inputmode="text">
     </div>
+      <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-soft);margin:-4px 0 14px;cursor:pointer">
+        <input type="checkbox" id="loginRemember" style="accent-color:var(--pine);width:15px;height:15px">记住用户名和密码（本机）
+      </label>
     <div class="login-err" id="loginErr"></div>
     <button class="btn btn-primary" id="loginBtn" type="button">进入平台</button>
     <div class="login-note">选择账户并输入密码进入。数据经云端实时同步，异地办公共享同一台账；离线时自动使用本机副本。</div>
@@ -624,7 +623,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v11.1</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v11.5</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -633,7 +632,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
     <h2 id="payModalTitle">登记进款</h2>
     <div class="form-grid">
       <div class="field"><label for="pDate">到账日期 *</label><input type="date" id="pDate"></div>
-      <div class="field"><label for="pCustomer">客户名称 *</label><input id="pCustomer" placeholder="例如：Müller GmbH"></div>
+      <div class="field"><label for="pCustomer">客户名称 *（来自基础资料）</label><select id="pCustomer"></select></div>
       <div class="field"><label for="pAmount">金额 *</label><input type="number" id="pAmount" step="0.01" placeholder="0.00"></div>
       <div class="field"><label for="pCurrency">币种</label>
         <select id="pCurrency"><option>EUR</option><option>USD</option><option>GBP</option><option>CNY</option></select>
@@ -701,6 +700,11 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <div class="field"><label for="oVatRate">VAT 税率（报价单）</label>
         <select id="oVatRate"><option value="19">19%（德国境内）</option><option value="0">0%（出口/反向征收）</option></select>
       </div>
+      <div class="field">
+        <label for="oOwner">业务负责人</label>
+        <input id="oOwner" list="ownerDL" placeholder="默认为当前账户，可改；多人用逗号分隔">
+        <datalist id="ownerDL"><option value="Minglu"></option><option value="Teri"></option><option value="Bowen"></option><option value="Lucy"></option><option value="Peter"></option><option value="Christina"></option><option value="Emma"></option><option value="Steven"></option></datalist>
+      </div>
       <div class="field full"><label for="oDesc">需求描述</label><textarea id="oDesc" rows="2" placeholder="例如：上海→汉堡 整柜 40HQ ×2，8月底提货"></textarea></div>
     </div>
     <div class="login-err" id="ordEditErr"></div>
@@ -716,7 +720,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
   <div class="modal">
     <h2 id="ariTitle">登记应收发票</h2>
     <div class="form-grid">
-      <div class="field"><label for="aiCustomer">客户名称 *</label><input id="aiCustomer" list="clientList2" placeholder="开票抬头客户"></div>
+      <div class="field"><label for="aiCustomer">客户名称 *（来自基础资料）</label><select id="aiCustomer"></select></div>
       <div class="field"><label for="aiInvNo">发票号 *</label><input id="aiInvNo" placeholder="开票系统发票号"></div>
       <div class="field"><label for="aiInvDate">发票日期 *</label><input type="date" id="aiInvDate"></div>
       <div class="field"><label for="aiOrderNo">IMG 成单号</label><input id="aiOrderNo" placeholder="填写后自动关联订单与到账"></div>
@@ -748,7 +752,6 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
     </div>
   </div>
 </div>
-<datalist id="clientList2"></datalist>
 
 <!-- 统计钻取明细 -->
 <div class="overlay" id="drillOverlay">
@@ -942,7 +945,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
   <div class="modal">
     <h2 id="apEntryTitle">录入发票信息</h2>
     <div class="form-grid">
-      <div class="field"><label for="apSupplier">供应商名称 *</label><input id="apSupplier" list="supplierList" placeholder="输入或从历史供应商中选择"><datalist id="supplierList"></datalist></div>
+      <div class="field"><label for="apSupplier">供应商名称 *（来自基础资料）</label><select id="apSupplier"></select><datalist id="supplierList"></datalist></div>
       <div class="field"><label for="apInvNo">发票号 *</label><input id="apInvNo" placeholder="供应商发票号"></div>
       <div class="field"><label for="apAmount">付款金额 *</label><input type="number" id="apAmount" step="0.01" placeholder="0.00，负数表示 Credit Note / 红字冲抵"></div>
       <div class="field"><label for="apCurrency">币种</label>
@@ -1031,7 +1034,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=11.1; /* 与页脚版本号保持一致 */
+const APP_VERSION=11.5; /* 与页脚版本号保持一致 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1225,28 +1228,42 @@ function mergeRemote(remote){
   }
 }
 /* ---------- 登录 ---------- */
-const PASSWORD='123';
-let pickedAcct='财务';
-document.querySelectorAll('.acct-btn').forEach(b=>{
-  b.onclick=()=>{
-    pickedAcct=b.dataset.acct;
-    document.querySelectorAll('.acct-btn').forEach(x=>x.classList.toggle('active',x===b));
-    $('loginPass').focus();
-  };
-});
+const ACCT_PW={'Emma':'emxc9tyu','Steven':'svnr9ckc','Minglu':'ml8nuiij','Teri':'tra488ap','Bowen':'bwuntbqn','Lucy':'lcws6gd9','Peter':'pt48mf7f','Christina':'cshvv8we'};
+const FIN_ACCTS=['Emma','Steven'];
+const REMEMBER_KEY='img-login-remember';
+function loginPrefill(){
+  try{
+    const raw=localStorage.getItem(REMEMBER_KEY);
+    if(!raw)return;
+    const d=JSON.parse(decodeURIComponent(escape(atob(raw))));
+    if(d&&d.u){$('loginUser').value=d.u;$('loginPass').value=d.p||'';$('loginRemember').checked=true;}
+  }catch(e){}
+}
+loginPrefill();
 
 $('loginBtn').onclick=async()=>{
   const err=$('loginErr');
   err.style.display='none';
-  if($('loginPass').value!==PASSWORD){
+  const u=$('loginUser').value.trim();
+  const canonical=Object.keys(ACCT_PW).find(k=>k.toLowerCase()===u.toLowerCase());
+  if(!canonical){err.textContent='用户名不存在，请输入：Emma / Steven / Minglu / Teri / Bowen / Lucy / Peter / Christina。';err.style.display='block';return;}
+  if($('loginPass').value!==ACCT_PW[canonical]){
     err.textContent='密码不正确。';err.style.display='block';return;
   }
+  try{
+    if($('loginRemember').checked){
+      localStorage.setItem(REMEMBER_KEY,btoa(unescape(encodeURIComponent(JSON.stringify({u:canonical,p:$('loginPass').value})))));
+    }else{
+      localStorage.removeItem(REMEMBER_KEY);
+    }
+  }catch(e){}
   $('loginBtn').textContent='正在进入…';
   await loadAll();
   $('loginBtn').textContent='进入平台';
-  session={name:pickedAcct,role:pickedAcct==='财务'?'finance':'business'};
+  session={name:canonical,role:FIN_ACCTS.includes(canonical)?'finance':'business'};
   enterApp();
 };
+$('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginPass').focus();});
 $('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click();});
 
 function enterApp(){
@@ -1337,6 +1354,7 @@ function startSync(){
   syncTimer=setInterval(()=>pullLatest(true),8000);
 }
 $('logoutBtn').onclick=()=>{
+  setTimeout(loginPrefill,50);
   try{if(USE_CLOUD&&rtdb){rtdb.ref(CLOUD_PATH).off();rtdb.ref('.info/connected').off();}}catch(e){}
   location.reload();
 };
@@ -1696,11 +1714,21 @@ function buildDetail(p){
 }
 
 /* ---------- 登记 / 编辑 ---------- */
+function selFillMaster(sel,list,current,ph){
+  sel.innerHTML='';
+  const o0=document.createElement('option');o0.value='';o0.textContent=ph;sel.appendChild(o0);
+  const names=[...new Set(list.filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  for(const n of names){const op=document.createElement('option');op.value=n;op.textContent=n;sel.appendChild(op);}
+  if(current&&!names.includes(current)){
+    const op=document.createElement('option');op.value=current;op.textContent=current+'（历史记录）';sel.appendChild(op);
+  }
+  sel.value=current||'';
+}
 function openPayModal(p){
   editingId=p?p.id:null;
   $('payModalTitle').textContent=p?'编辑进款记录':'登记进款';
   $('pDate').value=p?p.date:todayStr();
-  $('pCustomer').value=p?p.customer:'';
+  selFillMaster($('pCustomer'),(meta.clients||[]).map(c=>c.name),p?p.customer:'','— 请选择客户（新客户先在基础资料录入）—');
   $('pAmount').value=p?p.amount:'';
   $('pCurrency').value=p?p.currency:'EUR';
   $('pMethod').value=p?p.method:'银行转账';
@@ -1724,7 +1752,7 @@ $('paySave').onclick=async()=>{
   const date=$('pDate').value, customer=$('pCustomer').value.trim(),
         amount=parseFloat($('pAmount').value);
   if(!date||!customer||!(amount>0)){
-    err.textContent='请完整填写：到账日期、客户名称、金额（大于 0）。';
+    err.textContent=!customer?'请选择客户；新客户请先到「基础资料 → 客户档案」录入后再登记。':'请完整填写：到账日期、客户名称、金额（大于 0）。';
     err.style.display='block';return;
   }
   const data={
@@ -2729,7 +2757,7 @@ function apOpenEntry(it){
   apEditingId=it.id;
   supplierDLRefresh();
   $('apEntryTitle').textContent=apState(it)==='new'?'录入发票信息':'编辑发票信息';
-  $('apSupplier').value=it.supplier||'';
+  selFillMaster($('apSupplier'),(meta.suppliers||[]).map(s=>s.name),it.supplier||'','— 请选择供应商（新供应商先在基础资料录入）—');
   $('apInvNo').value=it.invNo||'';
   $('apAmount').value=it.amount||'';
   $('apCurrency').value=it.currency||'EUR';
@@ -2747,7 +2775,7 @@ async function apSaveEntry(){
   const sup=$('apSupplier').value.trim(), no=$('apInvNo').value.trim();
   const amt=parseFloat($('apAmount').value), d=$('apInvDate').value, due=$('apDue').value;
   if(!sup||!no||isNaN(amt)||amt===0||!d){
-    err.textContent='请完整填写：供应商、发票号、金额（非零，负数表示 Credit Note）、发票日期。';err.style.display='block';return;
+    err.textContent=!sup?'请选择供应商；新供应商请先到「基础资料 → 供应商档案」录入后再登记发票。':'请完整填写：供应商、发票号、金额（非零，负数表示 Credit Note）、发票日期。';err.style.display='block';return;
   }
   const it=apItems.find(x=>x.id===apEditingId);
   if(!it)return;
@@ -4321,6 +4349,7 @@ function ordOpenEdit(o){
   $('oSale').value=o&&o.salePrice?o.salePrice:'';
   $('oSaleCur').value=o?(o.saleCur||'EUR'):'EUR';
   $('oDesc').value=o?(o.desc||''):'';
+  $('oOwner').value=o?(o.owner||''):bizName();
   $('oVatRate').value=o?String(o.vatRate??19):'19';
   $('ordEditErr').style.display='none';
   $('ordEditOverlay').classList.add('open');
@@ -4344,10 +4373,11 @@ async function ordSaveEdit(){
     if(ordEditingId){
       const o=ordItems.find(x=>x.id===ordEditingId);
       const changes=[];
-      const cmp={orderNo:['成单号',no],customer:['客户',cust],salePrice:['售价',sale],saleCur:['币种',$('oSaleCur').value],desc:['需求',$('oDesc').value.trim()]};
+      const ownerV=$('oOwner').value.trim()||bizName();
+      const cmp={orderNo:['成单号',no],customer:['客户',cust],owner:['负责人',ownerV],salePrice:['售价',sale],saleCur:['币种',$('oSaleCur').value],desc:['需求',$('oDesc').value.trim()]};
       for(const k in cmp){if(String(o[k]??'')!==String(cmp[k][1]??''))changes.push(cmp[k][0]+'：'+(o[k]??'—')+' → '+(cmp[k][1]??'—'));}
       const oldNo=o.orderNo;
-      o.orderNo=no;o.customer=cust;o.salePrice=sale;o.saleCur=$('oSaleCur').value;o.desc=$('oDesc').value.trim();o.vatRate=parseFloat($('oVatRate').value)||0;
+      o.orderNo=no;o.customer=cust;o.owner=ownerV;o.salePrice=sale;o.saleCur=$('oSaleCur').value;o.desc=$('oDesc').value.trim();o.vatRate=parseFloat($('oVatRate').value)||0;
       if(changes.length){logAdd(o,'编辑：'+changes.join('；'));ordCmt(o,'✎ 修改订单：'+changes.join('；'));}
       await ordSave();
       /* 同步未开票存根的关键信息 */
@@ -4362,7 +4392,7 @@ async function ordSaveEdit(){
       }catch(e2){}
       toast('订单已更新');
     }else{
-      const nm=bizName();
+      const nm=$('oOwner').value.trim()||bizName();
       const o={
         id:'o'+Date.now()+Math.random().toString(36).slice(2,7),
         orderNo:no,customer:cust,owner:nm,
@@ -4439,13 +4469,21 @@ function statsRender(){
   const per={};
   let tN=0,tP=0,tStall=0,stallList=[];
   for(const o of list){
-    const k=o.owner||'—';
-    per[k]=per[k]||{n:0,profit:0,closed:0,stall:0};
-    per[k].n++;tN++;
-    if(o.flag==='closed')per[k].closed++;
+    /* 多负责人拆分到每人名下各计一次（合计行 tN/tP 仍按订单只计一次） */
+    const owners=String(o.owner||'—').split(/[,，、/]+/).map(s=>s.trim()).filter(Boolean);
+    if(!owners.length)owners.push('—');
+    tN++;
     const pf=ordProfit(o);
-    if(pf&&pf.cur==='EUR'){per[k].profit+=pf.v;tP+=pf.v;}
-    if(ordStalled(o)){per[k].stall++;tStall++;stallList.push(o);}
+    if(pf&&pf.cur==='EUR')tP+=pf.v;
+    const st=ordStalled(o);
+    if(st){tStall++;stallList.push(o);}
+    for(const k of owners){
+      per[k]=per[k]||{n:0,profit:0,closed:0,stall:0};
+      per[k].n++;
+      if(o.flag==='closed')per[k].closed++;
+      if(pf&&pf.cur==='EUR')per[k].profit+=pf.v;
+      if(st)per[k].stall++;
+    }
   }
   let h='<div style="display:flex;gap:16px;margin-bottom:12px;font-size:13px">'+
     '<div><b style="font-size:20px;font-family:var(--font-num)">'+tN+'</b> 单</div>'+
@@ -5077,9 +5115,7 @@ function ariCalcShow(){
 function ariOpenEdit(x){
   ariEditingId=x?x.id:null;
   $('ariTitle').textContent=x?'编辑应收发票':'登记应收发票';
-  const dl=$('clientList2');dl.innerHTML='';
-  for(const c of meta.clients){const o=document.createElement('option');o.value=c.name;dl.appendChild(o);}
-  $('aiCustomer').value=x?x.customer||'':'';
+  selFillMaster($('aiCustomer'),(meta.clients||[]).map(c=>c.name),x?x.customer||'':'','— 请选择客户（新客户先在基础资料录入）—');
   $('aiInvNo').value=x?x.invNo||'':'';
   $('aiInvDate').value=x?x.invDate||todayStr():todayStr();
   $('aiOrderNo').value=x?x.orderNo||'':'';
@@ -5098,7 +5134,7 @@ async function ariSaveEdit(){
   const err=$('ariErr');err.style.display='none';
   const cust=$('aiCustomer').value.trim(), no=$('aiInvNo').value.trim(), d=$('aiInvDate').value;
   const net=parseFloat($('aiNet').value);
-  if(!cust||!no||!d||isNaN(net)||net===0){err.textContent='请完整填写：客户、发票号、发票日期、不含税金额（非零）。';err.style.display='block';return;}
+  if(!cust||!no||!d||isNaN(net)||net===0){err.textContent=!cust?'请选择客户；新客户请先到「基础资料 → 客户档案」录入后再开票登记。':'请完整填写：客户、发票号、发票日期、不含税金额（非零）。';err.style.display='block';return;}
   const dup=ariItems.find(x=>!x.deleted&&x.invNo===no&&x.id!==ariEditingId);
   if(dup){err.textContent='发票号已存在（'+esc(dup.customer||'')+'）。';err.style.display='block';return;}
   const c=ariCalcShow();
@@ -5462,6 +5498,9 @@ $('dunArchClose').onclick=()=>$('dunArchOverlay').classList.remove('open');
 $('dunArchOverlay').addEventListener('click',e=>{if(e.target===$('dunArchOverlay'))$('dunArchOverlay').classList.remove('open');});
 
 /* ---- (d) 今日待办摘要 ---- */
+function ownerHas(o,name){
+  return String(o.owner||'').split(/[,，、/]+/).map(s=>s.trim()).filter(Boolean).includes(name);
+}
 function digestBuild(){
   const lines=[];
   const li=(icon,txt,color)=>lines.push('<div>'+icon+' '+(color?'<b style="color:'+color+'">'+txt+'</b>':txt)+'</div>');
@@ -5483,12 +5522,13 @@ function digestBuild(){
     const lbDays=lb?Math.floor((Date.now()-lb)/86400000):null;
     if(lbDays===null||lbDays>7)li('🗄','距上次手动备份'+(lbDays===null?'——从未导出':'已 '+lbDays+' 天')+'，请到「基础资料」导出一份','var(--warn)');
   }else{
-    const mine=ordItems.filter(o=>!o.deleted&&!o.flag&&o.owner===(myNameGet()||session.name));
+    const me=myNameGet()||session.name;
+    const mine=ordItems.filter(o=>!o.deleted&&!o.flag&&ownerHas(o,me));
     const stall=mine.filter(ordStalled);
     if(stall.length)li('⏱','你有 <b>'+stall.length+'</b> 个滞留单超 7 天未动（'+stall.map(o=>esc(o.orderNo)).slice(0,3).join('、')+(stall.length>3?'…':'')+'）','var(--bad)');
     const toSend=ordItems.filter(o=>{
       if(o.deleted||o.flag||(o.step||1)!==7)return false;
-      if(o.owner!==(myNameGet()||session.name))return false;
+      if(!ownerHas(o,me))return false;
       return ariItems.some(x=>!x.deleted&&x.orderNo===o.orderNo&&(x.files||[]).length);
     });
     if(toSend.length)li('📄','有 <b>'+toSend.length+'</b> 单财务已开票上传，记得下载发票发给客户','var(--brass)');
