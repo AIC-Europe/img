@@ -626,7 +626,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v12.9</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v13.0</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1052,7 +1052,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=12.9; /* 与页脚版本号保持一致 */
+const APP_VERSION=13.0; /* 与页脚版本号保持一致 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1308,7 +1308,11 @@ function enterApp(){
   seenLoad();
   apLoad().then(()=>{apCloudStart();apAlertUpdate();});
   ordLoad().then(()=>{ordCloudStart();ordAlertUpdate();});
-  metaLoad().then(()=>{metaCloudStart();supplierDLRefresh();setTimeout(ariImportEnsure,1200);});
+  metaLoad().catch(function(){}).then(function(){
+    try{metaCloudStart();}catch(e){}
+    try{supplierDLRefresh();}catch(e){}
+    setTimeout(ariImportEnsure,1200);
+  });
   ariLoad().then(()=>{ariCloudStart();ariAlertUpdate();});
   /* 大体量保护：默认只看当月，可手动清空看全部 */
   const _cm=todayStr().slice(0,7);
@@ -1732,7 +1736,15 @@ function buildDetail(p){
 }
 
 /* ---------- 登记 / 编辑 ---------- */
+function metaGuard(){
+  /* 下拉打开前兜底：主数据为空说明加载链路曾中断——内存种子立即可用，并补启云订阅 */
+  try{
+    if(!(meta.clients||[]).length||!(meta.suppliers||[]).length||!(meta.svcLib||[]).length)svcLibEnsure(meta);
+  }catch(e){}
+  try{metaCloudStart();}catch(e){}
+}
 function selFillMaster(sel,list,current,ph){
+  metaGuard();
   sel.innerHTML='';
   const o0=document.createElement('option');o0.value='';o0.textContent=ph;sel.appendChild(o0);
   const names=[...new Set(list.filter(Boolean))].sort((a,b)=>a.localeCompare(b));
@@ -2761,6 +2773,7 @@ function supplierDLRefresh(){
   /* 供应商建议 = 应付历史 ∪ 主数据档案（应付录入与订单询价共用） */
   const dlEl=$('supplierList');
   if(!dlEl)return;
+  metaGuard();
   dlEl.innerHTML='';
   const names=new Set(apItems.filter(x=>!x.deleted&&x.supplier).map(x=>x.supplier));
   for(const s of (meta.suppliers||[]))if(s.name)names.add(s.name);
@@ -3546,8 +3559,12 @@ function svcLibEnsure(m){
   return changed;
 }
 async function metaLoad(){
-  try{const r=await store.get(META_KEY);if(r&&r.value)meta=Object.assign({clients:[],suppliers:[],svcLib:[]},JSON.parse(r.value));}catch(e){}
-  svcLibEnsure(meta);
+  /* 多层自愈：本地存储被禁/损坏/挂起时，1.5s 超时放行，内存种子兜底 */
+  try{
+    const r=await Promise.race([store.get(META_KEY),new Promise(res=>setTimeout(()=>res(null),1500))]);
+    if(r&&r.value)meta=Object.assign({clients:[],suppliers:[],svcLib:[]},JSON.parse(r.value));
+  }catch(e){}
+  try{svcLibEnsure(meta);}catch(e){}
 }
 function metaMerge(remote){
   if(!remote)return;
@@ -3591,8 +3608,11 @@ async function metaSave(){
     return true;
   }catch(e){throw e;}
 }
+let _metaCloudOn=false;
 function metaCloudStart(){
   if(!USE_CLOUD||!rtdb)return;
+  if(_metaCloudOn)return;
+  _metaCloudOn=true;
   rtdb.ref(META_PATH).on('value',function(snap){
     const s=snap.val();
     if(!s){
@@ -4012,6 +4032,7 @@ function ordDetail(o){
     var _svcEditSid=null;
     var iName,iQty,iUnit,iPrice,iVat,iDisc,bAdd;
     if(canOp){
+      metaGuard();
       let dl=document.getElementById('svcLibDL');
       if(!dl){dl=document.createElement('datalist');dl.id='svcLibDL';document.body.appendChild(dl);}
       dl.innerHTML='';
@@ -4411,6 +4432,7 @@ function ordOpenEdit(o){
   ordEditingId=o?o.id:null;
   $('ordEditTitle').textContent=o?'编辑订单':'新建订单';
   /* 客户主数据下拉建议 */
+  metaGuard();
   let dl=document.getElementById('clientList');
   if(!dl){dl=document.createElement('datalist');dl.id='clientList';document.body.appendChild(dl);$('oCustomer').setAttribute('list','clientList');}
   dl.innerHTML='';
