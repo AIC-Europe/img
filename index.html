@@ -634,7 +634,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v14.5</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v14.6</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1092,7 +1092,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=14.5; /* 与页脚版本号保持一致 */
+const APP_VERSION=14.6; /* 与页脚版本号保持一致 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2584,15 +2584,18 @@ function ensureJSZip(){
   return _jszipP;
 }
 async function packBlob(f){
+  /* 与 apDownload 同构：gs(无副本)走 Storage，其余（db / dual / store 缺省的老结构）一律走数据库 */
   try{
-    if(f.store==='db'||(f.store==='gs'&&f.dual))return await apRtdbBlob(f.fid);
-    if(f.store==='gs'){
-      const s=firebase.app().storage('gs://'+f.bucket);
-      const url=await s.ref(f.path).getDownloadURL();
-      const r=await fetch(url);
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      return await r.blob();
+    if(f.store==='gs'&&!f.dual){
+      try{
+        const s=firebase.app().storage('gs://'+f.bucket);
+        const url=await s.ref(f.path).getDownloadURL();
+        const r=await fetch(url);
+        if(r.ok)return await r.blob();
+      }catch(e){}
+      return await apRtdbBlob(f.fid); /* Storage 不通时试数据库副本兜底 */
     }
+    return await apRtdbBlob(f.fid);
   }catch(e){}
   return null;
 }
