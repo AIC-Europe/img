@@ -634,7 +634,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v14.6</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v14.7</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -923,6 +923,20 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
   </div>
 </div>
 
+<div class="overlay" id="reopenOverlay">
+  <div class="modal" style="max-width:520px">
+    <h2>🔁 申请冲销重开</h2>
+    <div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:12px">开错的发票由财务冲销后重开。提交后财务会在应收发票中看到申请，冲销时系统自动生成新的待开票。</div>
+    <div class="field"><label for="reopenInv">选择要冲销重开的发票 *</label><select id="reopenInv"></select></div>
+    <div class="field"><label for="reopenNote">更正说明 *（写清正确金额/内容，财务照此重开）</label>
+      <textarea id="reopenNote" rows="2" style="width:100%;border:1.5px solid var(--line);border-radius:8px;padding:9px 10px;background:#FCFDFD;font-family:inherit;font-size:13px" placeholder="例如：派送费应为 1350 EUR，误开成 1450，请冲销后按 1350 重开"></textarea></div>
+    <div class="login-err" id="reopenErr"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="reopenCancel" type="button">取消</button>
+      <button class="btn-add" id="reopenOk" type="button">提交申请</button>
+    </div>
+  </div>
+</div>
 <div class="overlay" id="bulkPayOverlay">
   <div class="modal" style="max-width:480px">
     <h2>💶 批量登记付款</h2>
@@ -1092,7 +1106,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=14.6; /* 与页脚版本号保持一致 */
+const APP_VERSION=14.7; /* 与页脚版本号保持一致 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -4607,6 +4621,17 @@ function ordDetailPart2(o,wrap,left){
     act.appendChild(bExtra);
   }
   {
+    const reInvs=ariItems.filter(x=>!x.deleted&&x.orderNo===o.orderNo&&x.invNo&&ariState(x)!=='storno'&&!x.fromImport&&(Number(x.gross)||0)>0);
+    if(reInvs.length&&!isInq){
+      const bRe=document.createElement('button');bRe.className='btn-sm';
+      bRe.style.cssText='border-color:var(--bad);color:var(--bad)';
+      bRe.textContent='🔁 申请冲销重开';
+      bRe.title='发票开错（金额/内容有误）时使用：财务冲销原票后系统自动生成新的待开票';
+      bRe.onclick=e=>{e.stopPropagation();reopenOpen(o,reInvs);};
+      act.appendChild(bRe);
+    }
+  }
+  {
     const bPack=document.createElement('button');bPack.className='btn-sm';
     bPack.textContent='📦 导出整单档案';
     bPack.title='一键打包：流程档案（HTML）+ 应收/应付发票 PDF + 订单附件 → ZIP';
@@ -5505,7 +5530,7 @@ function renderARI(){
       '<td class="amount"><b>'+(x.gross!=null?fmt(x.gross):'—')+'</b><span class="cur">'+esc(x.currency)+'</span></td>'+
       '<td style="font-family:var(--font-num);white-space:nowrap">'+(x.due?esc(x.due)+' '+ariDaysTag(x):(ariState(x)==='toinv'&&x.term!=null?'<span style="color:var(--brass);font-weight:600">账期'+(x.term===0?'立即':x.term+'天')+'</span>':'—'))+'</td>'+
       '<td class="amount">'+(paid?fmt(paid):'—')+'</td>'+
-      '<td><span class="badge '+ARI_CLASS[st]+'">'+ARI_LABEL[st]+'</span></td>'+
+      '<td><span class="badge '+ARI_CLASS[st]+'">'+ARI_LABEL[st]+'</span>'+((x.reopenReq&&!x.cancelledBy)?' <span class="badge cancelled" title="业务申请冲销重开">🔁</span>':'')+'</td>'+
       '<td>'+(un?'<span class="cmt-new">'+un+' 条新消息</span>':'<span class="cmt-count'+((x.comments||[]).length?' has':'')+'">💬 '+(x.comments||[]).length+'</span>')+'</td>';
     tr.onclick=()=>{ariOpenId=ariOpenId===x.id?null:x.id;if(ariOpenId)seenMark(ariOpenId);renderARI();};
     tb.appendChild(tr);
@@ -5600,6 +5625,13 @@ function ariDetail(x){
     }
     fBox.onclick=e=>e.stopPropagation();
     left.appendChild(fBox);
+  }
+  if(x.reopenReq&&!x.cancelledBy){
+    const rq=document.createElement('div');
+    rq.style.cssText='margin:8px 0;padding:9px 12px;border:1.5px solid var(--bad);border-radius:10px;background:#FDF2F0;font-size:12.5px;color:var(--bad);font-weight:600';
+    rq.textContent='🔁 业务申请冲销重开（'+(x.reopenReq.by||'')+'）：'+(x.reopenReq.note||'')+' — 请点「↩️ 冲销此发票」，系统将自动生成新的待开票。';
+    rq.onclick=e=>e.stopPropagation();
+    left.appendChild(rq);
   }
   const act=document.createElement('div');act.className='d-actions';
   if(session.role==='finance'&&ariState(x)==='toinv'){
@@ -5744,11 +5776,51 @@ $('bulkPayOk').onclick=async function(){
   }catch(e){toast('保存失败：'+(e.message||''));}
   btn.disabled=false;
 };
+let _reopenCtx=null;
+function reopenOpen(o,invs){
+  _reopenCtx={oid:o.id};
+  const sel=$('reopenInv');sel.innerHTML='';
+  for(const x of invs){
+    const op=document.createElement('option');
+    op.value=x.id;
+    op.textContent=x.invNo+'　'+fmt(x.gross)+' '+(x.currency||'EUR')+'　'+(x.invDate||'');
+    sel.appendChild(op);
+  }
+  $('reopenNote').value='';
+  $('reopenErr').style.display='none';
+  $('reopenOverlay').classList.add('open');
+}
+$('reopenCancel').onclick=()=>$('reopenOverlay').classList.remove('open');
+$('reopenOverlay').addEventListener('click',e=>{if(e.target===$('reopenOverlay'))$('reopenOverlay').classList.remove('open');});
+$('reopenOk').onclick=async function(){
+  const err=$('reopenErr');err.style.display='none';
+  const note=$('reopenNote').value.trim();
+  if(!note){err.textContent='请填写更正说明（正确金额/内容）。';err.style.display='block';return;}
+  const x=ariItems.find(i=>i.id===$('reopenInv').value);
+  const o=ordItems.find(i=>i.id===(_reopenCtx&&_reopenCtx.oid));
+  if(!x||!o)return;
+  const btn=$('reopenOk');btn.disabled=true;
+  try{
+    const nm=myNameGet()||session.name;
+    x.reopenReq={by:nm,time:Date.now(),note:note};
+    x._up=Date.now();
+    await ariSaveAll();
+    logAdd(o,'申请冲销重开：发票 '+x.invNo+'（'+note+'）');
+    ordCmt(o,'🔁 申请冲销重开：发票 '+x.invNo+'。'+note+'。请财务在「应收发票」中冲销该票，系统将自动生成新的待开票。');
+    await ordSave();
+    try{ariAlertUpdate();}catch(e){}
+    $('reopenOverlay').classList.remove('open');
+    toast('申请已提交，财务将在应收发票中看到');
+    renderORD();
+  }catch(e){err.textContent='保存失败：'+(e.message||'');err.style.display='block';}
+  btn.disabled=false;
+};
 let _stornoId=null;
 function stornoOpen(x){
   _stornoId=x.id;
   $('stornoInfo').innerHTML='原发票 <b style="font-family:var(--font-num)">'+esc(x.invNo)+'</b> · '+esc(x.customer||'')+' · 含税 <b>'+fmt(x.gross)+' '+esc(x.currency||'EUR')+'</b>'+(x.orderNo?' · '+esc(x.orderNo):'')+
-    '<br><span style="color:var(--warn)">请先在 sevdesk 完成冲销开票，再回此登记。冲销后原发票不再计入未收款。</span>';
+    '<br><span style="color:var(--warn)">请先在 sevdesk 完成冲销开票，再回此登记。冲销后原发票不再计入未收款。</span>'+
+    (x.reopenReq?'<br><span style="color:var(--bad);font-weight:700">🔁 业务已申请重开（'+esc(x.reopenReq.note||'')+'）— 冲销后将自动生成新的待开票。</span>':'');
   $('stornoNo').value='';$('stornoDate').value=todayStr();$('stornoNote').value='';
   $('stornoErr').style.display='none';
   $('stornoOverlay').classList.add('open');
@@ -5777,13 +5849,33 @@ $('stornoOk').onclick=async function(){
       note:'冲销发票 → 原发票 '+x.invNo+(note?'（'+note+'）':''),
       fromOrder:x.fromOrder,comments:[],createdAt:Date.now(),createdBy:session&&session.name||'',_up:Date.now()
     });
+    /* 业务申请重开：自动生成新的待开票（承接更正说明与订单报价明细） */
+    let reopened=false;
+    if(x.reopenReq){
+      try{
+        const o2=ordItems.find(oo=>!oo.deleted&&oo.orderNo===x.orderNo);
+        ariItems.push({
+          id:'ai'+Date.now()+Math.random().toString(36).slice(2,7),
+          customer:x.customer,orderNo:x.orderNo||'',currency:x.currency||'EUR',
+          term:x.term!=null?x.term:14,vatRate:x.vatRate??19,
+          refSale:o2?(o2.salePrice||null):null,
+          lines:o2?ordSvcLines(o2):(x.lines||[]),
+          extra:true,fromOrder:true,
+          note:'🔁 冲销重开（原发票 '+x.invNo+'）：'+(x.reopenReq.note||''),
+          comments:[],createdAt:Date.now(),createdBy:session&&session.name||'',_up:Date.now()
+        });
+        x.reopenReq.done=true;
+        reopened=true;
+      }catch(e){}
+    }
     await ariSaveAll();
     /* 通知关联订单 */
     try{
       const o=ordItems.find(oo=>!oo.deleted&&oo.orderNo===x.orderNo);
       if(o){
-        logAdd(o,'发票冲销：'+x.invNo+' → '+stNo);
-        ordCmt(o,'↩️ 发票 '+x.invNo+' 已冲销（冲销票 '+stNo+'）'+(note?'：'+note:'')+'。如需重开请点「📣 追加开票」。');
+        logAdd(o,'发票冲销：'+x.invNo+' → '+stNo+(reopened?'（已自动生成重开待开票）':''));
+        ordCmt(o,'↩️ 发票 '+x.invNo+' 已冲销（冲销票 '+stNo+'）'+(note?'：'+note:'')+
+          (reopened?'。✅ 系统已按申请自动生成新的待开票，财务开出新发票后会上传到本单。':'。如需重开请点「📣 追加开票」。'));
         await ordSave();
       }
     }catch(e){}
@@ -6722,7 +6814,7 @@ const I18N={
 '已到账':{en:'Received',de:'Eingegangen'},'未收':{en:'Open',de:'Offen'},'净额':{en:'Net',de:'Netto'},
 '待收款':{en:'Awaiting payment',de:'Zahlung offen'},'部分到账':{en:'Partly paid',de:'Teilzahlung'},'已收讫':{en:'Paid in full',de:'Vollständig bezahlt'},'已冲销':{en:'Cancelled',de:'Storniert'},'📦 正式成单':{en:'📦 Orders',de:'📦 Aufträge'},'🔍 询价单':{en:'🔍 Inquiries',de:'🔍 Anfragen'},'询价单 (F)':{en:'Inquiry (F)',de:'Anfrage (F)'},'正式成单 (IMG)':{en:'Order (IMG)',de:'Auftrag (IMG)'},'询价单号 *':{en:'Inquiry no. *',de:'Anfragenr. *'},
 '🔍 询价中':{en:'🔍 Inquiry',de:'🔍 Anfrage'},'未成交':{en:'Lost',de:'Nicht gewonnen'},'🔍 询价中':{en:'🔍 Inquiry',de:'🔍 Anfrage'},
-'🎉 客户成单 · 转为正式订单':{en:'🎉 Won · convert to order',de:'🎉 Gewonnen · in Auftrag umwandeln'},'✖ 标记未成交':{en:'✖ Mark lost',de:'✖ Als verloren markieren'},'📣 追加开票':{en:'📣 Additional invoice',de:'📣 Zusätzliche Rechnung'},'↩️ 冲销此发票':{en:'↩️ Cancel (Storno)',de:'↩️ Stornieren'},'↩️ 冲销发票（Storno）':{en:'↩️ Cancel invoice (Storno)',de:'↩️ Rechnung stornieren'},'确认冲销':{en:'Confirm storno',de:'Storno bestätigen'},'📎 订单附件（PDF / Excel / 图片，单个 ≤ 3MB）':{en:'📎 Order files (PDF / Excel / images, ≤ 3MB each)',de:'📎 Auftragsdateien (PDF / Excel / Bilder, je ≤ 3MB)'},'⬆ 上传附件':{en:'⬆ Upload file',de:'⬆ Datei hochladen'},'暂无附件':{en:'No files yet',de:'Noch keine Dateien'},'📦 导出整单档案':{en:'📦 Export full dossier',de:'📦 Komplettakte exportieren'},'整单档案':{en:'Dossier',de:'Komplettakte'},'勾稽核对':{en:'Reconciliation check',de:'Abstimmungsprüfung'},'📜 该客户近期参考：':{en:'📜 Recent for this customer: ',de:'📜 Zuletzt bei diesem Kunden: '},'备注（选填，写入每笔付款）':{en:'Note (optional, saved to each payment)',de:'Notiz (optional, je Zahlung gespeichert)'},'✓ 勾稽一致':{en:'✓ Reconciled',de:'✓ Stimmt überein'},'💶 批量登记付款':{en:'💶 Bulk payment',de:'💶 Sammelzahlung'},'按尚欠额结清所选':{en:'Settle selected (open amounts)',de:'Auswahl begleichen (offene Beträge)'},'付款日期 *':{en:'Payment date *',de:'Zahlungsdatum *'},'冲销日期 *':{en:'Storno date *',de:'Stornodatum *'},'冲销原因（选填）':{en:'Reason (optional)',de:'Grund (optional)'},
+'🎉 客户成单 · 转为正式订单':{en:'🎉 Won · convert to order',de:'🎉 Gewonnen · in Auftrag umwandeln'},'✖ 标记未成交':{en:'✖ Mark lost',de:'✖ Als verloren markieren'},'📣 追加开票':{en:'📣 Additional invoice',de:'📣 Zusätzliche Rechnung'},'↩️ 冲销此发票':{en:'↩️ Cancel (Storno)',de:'↩️ Stornieren'},'↩️ 冲销发票（Storno）':{en:'↩️ Cancel invoice (Storno)',de:'↩️ Rechnung stornieren'},'确认冲销':{en:'Confirm storno',de:'Storno bestätigen'},'🔁 申请冲销重开':{en:'🔁 Request storno & re-issue',de:'🔁 Storno & Neuausstellung anfordern'},'提交申请':{en:'Submit request',de:'Antrag senden'},'选择要冲销重开的发票 *':{en:'Invoice to cancel & re-issue *',de:'Rechnung für Storno & Neuausstellung *'},'更正说明 *（写清正确金额/内容，财务照此重开）':{en:'Correction note * (state correct amount/content)',de:'Korrekturhinweis * (richtigen Betrag/Inhalt angeben)'},'📎 订单附件（PDF / Excel / 图片，单个 ≤ 3MB）':{en:'📎 Order files (PDF / Excel / images, ≤ 3MB each)',de:'📎 Auftragsdateien (PDF / Excel / Bilder, je ≤ 3MB)'},'⬆ 上传附件':{en:'⬆ Upload file',de:'⬆ Datei hochladen'},'暂无附件':{en:'No files yet',de:'Noch keine Dateien'},'📦 导出整单档案':{en:'📦 Export full dossier',de:'📦 Komplettakte exportieren'},'整单档案':{en:'Dossier',de:'Komplettakte'},'勾稽核对':{en:'Reconciliation check',de:'Abstimmungsprüfung'},'📜 该客户近期参考：':{en:'📜 Recent for this customer: ',de:'📜 Zuletzt bei diesem Kunden: '},'备注（选填，写入每笔付款）':{en:'Note (optional, saved to each payment)',de:'Notiz (optional, je Zahlung gespeichert)'},'✓ 勾稽一致':{en:'✓ Reconciled',de:'✓ Stimmt überein'},'💶 批量登记付款':{en:'💶 Bulk payment',de:'💶 Sammelzahlung'},'按尚欠额结清所选':{en:'Settle selected (open amounts)',de:'Auswahl begleichen (offene Beträge)'},'付款日期 *':{en:'Payment date *',de:'Zahlungsdatum *'},'冲销日期 *':{en:'Storno date *',de:'Stornodatum *'},'冲销原因（选填）':{en:'Reason (optional)',de:'Grund (optional)'},
 '询价号':{en:'Inquiry no.',de:'Anfragenr.'},'收付款联动（按成单号自动匹配 · 点击可跳转）':{en:'Linked AR/AP (matched by order no. · click to jump)',de:'Verknüpfte Zahlungen (per Auftragsnr. · klicken zum Öffnen)'},'多币种：请核对报价单分币种小计':{en:'Mixed currencies: see per-currency totals',de:'Mehrere Währungen: Summen je Währung prüfen'},
 '✉️ 生成催款函':{en:'✉️ Dunning letter',de:'✉️ Mahnung erstellen'},'选择客户（仅列出有未收讫发票的客户）':{en:'Select customer (only those with open invoices)',de:'Kunde wählen (nur mit offenen Rechnungen)'},'生成催款函':{en:'Generate letter',de:'Mahnung erstellen'},'按供应商分组':{en:'Grouped by supplier',de:'Nach Lieferant gruppiert'},'系统导入':{en:'System import',de:'Systemimport'},'即将到期':{en:'Due soon',de:'Bald fällig'},
 '到账日期':{en:'Payment date',de:'Zahlungsdatum'},'付款方式':{en:'Method',de:'Zahlungsart'},'银行转账':{en:'Bank transfer',de:'Überweisung'},
