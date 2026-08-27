@@ -135,6 +135,11 @@ header.topbar{background:var(--pine);color:#fff;padding:0 22px;display:flex;alig
 .base-row:hover{background:#F7FAF9}
 .th-sort{cursor:pointer;user-select:none;white-space:nowrap}
 .cp-chip{cursor:pointer;opacity:.32;font-size:11px;margin-left:4px;user-select:none;display:inline-block}
+#ariTable th,#ariTable td{padding:7px 7px;font-size:12.3px}
+#ariTable th{white-space:nowrap}
+#ariTable td:nth-child(3){max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ariTable .amount{white-space:nowrap}
+#ariTable .badge{padding:2px 7px;font-size:11px}
 .own-chip{border:1.5px solid var(--line);background:#FCFDFD;border-radius:16px;padding:3px 11px;font-size:12px;cursor:pointer;color:var(--ink);font-weight:600}
 .own-chip:hover{border-color:var(--pine)}
 .own-chip.on{background:var(--pine);border-color:var(--pine);color:#fff}
@@ -463,7 +468,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
           <thead><tr>
             <th class="th-sort" id="ariThDate"><span>发票日期</span><span class="sort-ind" id="ariSortInd">▼</span></th><th>发票号</th><th>客户</th><th>IMG 成单号</th>
             <th class="amount">不含税</th><th class="amount">税额</th><th class="amount">含税金额</th>
-            <th>到期日</th><th class="amount">已到账</th><th>状态</th><th>备注</th>
+            <th>到期日</th><th class="amount">已到账</th><th>回款日期</th><th>状态</th><th>备注</th>
           </tr></thead>
           <tbody id="ariBody"></tbody>
         </table>
@@ -499,7 +504,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </select>
       <input type="search" id="fSearch" placeholder="搜索客户 / 单号 / 业务负责人…">
       <span class="spacer"></span>
-      <button class="btn-ghost" id="exportXlsxBtn" type="button">导出 Excel</button>
+      <button class="btn-ghost" id="exportXlsxBtn" type="button">导出 Excel</button><button class="btn-ghost" id="balBtn" type="button" style="display:none">💰 客户余额</button>
       
       
       <button class="btn-add" id="addBtn" type="button" style="display:none">＋ 登记进款</button>
@@ -604,7 +609,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <div class="stat"><div class="s-label">待财务录入</div><div class="s-value" id="apStNew">—<span class="s-unit"> 笔</span></div></div>
       <div class="stat"><div class="s-label">待付款金额（EUR）</div><div class="s-value" id="apStDue">—</div></div>
       <div class="stat warn"><div class="s-label">7 天内到期</div><div class="s-value" id="apStSoon">—<span class="s-unit"> 笔</span></div></div>
-      <div class="stat bad"><div class="s-label">已逾期</div><div class="s-value" id="apStOver">—<span class="s-unit"> 笔</span></div></div>
+      <div class="stat bad"><div class="s-label">已逾期</div><div class="s-value" id="apStOver">—<span class="s-unit"> 笔</span></div></div><div class="stat bad" id="apStUrgCard" style="display:none;cursor:pointer"><div class="s-label">⚡ 加急待付</div><div class="s-value" id="apStUrg">—<span class="s-unit"> 笔</span></div></div>
     </div>
 
     <div class="toolbar">
@@ -643,7 +648,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v16.3</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v16.8</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -660,7 +665,12 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <div class="field"><label for="pMethod">付款方式</label>
         <select id="pMethod"><option>银行转账</option><option>SEPA</option><option>信用证</option><option>支票</option><option>现金</option><option>其他</option></select>
       </div>
-      <div class="field"><label for="pRef">单号 / 参考号</label><input id="pRef" placeholder="发票号或银行参考号"></div>
+      <div class="field"><label for="pRef">单号 / 参考号</label><input id="pRef" placeholder="发票号或银行参考号，可从下方勾选自动填入"></div>
+      <div class="field full" id="pPickWrap" style="display:none">
+        <label>该客户未结清发票（勾选自动核销，老票在前）</label>
+        <div id="pPickBox" style="max-height:160px;overflow:auto;border:1.5px solid var(--line);border-radius:10px;padding:6px 10px;background:#FCFDFD"></div>
+        <div id="pReconBar" style="margin-top:8px;padding:9px 12px;border-radius:8px;font-size:13px;font-weight:600;display:none"></div>
+      </div>
       <div class="field"><label for="pOrderNo">IMG 成单号</label><input id="pOrderNo" placeholder="可选，填写后自动关联订单"></div>
       <div class="field"><label for="pStatus">状态</label>
         <select id="pStatus"><option value="received">已到账</option><option value="pending">待确认</option><option value="issue">有问题</option></select>
@@ -921,6 +931,15 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
   </div>
 </div>
 
+<!-- 应收：客户余额总览 -->
+<div class="overlay" id="balOverlay">
+  <div class="modal" style="max-width:520px">
+    <h2>💰 客户余额（超额到账留存）</h2>
+    <div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:12px">到账金额超出所核销发票的部分自动留存于此，按客户滚动；未来可用于预充值抵扣。</div>
+    <div id="balBody"></div>
+    <div class="modal-btns"><button class="btn-ghost" id="balClose" type="button">关闭</button></div>
+  </div>
+</div>
 <!-- 应收：导出逾期发票 -->
 <div class="overlay" id="ariOvdOverlay">
   <div class="modal" style="max-width:520px">
@@ -1050,6 +1069,15 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <div id="apUpStatus" style="display:none;margin-top:10px;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:600"></div>
     </div>
     <div class="field"><label for="apUpRemark">备注（可选）</label><input id="apUpRemark" placeholder="例如：8 月海运费"></div>
+    <div class="field" style="border:1.5px dashed #C0392B;border-radius:10px;padding:10px 12px;background:#FDF6F5">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#C0392B;font-weight:700">
+        <input type="checkbox" id="apUpUrgent" style="accent-color:#C0392B;width:16px;height:16px">⚡ 需立即付款（不走账期）
+      </label>
+      <div id="apUpUrgBox" style="display:none;margin-top:8px">
+        <div class="field" style="margin-bottom:8px"><label for="apUpUrgDue">期望付款日 *</label><input type="date" id="apUpUrgDue"></div>
+        <div class="field" style="margin-bottom:0"><label for="apUpUrgNote">加急原因（写给财务）</label><input id="apUpUrgNote" placeholder="例如：船公司放货前提，需今日付讫"></div>
+      </div>
+    </div>
     <div class="login-err" id="apUpErr"></div>
     <div class="modal-actions">
       <button class="btn-cancel" id="apUpCancel" type="button">取消</button>
@@ -1401,6 +1429,7 @@ function enterApp(){
   $('tabBASE').style.display=canAnalytics()?'':'none';
 
   $('ariAddBtn').style.display=session.role==='finance'?'':'none';
+  if($('balBtn'))$('balBtn').style.display=session.role==='finance'?'':'none';
   $('ordAddBtn').style.display='';
   const _ana=(session.role==='finance'||session.name==='Peter');
   for(const id of ['ordMrBtn','ordCaBtn','ordSupBtn','ordStatsBtn'])$(id).style.display=_ana?'':'none';
@@ -1565,7 +1594,7 @@ function render(){
       '<td class="hide-m">'+esc(p.method||'—')+'</td>'+
       '<td class="hide-m">'+esc(p.ref||'—')+'</td>'+
       '<td>'+esc(p.owner||'—')+'</td>'+
-      '<td><span class="badge '+p.status+'">'+STATUS[p.status]+'</span></td>'+
+      '<td><span class="badge '+p.status+'">'+STATUS[p.status]+'</span>'+((p.status==='received'&&Number(p.amount)>0&&payAllocSum(p)<0.005&&!(p.booking&&!p.booking.cleared)&&!(p.verify&&!p.verify.cleared&&(p.verify.result==='ok'||p.verify.resolved)))? /* v16.8 尊重双确认：记账已清或业务已核对的老流程款不打扰 */' <span class="badge" style="background:#FDF0EE;color:#C0392B;border:1px solid #E8C4BE" title="此笔到账未核销到任何发票——点开编辑，勾选下方发票即可补核销">⚠ 未核销</span>':'')+'</td>'+ /* v16.7 未核销雷达 */
       '<td><span class="badge '+V_CLASS[vs]+'">'+V_LABEL[vs]+'</span></td>'+
       '<td>'+(un?'<span class="cmt-new">'+un+' 条新消息</span>':'<span class="cmt-count'+(cn?' has':'')+'">💬 '+cn+'</span>')+'</td>';
     if(un)tr.classList.add('unread');
@@ -1878,9 +1907,53 @@ function openPayModal(p){
   $('pStatus').value=p?p.status:'received';
   $('pNote').value=p?p.note:'';
   $('payErr').style.display='none';
+  _pPickSel=new Set((p&&Array.isArray(p.linkIds))?p.linkIds:[]); /* v16.7 编辑回填勾选 */
+  if(typeof pPickRender==='function')setTimeout(pPickRender,0); /* 新建与编辑统一渲染选票区 */
   $('payOverlay').classList.add('open');
   $('pDate').focus();
 }
+/* ── v16.6 选票核销：勾选自动填单号 + 实时核对条 ── */
+let _pPickSel=new Set();
+function pPickRender(){
+  const cust=$('pCustomer').value.trim(), cur=$('pCurrency').value;
+  const wrap=$('pPickWrap'), box=$('pPickBox');
+  const open=ariItems.filter(x=>!x.deleted&&x.invNo&&x.customer===cust&&x.currency===cur)
+    .filter(x=>{const st=ariState(x);return st!=='paid'&&st!=='storno';})
+    .sort((a,b)=>((a.due||a.invDate||'')<(b.due||b.invDate||''))?-1:1);
+  if(!cust||!open.length){wrap.style.display='none';_pPickSel.clear();pReconUpdate();return;}
+  wrap.style.display='';
+  box.innerHTML=open.map(x=>{
+    const rest=Math.round(((Number(x.gross)||0)-ariPaid(x))*100)/100;
+    return '<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:12.5px">'+
+      '<input type="checkbox" class="p-pick" data-id="'+esc(x.id)+'" data-no="'+esc(x.invNo)+'" data-rest="'+rest+'"'+(_pPickSel.has(x.id)?' checked':'')+' style="accent-color:var(--pine);width:15px;height:15px">'+
+      '<b style="font-family:var(--font-num)">'+esc(x.invNo)+'</b>'+
+      '<span style="color:var(--ink-soft)">到期 '+esc(x.due||'—')+'</span>'+
+      '<span style="margin-left:auto;font-family:var(--font-num);font-weight:700;color:'+(rest<0?'var(--pine)':'var(--bad)')+'">'+fmt(rest)+'</span></label>';
+  }).join('');
+  box.querySelectorAll('.p-pick').forEach(cb=>{cb.onchange=function(){
+    if(this.checked)_pPickSel.add(this.dataset.id);else _pPickSel.delete(this.dataset.id);
+    const nos=[...box.querySelectorAll('.p-pick:checked')].map(c=>c.dataset.no);
+    $('pRef').value=nos.join(', ');
+    pReconUpdate();
+  };});
+  pReconUpdate();
+}
+function pReconUpdate(){
+  const bar=$('pReconBar');if(!bar)return;
+  const amt=parseFloat($('pAmount').value)||0;
+  const sel=[...document.querySelectorAll('#pPickBox .p-pick:checked')];
+  if(!sel.length){bar.style.display='none';return;}
+  const need=Math.round(sel.reduce((s,c)=>s+parseFloat(c.dataset.rest||0),0)*100)/100;
+  const diff=Math.round((amt-need)*100)/100;
+  bar.style.display='';
+  const balNote=(cst=>{const b=ariBalanceOf(cst);return b>0.005?('　·　该客户当前余额 '+fmt(b)):'';})($('pCustomer').value.trim());
+  if(Math.abs(diff)<=0.005){bar.style.cssText+=';background:#E9F5EF;color:var(--ok)';bar.innerHTML='✓ 恰好核销：到账 '+fmt(amt)+' = 所选 '+sel.length+' 张尚欠 '+fmt(need)+balNote;}
+  else if(diff<0){bar.style.cssText+=';background:#FCF6E8;color:var(--brass)';bar.innerHTML='◐ 部分核销：到账 '+fmt(amt)+' ＜ 所选尚欠 '+fmt(need)+'（差 '+fmt(-diff)+'，按老票优先分摊）'+balNote;}
+  else{bar.style.cssText+=';background:#EAF2F0;color:var(--pine)';bar.innerHTML='◎ 超出 '+fmt(diff)+'：核销后将<b>留存为客户余额</b>'+balNote;}
+}
+$('pCustomer').addEventListener('change',()=>{_pPickSel.clear();pPickRender();});
+$('pCurrency').addEventListener('change',()=>{_pPickSel.clear();pPickRender();});
+$('pAmount').addEventListener('input',pReconUpdate);
 $('addBtn').onclick=()=>openPayModal(null);
 /* 弹窗内回车快速保存 */
 for(const id of ['pCustomer','pAmount','pRef']){
@@ -1900,7 +1973,8 @@ $('paySave').onclick=async()=>{
     date,customer,amount:Math.round(amount*100)/100,
     currency:$('pCurrency').value,method:$('pMethod').value,
     ref:$('pRef').value.trim(),orderNo:$('pOrderNo').value.trim(),status:$('pStatus').value,
-    note:$('pNote').value.trim()
+    note:$('pNote').value.trim(),
+    linkIds:[...document.querySelectorAll('#pPickBox .p-pick:checked')].map(c=>c.dataset.id) /* v16.6 结构化关联（比token可靠一级） */
   };
   if($('paySave').disabled)return;
   $('paySave').disabled=true;$('paySave').textContent='保存中…';
@@ -2561,14 +2635,15 @@ async function apHandleUpload(file,attachTo,extra){
     }else{
       const ordNo=(extra&&extra.orderNo)||'';
       const remark=(extra&&extra.remark)||'';
+      const urg=(extra&&extra.urgent)||null; /* v16.5 加急付款 */
       apItems.push({
         id:'ap'+Date.now()+Math.random().toString(36).slice(2,7),
         files:[meta],uploadedBy:session.name,uploadedAt:Date.now(),
         orderNo:ordNo,
         supplier:'',invNo:'',amount:null,currency:'EUR',invDate:'',term:null,due:'',note:'',
-        payments:[],
+        payments:[],urgent:urg,
         comments:[{author:session.name,role:session.role,
-          text:'上传供应商发票：'+file.name+(ordNo?'（成单号 '+ordNo+'）':'')+(remark?'。'+remark:''),time:Date.now()}]
+          text:'上传供应商发票：'+file.name+(ordNo?'（成单号 '+ordNo+'）':'')+(remark?'。'+remark:'')+(urg?('。⚡ 需立即付款，期望付款日 '+urg.due+(urg.note?('：'+urg.note):'')):''),time:Date.now()}]
       });
     }
     await apSave();
@@ -2615,23 +2690,27 @@ let apSortDir='desc';
 
 function apRenderStats(){
   try{bulkBarUpdate();}catch(e){}
-  let nNew=0,dueSum=0,nSoon=0,soonSum=0,nOver=0,overSum=0;
+  let nNew=0,dueSum=0,nSoon=0,soonSum=0,nOver=0,overSum=0,nUrg=0,urgSum=0;
   for(const it of apItems){
     if(it.deleted)continue;
     const s=apState(it);
+    if(apUrgent(it)){nUrg++;if(it.currency==='EUR')urgSum+=(Number(it.amount)||0)-apPaid(it);} /* v16.5 待录入的加急也要上卡（最典型场景） */
     if(s==='new'){nNew++;continue;}
     const rest=(Number(it.amount)||0)-apPaid(it);
     if(s!=='paid'&&it.currency==='EUR')dueSum+=rest;
-    if(s==='overdue'){nOver++;if(it.currency==='EUR')overSum+=Math.max(0,rest);}
-    else if(s!=='paid'){const dl=apDaysLeft(it);if(dl!==null&&dl>=0&&dl<=7){nSoon++;if(it.currency==='EUR')soonSum+=Math.max(0,rest);}}/* v16.0 口径统一：应付逾期/将到期尚欠=max(0,amt−paid)，与应收侧同式 */
+    if(s==='overdue'){nOver++;if(it.currency==='EUR')overSum+=rest;}/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
+    else if(s!=='paid'){const dl=apDaysLeft(it);if(dl!==null&&dl>=0&&dl<=7){nSoon++;if(it.currency==='EUR')soonSum+=rest;}}
   }
   $('apStNew').innerHTML=nNew+'<span class="s-unit"> 笔</span>';
   $('apStDue').textContent='€ '+fmt(dueSum);
   $('apStSoon').innerHTML=nSoon+'<span class="s-unit"> 笔</span>'+(soonSum?'<span class="s-unit"> · € '+fmt(soonSum)+'</span>':'');
   $('apStOver').innerHTML=nOver+'<span class="s-unit"> 笔</span>'+(overSum?'<span class="s-unit"> · € '+fmt(overSum)+'</span>':'');
+  $('apStUrg').innerHTML=nUrg+'<span class="s-unit"> 笔</span>'+(urgSum?'<span class="s-unit"> · € '+fmt(urgSum)+'</span>':'');
+  $('apStUrgCard').style.display=nUrg>0?'':'none';
 }
+function apUrgent(it){return !!(it.urgent&&!it.deleted&&apState(it)!=='paid');} /* v16.5 付清自动熄灭 */
 function apAlertUpdate(){
-  const n=apItems.filter(x=>!x.deleted&&(apState(x)==='overdue'||(session&&session.role==='finance'&&apState(x)==='new'))).length;
+  const n=apItems.filter(x=>!x.deleted&&(apUrgent(x)||apState(x)==='overdue'||(session&&session.role==='finance'&&apState(x)==='new'))).length;
   const dot=$('apAlert');
   if(n>0){dot.style.display='';dot.textContent=n;}else{dot.style.display='none';}
 }
@@ -2791,7 +2870,8 @@ async function ordArchiveExport(o){
 let _bulkSel=new Set();
 function renderAP(){
   apRenderStats();
-  const list=apFiltered();
+  let list=apFiltered();
+  list=[...list.filter(apUrgent),...list.filter(x=>!apUrgent(x))]; /* v16.5 加急稳定置顶 */
   const tb=$('apBody');
   $('apTable').style.display=list.length?'':'none';
   $('apEmpty').style.display=list.length?'none':'';
@@ -2821,7 +2901,7 @@ function renderAP(){
       '<td style="white-space:nowrap">'+dueTxt+'</td>'+
       '<td class="amount">'+(paid?fmt(paid):'—')+'</td>'+
       '<td style="font-family:var(--font-num);white-space:nowrap" title="'+(function(){const ps=apPayList(it).filter(p=>p.date);return ps.length?esc(ps.map(p=>p.date+'  '+fmt(p.amount)+' '+(it.currency||'')).join('&#10;')):'';})()+'">'+(function(){const ps=apPayList(it).filter(p=>p.date);if(!ps.length)return '—';const d=ps.map(p=>p.date).sort().pop();return esc(d)+(ps.length>1?' <span style=\"font-size:10.5px;color:var(--ink-soft)\">('+ps.length+'次)</span>':'');})()+'</td>'+
-      '<td><span class="badge '+AP_CLASS[s]+'">'+AP_LABEL[s]+'</span></td>'+
+      '<td>'+(apUrgent(it)?'<span class="badge" style="background:#C0392B;color:#fff" title="'+esc('期望付款日 '+(it.urgent.due||'')+(it.urgent.note?('：'+it.urgent.note):''))+'">⚡ 加急</span> ':'')+'<span class="badge '+AP_CLASS[s]+'">'+AP_LABEL[s]+'</span></td>'+
       '<td>'+((it.files||[]).length?'📎 '+it.files.length:'—')+'</td>'+
       '<td>'+(un?'<span class="cmt-new">'+un+' 条新消息</span>':'<span class="cmt-count'+((it.comments||[]).length?' has':'')+'">💬 '+(it.comments||[]).length+'</span>')+'</td>';
     tr.onclick=()=>{if(hasSel())return;apOpenId=apOpenId===it.id?null:it.id;if(apOpenId)seenMark(apOpenId);renderAP();};
@@ -2885,6 +2965,20 @@ function apDetail(it){
   /* 修改成单号（业务与财务均可，留痕） */
   {
     const obtn=document.createElement('button');
+    if(apUrgent(it)&&session.role==='finance'){ /* v16.5 财务可取消加急（防滥用） */
+      const ub=document.createElement('button');
+      ub.className='btn-sm danger';ub.style.marginTop='10px';ub.style.marginRight='8px';
+      ub.textContent='✕ 取消加急';
+      ub.onclick=async function(e){
+        e.stopPropagation();
+        if(!confirm('取消此发票的「⚡ 立即付款」标记？（记入沟通备注）'))return;
+        it.comments=it.comments||[];
+        it.comments.push({author:session.name,role:'finance',text:'✕ 取消加急标记（原为 '+(it.urgent&&it.urgent.by||'')+' 标记，期望付款日 '+(it.urgent&&it.urgent.due||'')+'）',time:Date.now()});
+        it.urgent=null;
+        await apSave();renderAP();toast('已取消加急');
+      };
+      left.appendChild(ub);
+    }
     obtn.className='btn-sm';obtn.style.marginTop='10px';obtn.style.marginRight='8px';
     obtn.textContent='✎ 修改成单号';
     obtn.onclick=async function(e){
@@ -3147,7 +3241,7 @@ function apExportRows(){
     const paid=apPaid(it), amt=Number(it.amount)||0;
     const upD=apEntryDate(it);
     return [upD,it.invDate||'',it.supplier||'',it.invNo||'',it.orderNo||'',amt||'',it.currency||'',
-      (it.term===null||it.term===undefined)?'':it.term,it.due||'',paid||'',amt?Math.max(0,amt-paid):'',
+      (it.term===null||it.term===undefined)?'':it.term,it.due||'',paid||'',amt?Math.round((amt-paid)*100)/100:'', /* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
       AP_LABEL[apState(it)],it.uploadedBy||'',it.enteredBy||'',
       apPayList(it).map(x=>x.date+' '+fmt(x.amount)).join(' / '),it.note||''];  /* v15.4 双字段归源 */
   });
@@ -3207,6 +3301,7 @@ let _apUpFile=null;
 $('apUploadBtn').onclick=()=>{
   apPendingAttach=null;_apUpFile=null;_apUpToken++;
   $('apUpOrder').value='';$('apUpRemark').value='';
+  $('apUpUrgent').checked=false;$('apUpUrgBox').style.display='none';$('apUpUrgDue').value=todayStr();$('apUpUrgNote').value='';
   $('apUpFileName').textContent='未选择文件';
   $('apUpErr').style.display='none';
   apUpStatus('');
@@ -3245,6 +3340,7 @@ function apUpStatus(msg,kind){
   else if(kind==='err'){el.style.background='var(--bad-bg)';el.style.color='var(--bad)';el.style.border='1.5px solid var(--bad)';}
   else{el.style.background='#EFF3F2';el.style.color='var(--ink-soft)';el.style.border='1.5px solid var(--line)';}
 }
+$('apUpUrgent').onchange=function(){$('apUpUrgBox').style.display=this.checked?'':'none';if(this.checked&&!$('apUpUrgDue').value)$('apUpUrgDue').value=todayStr();};
 $('apUpSave').onclick=async()=>{
   const err=$('apUpErr');err.style.display='none';
   const ordNo=$('apUpOrder').value.trim();
@@ -3255,7 +3351,13 @@ $('apUpSave').onclick=async()=>{
   btn.disabled=true;btn.textContent='上传中…';
   apUpStatus('⏳ 正在上传发票，请稍候…');
   const before=new Set(apItems.map(x=>x.id));
-  const ok=await apHandleUpload(_apUpFile,null,{orderNo:ordNo,remark:$('apUpRemark').value.trim()});
+  let _urg=null;
+  if($('apUpUrgent').checked){
+    const ud=$('apUpUrgDue').value;
+    if(!ud){$('apUpErr').textContent='勾选了立即付款，请填写期望付款日';return;}
+    _urg={by:session.name,at:Date.now(),due:ud,note:$('apUpUrgNote').value.trim()};
+  }
+  const ok=await apHandleUpload(_apUpFile,null,{orderNo:ordNo,remark:$('apUpRemark').value.trim(),urgent:_urg});
   if(token!==_apUpToken)return; /* 弹窗已被重新打开，忽略旧结果 */
   if(ok){
     /* 成功：绿色成功态 → 1.2 秒后自动关闭并高亮新行 */
@@ -3310,21 +3412,21 @@ function stmtRender(){
     h+='<th style="background:var(--pine);color:#E4EEEA;padding:7px 9px;text-align:center;white-space:nowrap">'+th+'</th>';
   h+='</tr></thead><tbody>';
   for(const it of d.inv){
-    const paid=apPaid(it),amt=Number(it.amount)||0,rest=Math.max(0,amt-paid);
+    const paid=apPaid(it),amt=Number(it.amount)||0,rest=Math.round((amt-paid)*100)/100;/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
     h+='<tr>'+
       '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num);text-align:center">'+esc(it.invDate||'—')+'</td>'+
       '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num)">'+esc(it.invNo||'—')+'</td>'+
       '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num)">'+esc(it.orderNo||'—')+'</td>'+
       '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num);text-align:right">'+fmt(amt)+' '+esc(it.currency)+'</td>'+
       '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num);text-align:right">'+(paid?fmt(paid):'—')+'</td>'+
-      '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num);text-align:right;'+(rest>0.005?'color:var(--bad);font-weight:600':'')+'">'+(rest>0.005?fmt(rest):'—')+'</td>'+
+      '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;font-family:var(--font-num);text-align:right;'+(Math.abs(rest)>0.005?'color:var(--bad);font-weight:600':'')+'">'+(Math.abs(rest)>0.005?fmt(rest):'—')+'</td>'+ /* v16.4 负数尚欠如实显示 */
       '<td style="padding:6px 9px;border-bottom:1px solid #ECF0EF;text-align:center"><span class="badge '+AP_CLASS[apState(it)]+'">'+AP_LABEL[apState(it)]+'</span></td>'+
       '</tr>';
   }
   h+='</tbody></table>';
   h+='<div style="margin-top:10px;padding:10px 12px;background:#EFF3F2;border-radius:8px;font-size:13px">';
   for(const c in d.tot){
-    const t=d.tot[c],rest=Math.max(0,t.amt-t.paid);
+    const t=d.tot[c],rest=Math.round((t.amt-t.paid)*100)/100;/* v16.4 净额 */
     h+='<div style="font-family:var(--font-num)"><b>'+c+'</b>　发票合计 '+fmt(t.amt)+'　已付 '+fmt(t.paid)+'　'+
        (rest>0.005?'<span style="color:var(--bad);font-weight:700">尚欠 '+fmt(rest)+'</span>':'<span style="color:var(--ok);font-weight:700">已结清</span>')+'</div>';
   }
@@ -3383,12 +3485,12 @@ function stmtAoa(sup,year,d){
   ];
   for(const it of d.inv){
     const paid=apPaid(it),amt=Number(it.amount)||0;
-    aoa.push([it.invDate||'',it.invNo||'',it.orderNo||'',amt,it.currency||'',it.due||'',paid,Math.max(0,amt-paid),AP_LABEL[apState(it)]]);
+    aoa.push([it.invDate||'',it.invNo||'',it.orderNo||'',amt,it.currency||'',it.due||'',paid,Math.round((amt-paid)*100)/100,AP_LABEL[apState(it)]]);/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
   }
   aoa.push([]);
   for(const c in d.tot){
     const t=d.tot[c];
-    aoa.push(['合计（'+c+'）','','',t.amt,'','',t.paid,Math.max(0,t.amt-t.paid),'']);
+    aoa.push(['合计（'+c+'）','','',Math.round(t.amt*100)/100,'',''+'',Math.round(t.paid*100)/100,Math.round((t.amt-t.paid)*100)/100,'']); /* v16.4 净额+2位舍入 */
   }
   {
     const payTot={};
@@ -3496,7 +3598,7 @@ function ovdPreviewUpdate(){
   for(const x of t){
     nf+=(x.files||[]).length;
     const cur=x.currency||'EUR';
-    owe[cur]=(owe[cur]||0)+Math.max(0,(Number(x.gross)||0)-ariPaid(x));
+    owe[cur]=(owe[cur]||0)+((Number(x.gross)||0)-ariPaid(x));/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
   }
   const oweTxt=Object.keys(owe).map(c=>fmt(owe[c])+' '+c).join(' · ')||'0,00';
   $('ovdPreview').innerHTML=t.length
@@ -3512,9 +3614,9 @@ function ovdAoa(list,csel){
     ['发票日期','发票号','客户','IMG成单号','到期日','逾期天数','含税金额','已到账','尚欠','币种']
   ];
   const r2=v=>Math.round(v*100)/100;
-  const row=x=>{const g=Number(x.gross)||0,p=ariPaid(x);return [x.invDate||'',x.invNo||'',x.customer||'',x.orderNo||'',x.due||'',ovdDays(x),r2(g),r2(p),r2(Math.max(0,g-p)),x.currency||'EUR'];};
+  const row=x=>{const g=Number(x.gross)||0,p=ariPaid(x);return [x.invDate||'',x.invNo||'',x.customer||'',x.orderNo||'',x.due||'',ovdDays(x),r2(g),r2(p),r2(g-p),x.currency||'EUR'];};/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
   const tot={};
-  const addTot=(bag,x)=>{const c=x.currency||'EUR';bag[c]=bag[c]||{n:0,g:0,p:0,o:0};const g=Number(x.gross)||0,pp=ariPaid(x);bag[c].n++;bag[c].g+=g;bag[c].p+=pp;bag[c].o+=Math.max(0,g-pp);};
+  const addTot=(bag,x)=>{const c=x.currency||'EUR';bag[c]=bag[c]||{n:0,g:0,p:0,o:0};const g=Number(x.gross)||0,pp=ariPaid(x);bag[c].n++;bag[c].g+=g;bag[c].p+=pp;bag[c].o+=(g-pp);};
   if(csel==='all'){
     let cur='',sub={};
     const flushSub=()=>{for(const c in sub){const v=sub[c];aoa.push(['小计（'+cur+' · '+c+'）','','','','',v.n+' 张',r2(v.g),r2(v.p),r2(v.o),c]);}sub={};};
@@ -3574,7 +3676,7 @@ async function ovdGo(){
 function ariOvdOpen(){
   const ov=ariItems.filter(x=>!x.deleted&&x.invNo&&ariState(x)==='overdue');
   const per={};
-  for(const x of ov){const c=x.customer||'—';per[c]=(per[c]||0)+Math.max(0,(Number(x.gross)||0)-ariPaid(x));}
+  for(const x of ov){const c=x.customer||'—';per[c]=(per[c]||0)+((Number(x.gross)||0)-ariPaid(x));}/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
   const names=Object.keys(per).sort((a,b)=>per[b]-per[a]); /* 按欠款降序，与催款候选同构 */
   const sel=$('ovdCustomer');
   sel.innerHTML='<option value="all">'+trStr('全部客户')+'</option>'+names.map(n=>'<option value="'+esc(n)+'">'+esc(n)+'（'+fmt(per[n])+'）</option>').join('');
@@ -3583,6 +3685,16 @@ function ariOvdOpen(){
   $('ariOvdOverlay').classList.add('open');
 };
 $('ariOvdBtn2').onclick=ariOvdOpen; /* v16.2 唯一入口：应收发票子页 */
+function balRender(){
+  const all=ariBalanceAll();
+  const ks=Object.keys(all).sort((a,b)=>all[b]-all[a]);
+  $('balBody').innerHTML=ks.length
+    ? '<table style="width:100%;border-collapse:collapse;font-size:13px">'+ks.map(k=>'<tr><td style="padding:7px 10px;border-bottom:1px solid #ECF0EF">'+esc(k)+'</td><td style="padding:7px 10px;border-bottom:1px solid #ECF0EF;text-align:right;font-family:var(--font-num);font-weight:700;color:var(--pine)">'+fmt(all[k])+' EUR</td></tr>').join('')+'</table>'
+    : '<div style="color:var(--ink-soft);text-align:center;padding:24px">暂无留存余额</div>';
+}
+$('balBtn').onclick=()=>{balRender();$('balOverlay').classList.add('open');};
+$('balClose').onclick=()=>$('balOverlay').classList.remove('open');
+$('balOverlay').addEventListener('click',e=>{if(e.target===$('balOverlay'))$('balOverlay').classList.remove('open');});
 $('ovdCustomer').onchange=ovdPreviewUpdate;
 $('ovdGo').onclick=ovdGo;
 $('ovdClose').onclick=()=>$('ariOvdOverlay').classList.remove('open');
@@ -5336,7 +5448,7 @@ function dunningLetter(customer){
   if(invs.length){
     cur=invs[0].currency||'EUR';
     trs=invs.map(x=>{
-      const rest=Math.max(0,(Number(x.gross)||0)-ariPaid(x));
+      const rest=(Number(x.gross)||0)-ariPaid(x); /* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
       sum+=rest;
       return '<tr><td>'+esc(x.invNo)+'</td><td>'+esc(x.invDate||'')+' → '+esc(x.due||'')+'</td><td style="text-align:right">'+fmt(rest)+' '+esc(x.currency||'EUR')+'</td></tr>';
     }).join('');
@@ -5722,13 +5834,14 @@ function ariReceipts(inv){
     return false;
   });
 }
-let _alcMap=null,_alcAt=0;
+let _alcMap=null,_alcAt=0,_alcBal=null,_alcDetail=null;
 function ariAllocMap(){
   /* v15.7 B6 根治：一笔到账引用多张发票时按瀑布分摊（老票优先、余款挂末张、现金总额守恒），
      单票匹配保持旧语义（全额计入该票，含超额）。50ms 微缓存：同一渲染批次内复用，编辑后自然失效。 */
   const now=Date.now();
   if(_alcMap&&now-_alcAt<50)return _alcMap;
-  const map={};
+  const map={},bal={},det={}; /* v16.6 bal=客户留存余额；det=每票回款明细[{date,amount}] */
+  const rec=(id,amt,date,pid)=>{map[id]=(map[id]||0)+amt;(det[id]=det[id]||[]).push({date:date||'',amount:amt,payId:pid||''});};
   const live=x=>!(x.settledManual||x.storno||x.cancelledBy); /* 这三类 paid 恒等于 gross，不消耗现金 */
   const byNo=new Map(), byOrd=new Map();
   for(const x of ariItems){
@@ -5743,9 +5856,17 @@ function ariAllocMap(){
     const tokens=String(p.ref||'').split(/[^0-9A-Za-z_-]+/).filter(Boolean);
     for(const t of tokens){const x=byNo.get(t);if(x&&x.currency===p.currency)hit.set(x.id,x);}
     if(p.orderNo&&byOrd.has(p.orderNo))for(const x of byOrd.get(p.orderNo)){if(x.currency===p.currency&&x.invNo)hit.set(x.id,x);}
+    /* v16.6 结构化关联优先：勾选过的到账不再走token猜 */
+    if(Array.isArray(p.linkIds)&&p.linkIds.length){
+      hit.clear();
+      for(const id of p.linkIds){const x=ariItems.find(i=>i.id===id&&!i.deleted);if(x)hit.set(x.id,x);}
+    }
     const M=[...hit.values()];
-    if(!M.length)continue;
-    if(M.length===1){map[M[0].id]=(map[M[0].id]||0)+amt;continue;}
+    if(!M.length){ /* 有勾选但票已删/无匹配 → 全额留存客户余额 */
+      if(Array.isArray(p.linkIds)&&p.linkIds.length&&p.customer)bal[p.customer]=(bal[p.customer]||0)+amt;
+      continue;
+    }
+    if(M.length===1&&!(Array.isArray(p.linkIds)&&p.linkIds.length)){rec(M[0].id,amt,p.date,p.id);continue;} /* 单票token匹配保持旧全额语义 */
     const L=M.filter(live);
     const pool=L.length?L:M;
     pool.sort((a,b)=>((a.due||a.invDate||'')<(b.due||b.invDate||''))?-1:((a.due||a.invDate||'')>(b.due||b.invDate||''))?1:String(a.invNo).localeCompare(String(b.invNo)));
@@ -5756,14 +5877,21 @@ function ariAllocMap(){
       let take;
       if(amt>=0)take=Math.min(Math.max(need,0),Math.max(rem,0));
       else take=Math.max(Math.min(need,0),Math.min(rem,0));
-      if(take){map[x.id]=has+take;rem=Math.round((rem-take)*100)/100;}
+      if(take){rec(x.id,take,p.date,p.id);rem=Math.round((rem-take)*100)/100;}
       if(Math.abs(rem)<0.005)break;
     }
-    if(Math.abs(rem)>=0.005){const last=pool[pool.length-1];map[last.id]=(map[last.id]||0)+rem;} /* 余额守恒挂末张 */
+    if(Math.abs(rem)>=0.005){ /* v16.6 拍板：余额不再挂末张，留存为客户余额（守恒） */
+      const cst=p.customer||(pool[0]&&pool[0].customer)||'';
+      if(cst)bal[cst]=(bal[cst]||0)+rem;else rec(pool[pool.length-1].id,rem,p.date,p.id);
+    }
   }
-  _alcMap=map;_alcAt=now;
+  _alcMap=map;_alcBal=bal;_alcDetail=det;_alcAt=now;
   return map;
 }
+function payAllocSum(p){ariAllocMap();let t=0;for(const k in (_alcDetail||{}))for(const e of _alcDetail[k])if(e.payId===p.id)t+=e.amount;return Math.round(t*100)/100;}
+function ariBalanceOf(cust){ariAllocMap();return Math.round(((_alcBal||{})[cust]||0)*100)/100;}
+function ariBalanceAll(){ariAllocMap();const o={};for(const k in (_alcBal||{})){const v=Math.round(_alcBal[k]*100)/100;if(Math.abs(v)>0.005)o[k]=v;}return o;}
+function ariPayInfo(inv){ariAllocMap();const l=(_alcDetail||{})[inv.id]||[];return {list:l,last:l.length?l.reduce((a,b)=>(a.date>b.date?a:b)).date:''};}
 function ariPaid(inv){
   if(inv.settledManual||inv.storno||inv.cancelledBy)return Number(inv.gross)||0;
   const m=ariAllocMap();
@@ -5846,8 +5974,8 @@ function ariRenderStats(){
       if((x.invDate||'').slice(0,7)===m)month+=Number(x.gross)||0;
     }
     if(s==='toinv')toinv++;
-    if(s==='soon'){soon++;if(x.currency==='EUR')soonSum+=Math.max(0,rest);}
-    if(s==='overdue'){over++;if(x.currency==='EUR')overSum+=Math.max(0,rest);}/* v15.7 口径统一：尚欠=max(0,g−paid) */
+    if(s==='soon'){soon++;if(x.currency==='EUR')soonSum+=rest;}/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
+    if(s==='overdue'){over++;if(x.currency==='EUR')overSum+=rest;}
   }
   const reopenN=ariItems.filter(x=>!x.deleted&&x.reopenReq&&!x.reopenReq.done&&!x.cancelledBy).length;
   $('ariStToinv').innerHTML=toinv+'<span class="s-unit"> 张</span>'+(reopenN?'<span class="s-unit" style="color:var(--bad)"> · 🔁 '+reopenN+'</span>':'');
@@ -5863,7 +5991,7 @@ function renderARI(){
   $('ariTable').style.display=list.length?'':'none';
   $('ariEmpty').style.display=list.length?'none':'';
   const tb=$('ariBody');tb.innerHTML='';
-  for(const x of renderCap(list,tb,11)){
+  for(const x of renderCap(list,tb,12)){
     const st=ariState(x), paid=ariPaid(x), un=unreadCount(x);
     const tr=document.createElement('tr');tr.className='row';
     if(st==='overdue')tr.classList.add('od');
@@ -5871,13 +5999,14 @@ function renderARI(){
     tr.innerHTML=
       '<td style="font-family:var(--font-num);white-space:nowrap">'+esc(x.invDate||'—')+'</td>'+
       '<td style="font-family:var(--font-num)"><b>'+esc(x.invNo||'—')+'</b></td>'+
-      '<td>'+esc(x.customer||'—')+'</td>'+
+      '<td title="'+esc(x.customer||'')+'">'+esc(x.customer||'—')+'</td>'+
       '<td style="font-family:var(--font-num)">'+esc(x.orderNo||'—')+'</td>'+
       '<td class="amount">'+(x.net!=null?fmt(x.net):'—')+'</td>'+
       '<td class="amount">'+(x.vat!=null?fmt(x.vat):'—')+'</td>'+
       '<td class="amount"><b>'+(x.gross!=null?fmt(x.gross):'—')+'</b><span class="cur">'+esc(x.currency)+'</span></td>'+
       '<td style="font-family:var(--font-num);white-space:nowrap">'+(x.due?esc(x.due)+' '+ariDaysTag(x):(ariState(x)==='toinv'&&x.term!=null?'<span style="color:var(--brass);font-weight:600">账期'+(x.term===0?'立即':x.term+'天')+'</span>':'—'))+'</td>'+
       '<td class="amount">'+(paid?fmt(paid):'—')+'</td>'+
+      '<td style="font-family:var(--font-num);white-space:nowrap;font-size:12px">'+((x.settledManual&&!ariPayInfo(x).last)?'<span style="color:var(--ink-soft)">手动结清</span>':(esc(ariPayInfo(x).last)||'—'))+'</td>'+
       '<td><span class="badge '+ARI_CLASS[st]+'">'+ARI_LABEL[st]+'</span>'+((x.reopenReq&&!x.cancelledBy)?' <span class="badge cancelled" title="业务申请冲销重开">🔁</span>':'')+'</td>'+
       '<td>'+(un?'<span class="cmt-new">'+un+' 条新消息</span>':'<span class="cmt-count'+((x.comments||[]).length?' has':'')+'">💬 '+(x.comments||[]).length+'</span>')+'</td>';
     tr.onclick=()=>{if(hasSel())return;ariOpenId=ariOpenId===x.id?null:x.id;if(ariOpenId)seenMark(ariOpenId);renderARI();};
@@ -5885,7 +6014,7 @@ function renderARI(){
     if(ariOpenId===x.id){
       seenMark(x.id);
       const dtr=document.createElement('tr');dtr.className='detail';
-      const td=document.createElement('td');td.colSpan=11;
+      const td=document.createElement('td');td.colSpan=12;
       td.appendChild(ariDetail(x));
       dtr.appendChild(td);tb.appendChild(dtr);
     }
@@ -6369,7 +6498,7 @@ async function ariExport(){
   const head=['发票日期','发票号','客户','IMG成单号','不含税','税率%','税额','含税金额','币种','账期(天)','到期日','已到账','未收','状态','备注'];
   const rows=list.map(x=>{
     const paid=ariPaid(x);
-    return [x.invDate||'',x.invNo||'',x.customer||'',x.orderNo||'',x.net,x.vatRate??'',x.vat,x.gross,x.currency,x.term??'',x.due||'',paid,Math.max(0,(Number(x.gross)||0)-paid),ARI_LABEL[ariState(x)],x.note||''];
+    return [x.invDate||'',x.invNo||'',x.customer||'',x.orderNo||'',x.net,x.vatRate??'',x.vat,x.gross,x.currency,x.term??'',x.due||'',paid,Math.round(((Number(x.gross)||0)-paid)*100)/100,ARI_LABEL[ariState(x)],x.note||''];/* v16.4 净额 */
   });
   try{
     await ensureXLSX();
@@ -6416,7 +6545,7 @@ function dunCands(){
     if(x.deleted||!x.invNo)continue;
     const st=ariState(x);
     if(st==='paid'||st==='storno')continue;
-    const rest=Math.max(0,(Number(x.gross)||0)-ariPaid(x));
+    const rest=(Number(x.gross)||0)-ariPaid(x); /* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
     const e=m.get(x.customer)||{n:0,sum:0,over:0};
     e.n++;if(x.currency==='EUR')e.sum+=rest;
     if(st==='overdue')e.over++;
@@ -6827,7 +6956,7 @@ function digestBuild(){
     if(toinv.length)li('🧾','有 <b>'+toinv.length+'</b> 单待开票（'+toinv.map(x=>esc(x.orderNo)).slice(0,3).join('、')+(toinv.length>3?'…':'')+'）','var(--brass)');
     const over=ariItems.filter(x=>!x.deleted&&ariState(x)==='overdue');
     if(over.length){
-      const sum=over.filter(x=>x.currency==='EUR').reduce((s,x)=>s+Math.max(0,(Number(x.gross)||0)-ariPaid(x)),0);/* v15.7 口径统一：尚欠=max(0,g−paid) */
+      const sum=over.filter(x=>x.currency==='EUR').reduce((s,x)=>s+(Number(x.gross)||0)-ariPaid(x),0);/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
       li('🔴','应收逾期 <b>'+over.length+'</b> 张，未收约 € '+fmt(sum)+'，建议发催款函','var(--bad)');
     }
     const soon=ariItems.filter(x=>!x.deleted&&ariState(x)==='soon').length;
@@ -7019,7 +7148,7 @@ function apGroupRows(list,extraFn){
   const width=AP_HEAD.length+(extraFn?1:0);
   const rows=[];
   const sorted=[...groups.entries()].map(([sup,items])=>{
-    const rest=items.reduce((s,x)=>s+(extraFn?Math.max(0,(Number(x.amount)||0)-apPaidSum(x)):((Number(x.amount)||0)-apPaidSum(x)))*(x.currency==='EUR'?1:0),0); /* v16.0 逾期模式clamp/净额模式原义 */
+    const rest=items.reduce((s,x)=>s+((Number(x.amount)||0)-apPaidSum(x))*(x.currency==='EUR'?1:0),0);/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
     return {sup,items,rest};
   }).sort((a,b)=>b.rest-a.rest);
   for(const g of sorted){
@@ -7046,9 +7175,17 @@ drillBind('apStSoon',()=>{
   const list=apItems.filter(x=>!x.deleted&&apState(x)==='soon');
   drillOpen('应付-7天内到期',[...AP_HEAD,'剩余天数'],apGroupRows(list,it=>daysLeft(it.due)),'按供应商分组 · 到期日在 7 天内、尚未付清');
 });
+drillBind('apStUrgCard',()=>{
+  const list=apItems.filter(x=>!x.deleted&&apUrgent(x)).sort((a,b)=>((a.urgent.due||'')<(b.urgent.due||''))?-1:1);
+  const sum=list.filter(x=>x.currency==='EUR').reduce((s,x)=>s+(Number(x.amount)||0)-apPaidSum(x),0);/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
+  drillOpen('应付-⚡加急待付',[...AP_HEAD,'期望付款日','加急原因'],list.map(x=>{
+    const paid=apPaidSum(x),amt=Number(x.amount)||0;
+    return [x.supplier||'—',x.invNo||x.genNo||'—',x.invDate||'—',x.due||'—',amt?fmt(amt):'—',paid?fmt(paid):'—',amt?fmt(Math.round((amt-paid)*100)/100):'—',x.currency||'EUR',x.orderNo||'—',AP_LABEL[apState(x)],x.uploadedBy||'—',apPayList(x).slice(-1).map(p=>p.date).join('')||'—',x.urgent.due||'—',x.urgent.note||'—'];
+  }),'业务标记需立即付款 · EUR 净额合计 <b style="color:var(--bad)">€ '+fmt(sum)+'</b> · 按期望付款日排序');
+});
 drillBind('apStOver',()=>{
   const list=apItems.filter(x=>!x.deleted&&apState(x)==='overdue');
-  const sum=list.filter(x=>x.currency==='EUR').reduce((s,x)=>s+Math.max(0,(Number(x.amount)||0)-apPaidSum(x)),0);/* v16.0 口径统一：应付逾期/将到期尚欠=max(0,amt−paid)，与应收侧同式 */
+  const sum=list.filter(x=>x.currency==='EUR').reduce((s,x)=>s+(Number(x.amount)||0)-apPaidSum(x),0);/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
   drillOpen('应付-已逾期',[...AP_HEAD,'逾期天数'],apGroupRows(list,it=>daysOverdue(it.due)),'按供应商分组 · EUR 逾期未付合计 <b style="color:var(--bad)">€ '+fmt(sum)+'</b>');
 });
 
@@ -7063,7 +7200,7 @@ function ariDrillRows(list){
 }
 drillBind('ariStOpen',()=>{
   const list=ariItems.filter(x=>!x.deleted&&x.invNo&&ariState(x)!=='paid');
-  const sum=list.filter(x=>x.currency==='EUR').reduce((s,x)=>s+Math.max(0,(Number(x.gross)||0)-ariPaid(x)),0);/* v15.7 口径统一：尚欠=max(0,g−paid) */
+  const sum=list.filter(x=>x.currency==='EUR').reduce((s,x)=>s+(Number(x.gross)||0)-ariPaid(x),0);/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
   drillOpen('应收-未收款发票',ARI_HEAD,ariDrillRows(list),'EUR 未收合计 <b>€ '+fmt(sum)+'</b>');
 });
 drillBind('ariStMonth',()=>{
@@ -7088,7 +7225,7 @@ function ariGroupRows(list,extraFn){
   const width=ARI_HEAD.length+(extraFn?1:0);
   const rows=[];
   const sorted=[...groups.entries()].map(([cust,items])=>{
-    const rest=items.reduce((s,x)=>s+Math.max(0,(Number(x.gross)||0)-ariPaid(x))*(x.currency==='EUR'?1:0),0);
+    const rest=items.reduce((s,x)=>s+((Number(x.gross)||0)-ariPaid(x))*(x.currency==='EUR'?1:0),0);/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
     return {cust,items,rest};
   }).sort((a,b)=>b.rest-a.rest);
   for(const g of sorted){
@@ -7138,7 +7275,7 @@ drillBind('ariStToinv',()=>{
 });
 drillBind('ariStOver',()=>{
   const list=ariItems.filter(x=>!x.deleted&&ariState(x)==='overdue');
-  const sum=list.filter(x=>x.currency==='EUR').reduce((s,x)=>s+Math.max(0,(Number(x.gross)||0)-ariPaid(x)),0);/* v15.7 口径统一：尚欠=max(0,g−paid) */
+  const sum=list.filter(x=>x.currency==='EUR').reduce((s,x)=>s+(Number(x.gross)||0)-ariPaid(x),0);/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
   drillOpen('应收-已逾期',[...ARI_HEAD,'逾期天数'],ariGroupRows(list,x=>daysOverdue(x.due)),'按客户分组 · EUR 逾期未收合计 <b style="color:var(--bad)">€ '+fmt(sum)+'</b>（■ 行为该客户小计）· 可在工具栏生成催款函');
 });
 
@@ -7212,7 +7349,7 @@ const I18N={
 '进行中订单':{en:'Active orders',de:'Laufende Aufträge'},'本月毛利（EUR）':{en:'Margin this month (EUR)',de:'Marge diesen Monat (EUR)'},
 '＋ 新建订单':{en:'+ New order',de:'+ Neuer Auftrag'},'全部阶段':{en:'All stages',de:'Alle Phasen'},
 '搜索成单号 / 客户 / 负责人 / 服务项':{en:'Search order / customer / owner / item',de:'Suche Auftrag / Kunde / Verantw. / Position'},
-'📈 月报':{en:'📈 Monthly',de:'📈 Monatsbericht'},'👥 客户分析':{en:'👥 Customers',de:'👥 Kundenanalyse'},'🚚 供应商分析':{en:'🚚 Suppliers',de:'🚚 Lieferantenanalyse'},'📊 统计':{en:'📊 Stats',de:'📊 Statistik'},'👤 业务员分析':{en:'👤 Sales Reps',de:'👤 Vertriebsanalyse'},'录入日期':{en:'Entry date',de:'Erfassungsdatum'},'日期类型':{en:'Date type',de:'Datumstyp'},'⚠ 导出逾期发票':{en:'⚠ Export overdue invoices',de:'⚠ Überfällige Rechnungen exportieren'},'全部客户':{en:'All customers',de:'Alle Kunden'},'打包下载':{en:'Download ZIP',de:'ZIP herunterladen'},'逾期发票明细':{en:'Overdue invoices',de:'Überfällige Rechnungen'},'逾期发票':{en:'Overdue invoices',de:'Überfällige Rechnungen'},'起始日期':{en:'From',de:'Von'},'截止日期':{en:'To',de:'Bis'},'留空 = 不限起始':{en:'Empty = no lower bound',de:'Leer = keine Untergrenze'},'留空 = 不限截止':{en:'Empty = no upper bound',de:'Leer = keine Obergrenze'},'📦 打包ZIP（Excel+发票PDF）':{en:'📦 ZIP (Excel + invoice PDFs)',de:'📦 ZIP (Excel + Rechnungs-PDFs)'},'业务员分析':{en:'Sales Rep Analysis',de:'Vertriebsanalyse'},'业务员分析（询价转化）':{en:'Sales Reps (Inquiry Conversion)',de:'Vertrieb (Anfrage-Konversion)'},'转成单':{en:'Won',de:'Gewonnen'},'跟进中':{en:'Open',de:'Offen'},'转化率':{en:'Conv. rate',de:'Quote'},'询价':{en:'Inquiries',de:'Anfragen'},'该月份暂无询价记录':{en:'No inquiries for this month',de:'Keine Anfragen in diesem Monat'},'留空=全部月份 · 口径与询价页统计条一致':{en:'Empty = all months · same basis as inquiry stats bar',de:'Leer = alle Monate · gleiche Basis wie Statistikleiste'},
+'📈 月报':{en:'📈 Monthly',de:'📈 Monatsbericht'},'👥 客户分析':{en:'👥 Customers',de:'👥 Kundenanalyse'},'🚚 供应商分析':{en:'🚚 Suppliers',de:'🚚 Lieferantenanalyse'},'📊 统计':{en:'📊 Stats',de:'📊 Statistik'},'👤 业务员分析':{en:'👤 Sales Reps',de:'👤 Vertriebsanalyse'},'录入日期':{en:'Entry date',de:'Erfassungsdatum'},'日期类型':{en:'Date type',de:'Datumstyp'},'⚠ 导出逾期发票':{en:'⚠ Export overdue invoices',de:'⚠ Überfällige Rechnungen exportieren'},'💰 客户余额':{en:'💰 Customer credit',de:'💰 Kundenguthaben'},'该客户未结清发票（勾选自动核销，老票在前）':{en:'Open invoices (tick to settle, oldest first)',de:'Offene Rechnungen (ankreuzen, älteste zuerst)'},'回款日期':{en:'Paid date',de:'Zahlungseingang'},'手动结清':{en:'Settled manually',de:'Manuell ausgeglichen'},'⚡ 需立即付款（不走账期）':{en:'⚡ Pay immediately (skip payment term)',de:'⚡ Sofort zahlen (ohne Zahlungsziel)'},'期望付款日 *':{en:'Requested payment date *',de:'Gewünschtes Zahldatum *'},'加急原因（写给财务）':{en:'Reason (for finance)',de:'Grund (für Finanzen)'},'⚡ 加急待付':{en:'⚡ Urgent to pay',de:'⚡ Dringend zu zahlen'},'⚡ 加急':{en:'⚡ Urgent',de:'⚡ Dringend'},'✕ 取消加急':{en:'✕ Remove urgent',de:'✕ Dringend entfernen'},'期望付款日':{en:'Requested date',de:'Wunschdatum'},'加急原因':{en:'Reason',de:'Grund'},'全部客户':{en:'All customers',de:'Alle Kunden'},'打包下载':{en:'Download ZIP',de:'ZIP herunterladen'},'逾期发票明细':{en:'Overdue invoices',de:'Überfällige Rechnungen'},'逾期发票':{en:'Overdue invoices',de:'Überfällige Rechnungen'},'起始日期':{en:'From',de:'Von'},'截止日期':{en:'To',de:'Bis'},'留空 = 不限起始':{en:'Empty = no lower bound',de:'Leer = keine Untergrenze'},'留空 = 不限截止':{en:'Empty = no upper bound',de:'Leer = keine Obergrenze'},'📦 打包ZIP（Excel+发票PDF）':{en:'📦 ZIP (Excel + invoice PDFs)',de:'📦 ZIP (Excel + Rechnungs-PDFs)'},'业务员分析':{en:'Sales Rep Analysis',de:'Vertriebsanalyse'},'业务员分析（询价转化）':{en:'Sales Reps (Inquiry Conversion)',de:'Vertrieb (Anfrage-Konversion)'},'转成单':{en:'Won',de:'Gewonnen'},'跟进中':{en:'Open',de:'Offen'},'转化率':{en:'Conv. rate',de:'Quote'},'询价':{en:'Inquiries',de:'Anfragen'},'该月份暂无询价记录':{en:'No inquiries for this month',de:'Keine Anfragen in diesem Monat'},'留空=全部月份 · 口径与询价页统计条一致':{en:'Empty = all months · same basis as inquiry stats bar',de:'Leer = alle Monate · gleiche Basis wie Statistikleiste'},
 '新建订单':{en:'New order',de:'Neuer Auftrag'},'新建询价单':{en:'New inquiry',de:'Neue Anfrage'},'编辑询价单':{en:'Edit inquiry',de:'Anfrage bearbeiten'},'编辑订单':{en:'Edit order',de:'Auftrag bearbeiten'},
 '客户名称':{en:'Customer',de:'Kunde'},'客户名称 *':{en:'Customer *',de:'Kunde *'},'业务负责人':{en:'Owner(s)',de:'Verantwortliche(r)'},
 'VAT 税率（报价单）':{en:'VAT rate (quotation)',de:'USt.-Satz (Angebot)'},'19%（德国境内）':{en:'19% (Germany)',de:'19% (Inland)'},'0%（出口/反向征收）':{en:'0% (export / reverse charge)',de:'0% (Export / Reverse Charge)'},
