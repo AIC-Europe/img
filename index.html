@@ -455,7 +455,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
         <span class="spacer"></span>
         <button class="btn-ghost" id="ariDunBtn" type="button" style="display:none">✉️ 催款函</button>
         <button class="btn-ghost" id="ariArchBtn" type="button" style="display:none">📁 函件归档</button>
-        <button class="btn-ghost" id="ariExportBtn" type="button">导出 Excel</button>
+        <button class="btn-ghost" id="ariExportBtn" type="button">导出 Excel</button><button class="btn-ghost" id="ariOvdBtn2" type="button">⚠ 导出逾期发票</button>
         <button class="btn-add" id="ariAddBtn" type="button" style="display:none">＋ 登记发票</button>
       </div>
       <div class="ledger">
@@ -500,8 +500,8 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <input type="search" id="fSearch" placeholder="搜索客户 / 单号 / 业务负责人…">
       <span class="spacer"></span>
       <button class="btn-ghost" id="exportXlsxBtn" type="button">导出 Excel</button>
-      <button class="btn-ghost" id="ariOvdBtn" type="button">⚠ 导出逾期发票</button>
-      <button class="btn-ghost" id="dunBtn" type="button" style="display:none">✉️ 催款函</button>
+      
+      
       <button class="btn-add" id="addBtn" type="button" style="display:none">＋ 登记进款</button>
     </div>
 
@@ -643,7 +643,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v16.0</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v16.3</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1399,7 +1399,7 @@ function enterApp(){
   $('addBtn').style.display=session.role==='finance'?'':'none';
   $('baseBackupBar').style.display=session.role==='finance'?'flex':'none';
   $('tabBASE').style.display=canAnalytics()?'':'none';
-  $('dunBtn').style.display=session.role==='finance'?'':'none';
+
   $('ariAddBtn').style.display=session.role==='finance'?'':'none';
   $('ordAddBtn').style.display='';
   const _ana=(session.role==='finance'||session.name==='Peter');
@@ -2014,7 +2014,7 @@ const SNAP_PATH='img-ar/snapshots';
 function bkStamp(){const d=new Date();const z=n=>String(n).padStart(2,'0');
   return d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+'-'+z(d.getHours())+z(d.getMinutes());}
 
-$('dunBtn').onclick=function(){$('ariDunBtn').onclick();};
+
 $('backupBtn').onclick=()=>{
   const cc=bkCounts();
   $('bkInfo').innerHTML='当前平台数据：到账 <b>'+cc.ar+'</b> 笔 · 应付 <b>'+cc.ap+'</b> 张 · 订单 <b>'+cc.ord+'</b> 单 · 应收发票 <b>'+cc.ari+'</b> 张 · 客户 <b>'+cc.cli+'</b> / 供应商 <b>'+cc.sup+'</b> / 服务库 <b>'+cc.svc+'</b><br><span style="font-size:11.5px;color:var(--ink-soft)">备份含以上全部台账与基础资料；发票 PDF 附件存于云端不在备份文件内。</span>';
@@ -2724,23 +2724,36 @@ async function ordArchiveExport(o){
         const sel=r.slice(0,i).split(',').map(function(x){x=x.trim();if(!x)return x;return x==='body'?scope:scope+' '+x;}).join(',');
         return sel+'{'+r.slice(i+1);
       }).join('}');
+      /* v16.2 空白二修：html2canvas 对 fixed+屏外宿主存在已知空白缺陷 → 宿主置于文档流顶部真实可见，
+         全屏“生成中”遮罩盖住避免闪烁；scroll 归零；容器展开真实高度后再截取 */
+      const veil=document.createElement('div');
+      veil.style.cssText='position:fixed;inset:0;background:rgba(252,253,253,.98);z-index:100000;display:flex;align-items:center;justify-content:center;font-size:15px;color:#145A43;font-weight:600';
+      veil.textContent='⏳ 正在生成档案 PDF…';
       const host=document.createElement('div');
       host.className='img-arch-pdf';
-      host.style.cssText='position:fixed;left:-12000px;top:0;width:794px;background:#fff;color:#22312C';
+      host.style.cssText='position:absolute;left:0;top:0;width:794px;background:#fff;color:#22312C;z-index:99999';
       host.innerHTML='<style>'+scoped+'</style>'+(bodyM?bodyM[1]:html);
+      const sx=window.scrollX,sy=window.scrollY;
+      document.body.appendChild(veil);
       document.body.appendChild(host);
+      window.scrollTo(0,0);
+      await new Promise(r=>setTimeout(r,60)); /* 等一帧布局 */
       try{
         const blob=await html2pdf().set({
           margin:[10,10,12,10],
           image:{type:'jpeg',quality:0.92},
-          html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',windowWidth:794},
+          html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',windowWidth:794,scrollX:0,scrollY:0},
           jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
           pagebreak:{mode:['css','legacy']}
         }).from(host).outputPdf('blob');
         /* 产物体检：正文档案不可能小于 20KB，过小=渲染空白 → 回退 */
         if(blob&&blob.size>20480){root.file('00-订单档案.pdf',blob);pdfOk=true;}
         else pdfWhy='PDF 渲染异常（产物过小，疑似空白）';
-      }finally{document.body.removeChild(host);}
+      }finally{
+        document.body.removeChild(host);
+        document.body.removeChild(veil);
+        window.scrollTo(sx,sy);
+      }
     }catch(e){}
     if(!pdfOk){
       root.file('00-订单档案.html',html);
@@ -3558,7 +3571,7 @@ async function ovdGo(){
     toast('已打包：明细 + '+got+' 份发票附件'+(failed.length?'（'+failed.length+' 项见失败清单）':''));
   }finally{btn.disabled=false;btn.textContent='打包下载';}
 }
-$('ariOvdBtn').onclick=function(){
+function ariOvdOpen(){
   const ov=ariItems.filter(x=>!x.deleted&&x.invNo&&ariState(x)==='overdue');
   const per={};
   for(const x of ov){const c=x.customer||'—';per[c]=(per[c]||0)+Math.max(0,(Number(x.gross)||0)-ariPaid(x));}
@@ -3569,6 +3582,7 @@ $('ariOvdBtn').onclick=function(){
   ovdPreviewUpdate();
   $('ariOvdOverlay').classList.add('open');
 };
+$('ariOvdBtn2').onclick=ariOvdOpen; /* v16.2 唯一入口：应收发票子页 */
 $('ovdCustomer').onchange=ovdPreviewUpdate;
 $('ovdGo').onclick=ovdGo;
 $('ovdClose').onclick=()=>$('ariOvdOverlay').classList.remove('open');
@@ -7195,7 +7209,7 @@ const I18N={
 '报价已确认':{en:'Quote confirmed',de:'Angebot bestätigt'},'已对接财务':{en:'Handed to Finance',de:'An Finanzen übergeben'},'已开票':{en:'Invoiced',de:'Fakturiert'},
 '已完结':{en:'Closed',de:'Abgeschlossen'},'已取消':{en:'Cancelled',de:'Storniert'},'进行中':{en:'Active',de:'Laufend'},'滞留':{en:'Stalled',de:'Überfällig'},
 /* 订单板块 */
-'进行中订单':{en:'Active orders',de:'Laufende Aufträge'},'待开票':{en:'To invoice',de:'Zu fakturieren'},'待收款':{en:'Awaiting payment',de:'Zahlung offen'},'本月毛利（EUR）':{en:'Margin this month (EUR)',de:'Marge diesen Monat (EUR)'},
+'进行中订单':{en:'Active orders',de:'Laufende Aufträge'},'本月毛利（EUR）':{en:'Margin this month (EUR)',de:'Marge diesen Monat (EUR)'},
 '＋ 新建订单':{en:'+ New order',de:'+ Neuer Auftrag'},'全部阶段':{en:'All stages',de:'Alle Phasen'},
 '搜索成单号 / 客户 / 负责人 / 服务项':{en:'Search order / customer / owner / item',de:'Suche Auftrag / Kunde / Verantw. / Position'},
 '📈 月报':{en:'📈 Monthly',de:'📈 Monatsbericht'},'👥 客户分析':{en:'👥 Customers',de:'👥 Kundenanalyse'},'🚚 供应商分析':{en:'🚚 Suppliers',de:'🚚 Lieferantenanalyse'},'📊 统计':{en:'📊 Stats',de:'📊 Statistik'},'👤 业务员分析':{en:'👤 Sales Reps',de:'👤 Vertriebsanalyse'},'录入日期':{en:'Entry date',de:'Erfassungsdatum'},'日期类型':{en:'Date type',de:'Datumstyp'},'⚠ 导出逾期发票':{en:'⚠ Export overdue invoices',de:'⚠ Überfällige Rechnungen exportieren'},'全部客户':{en:'All customers',de:'Alle Kunden'},'打包下载':{en:'Download ZIP',de:'ZIP herunterladen'},'逾期发票明细':{en:'Overdue invoices',de:'Überfällige Rechnungen'},'逾期发票':{en:'Overdue invoices',de:'Überfällige Rechnungen'},'起始日期':{en:'From',de:'Von'},'截止日期':{en:'To',de:'Bis'},'留空 = 不限起始':{en:'Empty = no lower bound',de:'Leer = keine Untergrenze'},'留空 = 不限截止':{en:'Empty = no upper bound',de:'Leer = keine Obergrenze'},'📦 打包ZIP（Excel+发票PDF）':{en:'📦 ZIP (Excel + invoice PDFs)',de:'📦 ZIP (Excel + Rechnungs-PDFs)'},'业务员分析':{en:'Sales Rep Analysis',de:'Vertriebsanalyse'},'业务员分析（询价转化）':{en:'Sales Reps (Inquiry Conversion)',de:'Vertrieb (Anfrage-Konversion)'},'转成单':{en:'Won',de:'Gewonnen'},'跟进中':{en:'Open',de:'Offen'},'转化率':{en:'Conv. rate',de:'Quote'},'询价':{en:'Inquiries',de:'Anfragen'},'该月份暂无询价记录':{en:'No inquiries for this month',de:'Keine Anfragen in diesem Monat'},'留空=全部月份 · 口径与询价页统计条一致':{en:'Empty = all months · same basis as inquiry stats bar',de:'Leer = alle Monate · gleiche Basis wie Statistikleiste'},
@@ -7230,8 +7244,8 @@ const I18N={
 '不含税金额（净额）*':{en:'Net amount *',de:'Nettobetrag *'},'税额':{en:'VAT amount',de:'USt.-Betrag'},'含税总额':{en:'Gross total',de:'Bruttobetrag'},'含税额':{en:'Gross',de:'Brutto'},
 '已到账':{en:'Received',de:'Eingegangen'},'未收':{en:'Open',de:'Offen'},'净额':{en:'Net',de:'Netto'},
 '待收款':{en:'Awaiting payment',de:'Zahlung offen'},'部分到账':{en:'Partly paid',de:'Teilzahlung'},'已收讫':{en:'Paid in full',de:'Vollständig bezahlt'},'已冲销':{en:'Cancelled',de:'Storniert'},'📦 正式成单':{en:'📦 Orders',de:'📦 Aufträge'},'🔍 询价单':{en:'🔍 Inquiries',de:'🔍 Anfragen'},'询价单 (F)':{en:'Inquiry (F)',de:'Anfrage (F)'},'正式成单 (IMG)':{en:'Order (IMG)',de:'Auftrag (IMG)'},'询价单号 *':{en:'Inquiry no. *',de:'Anfragenr. *'},'询价单号':{en:'Inquiry No.',de:'Anfrage-Nr.'},
-'🔍 询价中':{en:'🔍 Inquiry',de:'🔍 Anfrage'},'未成交':{en:'Lost',de:'Nicht gewonnen'},'🔍 询价中':{en:'🔍 Inquiry',de:'🔍 Anfrage'},
-'🎉 客户成单 · 转为正式订单':{en:'🎉 Won · convert to order',de:'🎉 Gewonnen · in Auftrag umwandeln'},'✖ 标记未成交':{en:'✖ Mark lost',de:'✖ Als verloren markieren'},'📣 追加开票':{en:'📣 Additional invoice',de:'📣 Zusätzliche Rechnung'},'↩️ 冲销此发票':{en:'↩️ Cancel (Storno)',de:'↩️ Stornieren'},'↩️ 冲销发票（Storno）':{en:'↩️ Cancel invoice (Storno)',de:'↩️ Rechnung stornieren'},'确认冲销':{en:'Confirm storno',de:'Storno bestätigen'},'🔁 申请冲销重开':{en:'🔁 Request storno & re-issue',de:'🔁 Storno & Neuausstellung anfordern'},'🔁 冲销重开':{en:'🔁 Storno & re-issue',de:'🔁 Storno & Neu'},'待开票':{en:'To invoice',de:'Zu fakturieren'},'账期/原票':{en:'Term / orig. inv.',de:'Ziel / Orig.-Rg.'},'参考金额':{en:'Ref. amount',de:'Referenzbetrag'},'说明':{en:'Note',de:'Hinweis'},'类型':{en:'Type',de:'Typ'},'提交申请':{en:'Submit request',de:'Antrag senden'},'选择要冲销重开的发票 *':{en:'Invoice to cancel & re-issue *',de:'Rechnung für Storno & Neuausstellung *'},'更正说明 *（写清正确金额/内容，财务照此重开）':{en:'Correction note * (state correct amount/content)',de:'Korrekturhinweis * (richtigen Betrag/Inhalt angeben)'},'📎 订单附件（PDF / Excel / 图片，单个 ≤ 3MB）':{en:'📎 Order files (PDF / Excel / images, ≤ 3MB each)',de:'📎 Auftragsdateien (PDF / Excel / Bilder, je ≤ 3MB)'},'⬆ 上传附件':{en:'⬆ Upload file',de:'⬆ Datei hochladen'},'暂无附件':{en:'No files yet',de:'Noch keine Dateien'},'📦 导出整单档案':{en:'📦 Export full dossier',de:'📦 Komplettakte exportieren'},'整单档案':{en:'Dossier',de:'Komplettakte'},'勾稽核对':{en:'Reconciliation check',de:'Abstimmungsprüfung'},'📜 该客户近期参考：':{en:'📜 Recent for this customer: ',de:'📜 Zuletzt bei diesem Kunden: '},'备注（选填，写入每笔付款）':{en:'Note (optional, saved to each payment)',de:'Notiz (optional, je Zahlung gespeichert)'},'✓ 勾稽一致':{en:'✓ Reconciled',de:'✓ Stimmt überein'},'💶 批量登记付款':{en:'💶 Bulk payment',de:'💶 Sammelzahlung'},'按尚欠额结清所选':{en:'Settle selected (open amounts)',de:'Auswahl begleichen (offene Beträge)'},'付款日期 *':{en:'Payment date *',de:'Zahlungsdatum *'},'冲销日期 *':{en:'Storno date *',de:'Stornodatum *'},'冲销原因（选填）':{en:'Reason (optional)',de:'Grund (optional)'},
+'未成交':{en:'Lost',de:'Nicht gewonnen'},'🔍 询价中':{en:'🔍 Inquiry',de:'🔍 Anfrage'},
+'🎉 客户成单 · 转为正式订单':{en:'🎉 Won · convert to order',de:'🎉 Gewonnen · in Auftrag umwandeln'},'✖ 标记未成交':{en:'✖ Mark lost',de:'✖ Als verloren markieren'},'📣 追加开票':{en:'📣 Additional invoice',de:'📣 Zusätzliche Rechnung'},'↩️ 冲销此发票':{en:'↩️ Cancel (Storno)',de:'↩️ Stornieren'},'↩️ 冲销发票（Storno）':{en:'↩️ Cancel invoice (Storno)',de:'↩️ Rechnung stornieren'},'确认冲销':{en:'Confirm storno',de:'Storno bestätigen'},'🔁 申请冲销重开':{en:'🔁 Request storno & re-issue',de:'🔁 Storno & Neuausstellung anfordern'},'🔁 冲销重开':{en:'🔁 Storno & re-issue',de:'🔁 Storno & Neu'},'待开票':{en:'To invoice',de:'Zu fakturieren'},'账期/原票':{en:'Term / orig. inv.',de:'Ziel / Orig.-Rg.'},'参考金额':{en:'Ref. amount',de:'Referenzbetrag'},'说明':{en:'Note',de:'Hinweis'},'类型':{en:'Type',de:'Typ'},'提交申请':{en:'Submit request',de:'Antrag senden'},'选择要冲销重开的发票 *':{en:'Invoice to cancel & re-issue *',de:'Rechnung für Storno & Neuausstellung *'},'更正说明 *（写清正确金额/内容，财务照此重开）':{en:'Correction note * (state correct amount/content)',de:'Korrekturhinweis * (richtigen Betrag/Inhalt angeben)'},'📎 订单附件（PDF / Excel / 图片，单个 ≤ 3MB）':{en:'📎 Order files (PDF / Excel / images, ≤ 3MB each)',de:'📎 Auftragsdateien (PDF / Excel / Bilder, je ≤ 3MB)'},'⬆ 上传附件':{en:'⬆ Upload file',de:'⬆ Datei hochladen'},'📦 导出整单档案':{en:'📦 Export full dossier',de:'📦 Komplettakte exportieren'},'整单档案':{en:'Dossier',de:'Komplettakte'},'勾稽核对':{en:'Reconciliation check',de:'Abstimmungsprüfung'},'📜 该客户近期参考：':{en:'📜 Recent for this customer: ',de:'📜 Zuletzt bei diesem Kunden: '},'备注（选填，写入每笔付款）':{en:'Note (optional, saved to each payment)',de:'Notiz (optional, je Zahlung gespeichert)'},'✓ 勾稽一致':{en:'✓ Reconciled',de:'✓ Stimmt überein'},'💶 批量登记付款':{en:'💶 Bulk payment',de:'💶 Sammelzahlung'},'按尚欠额结清所选':{en:'Settle selected (open amounts)',de:'Auswahl begleichen (offene Beträge)'},'付款日期 *':{en:'Payment date *',de:'Zahlungsdatum *'},'冲销日期 *':{en:'Storno date *',de:'Stornodatum *'},'冲销原因（选填）':{en:'Reason (optional)',de:'Grund (optional)'},
 '询价号':{en:'Inquiry no.',de:'Anfragenr.'},'收付款联动（按成单号自动匹配 · 点击可跳转）':{en:'Linked AR/AP (matched by order no. · click to jump)',de:'Verknüpfte Zahlungen (per Auftragsnr. · klicken zum Öffnen)'},'多币种：请核对报价单分币种小计':{en:'Mixed currencies: see per-currency totals',de:'Mehrere Währungen: Summen je Währung prüfen'},
 '✉️ 生成催款函':{en:'✉️ Dunning letter',de:'✉️ Mahnung erstellen'},'选择客户（仅列出有未收讫发票的客户）':{en:'Select customer (only those with open invoices)',de:'Kunde wählen (nur mit offenen Rechnungen)'},'生成催款函':{en:'Generate letter',de:'Mahnung erstellen'},'按供应商分组':{en:'Grouped by supplier',de:'Nach Lieferant gruppiert'},'系统导入':{en:'System import',de:'Systemimport'},'即将到期':{en:'Due soon',de:'Bald fällig'},
 '到账日期':{en:'Payment date',de:'Zahlungsdatum'},'付款方式':{en:'Method',de:'Zahlungsart'},'银行转账':{en:'Bank transfer',de:'Überweisung'},
@@ -7244,7 +7258,7 @@ const I18N={
 '⬆ 上传发票':{en:'⬆ Upload invoice',de:'⬆ Rechnung hochladen'},'📑 供应商对账单':{en:'📑 Supplier statement',de:'📑 Lieferantenabrechnung'},'📦 批量下载发票':{en:'📦 Bulk download',de:'📦 Sammeldownload'},
 '供应商名称 *（来自基础资料）':{en:'Supplier * (from master data)',de:'Lieferant * (aus Stammdaten)'},
 '供应商名称':{en:'Supplier',de:'Lieferant'},'上传人':{en:'Uploaded by',de:'Hochgeladen von'},'上传':{en:'Upload',de:'Hochladen'},
-'待录入':{en:'To be entered',de:'Zu erfassen'},'待财务开票':{en:'Awaiting invoicing',de:'Zu fakturieren (Finanzen)'},'付款日期':{en:'Payment date',de:'Zahlungsdatum'},'最近付款':{en:'Last payment',de:'Letzte Zahlung'},'对接日期':{en:'Handover date',de:'Übergabedatum'},'参考售价':{en:'Ref. price',de:'Richtpreis'},'报价明细':{en:'Quote lines',de:'Angebotspositionen'},'应收-待开票':{en:'AR-To-invoice',de:'AR-Zu-fakturieren'},'未付清':{en:'Unpaid',de:'Offen'},'已付清':{en:'Paid',de:'Bezahlt'},'部分付款':{en:'Partly paid',de:'Teilzahlung'},
+'待录入':{en:'To be entered',de:'Zu erfassen'},'待财务开票':{en:'Awaiting invoicing',de:'Zu fakturieren (Finanzen)'},'最近付款':{en:'Last payment',de:'Letzte Zahlung'},'对接日期':{en:'Handover date',de:'Übergabedatum'},'参考售价':{en:'Ref. price',de:'Richtpreis'},'报价明细':{en:'Quote lines',de:'Angebotspositionen'},'应收-待开票':{en:'AR-To-invoice',de:'AR-Zu-fakturieren'},'未付清':{en:'Unpaid',de:'Offen'},'已付清':{en:'Paid',de:'Bezahlt'},'部分付款':{en:'Partly paid',de:'Teilzahlung'},
 '💶 登记付款':{en:'💶 Record payment',de:'💶 Zahlung erfassen'},'付款日期':{en:'Payment date',de:'Zahlungsdatum'},'付款记录':{en:'Payments',de:'Zahlungen'},'付款明细':{en:'Payment details',de:'Zahlungsdetails'},
 '尚欠':{en:'Balance',de:'Restbetrag'},'关联应付':{en:'Linked AP',de:'Verknüpfte ER'},
 '＋ 追加附件':{en:'+ Add file',de:'+ Datei anfügen'},'无附件':{en:'No files',de:'Keine Anhänge'},'暂无附件':{en:'No files yet',de:'Noch keine Anhänge'},
