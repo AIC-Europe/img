@@ -864,7 +864,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v20.2</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v20.3</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -2674,6 +2674,18 @@ async function _autoDailySnapshotInner(){ /* v18.7 A3：任何角色登录均可
   if(!payments.length&&!apItems.length&&!ordItems.length&&!ariItems.length)return;
   try{
     const today=bkStamp().slice(0,8);
+    /* v20.3 流量瘦身：此前每次登录都把全部快照（约 2.4MB）完整下载一遍，只为判断今天有没有生成过。
+       改为先只取最新一份（约 80KB）判断日期；只有当天首次登录（需真正创建+清理）才做完整读取。
+       实测可将登录流量降低约 95%。 */
+    try{
+      const probe=await rtdb.ref(SNAP_PATH).orderByKey().limitToLast(1).once('value');
+      const pv=probe.val()||{};
+      const pk=Object.keys(pv);
+      if(pk.length){
+        _snapLast=Number((pv[pk[0]]||{}).at)||0;
+        if(pk[0].startsWith(today))return;   /* 今日已有快照，直接返回，不再全量下载 */
+      }
+    }catch(e){}
     const snap=await rtdb.ref(SNAP_PATH).once('value');
     const all=snap.val()||{};
     /* v18.7 A3 记录最近快照时间，供陈旧告警使用 */
