@@ -864,7 +864,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v20.3</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v20.6</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1731,6 +1731,51 @@ function mergeRemote(remote){
    旧的明文密码必须视为已泄露，务必全部更换。 */
 const ACCT_LIST=['Emma','Steven','Minglu','Teri','Bowen','Lucy','Peter','Christina'];
 const AUTH_DOMAIN_SUFFIX='@img-europe.local';   /* 账号邮箱后缀，可改为公司真实邮箱域 */
+/* ── v20.5 认证代理（中国大陆可用）──
+   Firebase 认证走 identitytoolkit.googleapis.com / securetoken.googleapis.com（Google 域名，
+   中国大陆被阻断），而数据库走 firebasedatabase.app（可直连）—— 故中国端能读写数据却无法认证。
+   解法：把上述两个域名的请求经 Cloudflare Worker 代理转发。德国直连（更快），
+   中国在直连失败时自动切换到代理并记住选择，此后直接走代理。
+   数据库规则因此可保持 auth != null，安全性不打折（不再需要降级登录与本地哈希）。 */
+const AUTH_PROXY='https://img-auth.b-zhang.workers.dev';   /* Cloudflare Worker 认证代理，中国大陆直连失败时自动启用 */
+const PROXY_HOSTS={'identitytoolkit.googleapis.com':'identitytoolkit','securetoken.googleapis.com':'securetoken'};
+const PROXY_KEY='img-auth-proxy-on';
+let _proxyOn=false;
+function proxyRewrite(u){
+  try{
+    if(!AUTH_PROXY||!u)return null;
+    const url=new URL(u,location.href);
+    const seg=PROXY_HOSTS[url.hostname];
+    if(!seg)return null;
+    return AUTH_PROXY.replace(/\/+$/,'')+'/'+seg+url.pathname+url.search;
+  }catch(e){return null;}
+}
+function proxyEnable(persist){
+  if(_proxyOn||!AUTH_PROXY)return false;
+  _proxyOn=true;
+  if(persist){try{localStorage.setItem(PROXY_KEY,'1');}catch(e){}}
+  /* fetch 与 XHR 双通道改写：Firebase SDK 两者都可能使用 */
+  if(window.fetch){
+    const of=window.fetch.bind(window);
+    window.fetch=function(input,init){
+      try{
+        const raw=(typeof input==='string')?input:(input&&input.url);
+        const nu=proxyRewrite(raw);
+        if(nu)return of(nu,init);
+      }catch(e){}
+      return of(input,init);
+    };
+  }
+  const oo=XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open=function(m,u){
+    const nu=proxyRewrite(u);
+    const args=[].slice.call(arguments);
+    if(nu)args[1]=nu;
+    return oo.apply(this,args);
+  };
+  return true;
+}
+try{if(localStorage.getItem(PROXY_KEY)==='1')proxyEnable(false);}catch(e){}
 function acctEmail(name){return String(name||'').trim().toLowerCase()+AUTH_DOMAIN_SUFFIX;}
 const FIN_ACCTS=['Emma','Steven'];
 const RO_ACCTS=['Peter']; /* v18.4 #3 管理层只读：可看全部与分析，禁止任何写操作 */
@@ -1758,10 +1803,42 @@ $('loginBtn').onclick=async()=>{
   $('loginBtn').textContent='正在验证…';
   try{
     if(!(window.firebase&&firebase.auth))throw new Error('auth-missing');
-    await firebase.auth().signInWithEmailAndPassword(acctEmail(canonical),pw);
+    await Promise.race([
+      firebase.auth().signInWithEmailAndPassword(acctEmail(canonical),pw),
+      new Promise((_,rej)=>setTimeout(()=>rej(Object.assign(new Error('auth-timeout'),{code:'auth/timeout'})),9000))
+    ]); /* v20.4 被阻断时请求可能长时间挂起，9 秒后转降级校验 */
   }catch(e){
+    const code0=(e&&e.code)||'';
+    /* v20.5 认证服务不可达（中国大陆被阻断 / 断网）→ 启用代理后重试一次 */
+    if((code0==='auth/network-request-failed'||code0==='auth/timeout'||(e&&e.message==='auth-timeout'))&&AUTH_PROXY&&!_proxyOn){
+      $('loginBtn').textContent='切换线路重试…';
+      proxyEnable(true);
+      try{
+        await Promise.race([
+          firebase.auth().signInWithEmailAndPassword(acctEmail(canonical),pw),
+          new Promise((_,rej)=>setTimeout(()=>rej(Object.assign(new Error('auth-timeout'),{code:'auth/timeout'})),12000))
+        ]);
+        try{
+          if($('loginRemember').checked)localStorage.setItem(REMEMBER_KEY,btoa(unescape(encodeURIComponent(JSON.stringify({u:canonical})))));
+          else localStorage.removeItem(REMEMBER_KEY);
+        }catch(_){}
+        $('loginBtn').textContent='正在进入…';
+        await loadAll();
+        $('loginBtn').textContent='进入平台';
+        session={name:canonical,role:RO_ACCTS.includes(canonical)?'readonly':(FIN_ACCTS.includes(canonical)?'finance':'business')};
+        enterApp();
+        return;
+      }catch(e2){
+        try{localStorage.removeItem(PROXY_KEY);}catch(_){}
+        $('loginBtn').textContent='进入平台';
+        const c2=(e2&&e2.code)||'';
+        if(c2==='auth/wrong-password'||c2==='auth/invalid-credential'||c2==='auth/invalid-login-credentials')err.textContent='密码不正确。';
+        else err.textContent='无法连接认证服务（含代理线路）。请联系管理员检查 AUTH_PROXY 配置。';
+        err.style.display='block';return;
+      }
+    }
     $('loginBtn').textContent='进入平台';
-    const code=(e&&e.code)||'';
+    const code=code0;
     if(code==='auth/wrong-password'||code==='auth/invalid-credential'||code==='auth/invalid-login-credentials')err.textContent='密码不正确。';
     else if(code==='auth/user-not-found')err.textContent='该账号尚未在 Firebase 创建，请联系管理员（Emma）开通。';
     else if(code==='auth/too-many-requests')err.textContent='尝试次数过多，请稍后再试。';
