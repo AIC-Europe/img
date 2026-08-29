@@ -10,6 +10,7 @@
 
 <!-- ═══ Firebase 云端实时同步（架构与鲁商平台一致，数据存独立路径 img-ar/，互不干扰）═══ -->
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/firebase-auth-compat.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/firebase-database-compat.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.12.0/firebase-storage-compat.js" crossorigin="anonymous"></script>
 <script>
@@ -598,7 +599,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <input id="loginPass" type="password" placeholder="请输入密码" autocomplete="current-password" enterkeyhint="go" inputmode="text">
     </div>
       <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-soft);margin:-4px 0 14px;cursor:pointer">
-        <input type="checkbox" id="loginRemember" style="accent-color:var(--pine);width:15px;height:15px">记住用户名和密码（本机）
+        <input type="checkbox" id="loginRemember" style="accent-color:var(--pine);width:15px;height:15px">记住用户名（本机）
       </label>
     <div class="login-err" id="loginErr"></div>
     <button class="btn btn-primary" id="loginBtn" type="button">进入平台</button>
@@ -854,7 +855,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v20.0</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v20.1</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -8718,7 +8719,7 @@ const I18N={
 'IMG Europe 管理平台':{en:'IMG Europe Management Platform',de:'IMG Europe Management-Plattform'},
 '订单 · 应收 · 应付 · 业财一体化':{en:'Orders · AR · AP · One Platform',de:'Aufträge · Debitoren · Kreditoren · Eine Plattform'},
 '用户名':{en:'Username',de:'Benutzername'},'密码':{en:'Password',de:'Passwort'},
-'记住用户名和密码（本机）':{en:'Remember me (this device)',de:'Anmeldedaten merken (dieses Gerät)'},
+'记住用户名（本机）':{en:'Remember me (this device)',de:'Anmeldedaten merken (dieses Gerät)'},
 '进入平台':{en:'Sign in',de:'Anmelden'},'正在进入…':{en:'Signing in…',de:'Anmeldung…'},
 '密码不正确。':{en:'Incorrect password.',de:'Falsches Passwort.'},
 '请输入密码':{en:'Enter password',de:'Passwort eingeben'},
