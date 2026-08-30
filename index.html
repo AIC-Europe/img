@@ -204,7 +204,16 @@ header.topbar{background:var(--pine);color:#fff;padding:0 22px;display:flex;alig
 .ntf-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .ntf-desc{color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ntf-time{flex:none;color:var(--ink-soft);font-size:11px;font-family:var(--font-num);white-space:nowrap}
-.hm-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:16px}
+/* v20.8 财务六卡同行：原 minmax(210px) 在常见宽屏下只放得下 5 张，第 6 张「待财务录入」被挤到第二行。
+   收窄至 158px 并按卡片数取整分列，1500px 以上一行放齐六张；窄屏自动回落为 3 列 / 2 列。 */
+.hm-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:10px;margin-bottom:16px}
+.hm-hero.hm-6{grid-template-columns:repeat(6,minmax(0,1fr))}
+.hm-card{padding:13px 14px}
+.hm-card .l{font-size:11.5px}
+.hm-card .v{font-size:23px;margin-top:4px}
+.hm-card .s{font-size:11px}
+@media(max-width:1560px){.hm-hero.hm-6{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:900px){.hm-hero.hm-6{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .hm-card{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--pine);border-radius:var(--radius);padding:14px 16px;cursor:pointer;transition:transform .12s,box-shadow .12s}
 .hm-card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(14,59,51,.12)}
 .hm-card.bad{border-left-color:var(--bad)}.hm-card.warn{border-left-color:var(--warn)}.hm-card.ok{border-left-color:var(--ok)}
@@ -222,8 +231,12 @@ header.topbar{background:var(--pine);color:#fff;padding:0 22px;display:flex;alig
 .hm-empty{padding:16px;text-align:center;color:var(--ink-soft);font-size:12.5px}
 .hm-greet{font-size:15px;font-weight:700;margin-bottom:2px}
 .hm-sub{font-size:12.5px;color:var(--ink-soft);margin-bottom:16px}
-.kan-wrap{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;align-items:flex-start}
-.kan-col{flex:0 0 232px;background:var(--n-wash);border:1px solid var(--line);border-radius:10px;padding:8px;min-height:120px;transition:background .15s,border-color .15s}
+.kan-wrap{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;align-items:flex-start;scrollbar-width:thin}
+.kan-col{flex:1 1 190px;min-width:168px;max-width:300px;background:var(--n-wash);border:1px solid var(--line);border-radius:10px;padding:8px;min-height:120px;transition:background .15s,border-color .15s,flex-basis .18s} /* v20.7 列宽自适应：能放下就填满一屏，放不下才横滚 */
+.kan-col.kc-empty{flex:0 0 76px;min-width:76px;padding:8px 4px;background:transparent;border-style:dashed;opacity:.72} /* 空列收窄，把空间让给有单的列 */
+.kan-col.kc-empty:hover,.kan-col.kc-empty.over{opacity:1;background:var(--n-tint)}
+.kan-col.kc-empty .kan-h{flex-direction:column;gap:3px;align-items:center;text-align:center;font-size:11.5px;line-height:1.25;padding-bottom:2px}
+.kan-col.kc-empty .kan-empty{display:none}
 .kan-col.over{background:var(--n-tint);border-color:var(--pine)}
 .kan-h{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12.5px;font-weight:700;padding:2px 4px 8px;color:var(--ink)}
 .kan-h .n{font-size:11px;color:var(--ink-soft);font-weight:600}
@@ -244,6 +257,23 @@ body.theme-dark .p360-lnk:hover{color:var(--ok)}
 #apTable td:nth-child(3){max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #ariTable th{white-space:nowrap}
 /* v17.4 应收固定列宽：12 列合计 ~1176px，一屏放下不再横滑 */
+/* v21.0 订单表固定列宽：11 列原先无宽度约束，长客户名换行撑高、金额列反复带 EUR，导致必须横拉。
+   固定宽度 + 超长省略（悬停 title 看全），合计约 1120px 一屏放下。 */
+#ordTable{table-layout:fixed;width:100%}
+#ordTable th:nth-child(1),#ordTable td:nth-child(1){width:86px}
+#ordTable th:nth-child(2),#ordTable td:nth-child(2){width:104px}
+#ordTable th:nth-child(3),#ordTable td:nth-child(3){width:196px}
+#ordTable th:nth-child(4),#ordTable td:nth-child(4){width:76px}
+#ordTable th:nth-child(5),#ordTable td:nth-child(5){width:106px}
+#ordTable th:nth-child(6),#ordTable td:nth-child(6){width:112px}
+#ordTable th:nth-child(7),#ordTable td:nth-child(7){width:100px}
+#ordTable th:nth-child(8),#ordTable td:nth-child(8){width:80px}
+#ordTable th:nth-child(9),#ordTable td:nth-child(9){width:118px}
+#ordTable th:nth-child(10),#ordTable td:nth-child(10){width:94px}
+#ordTable th:nth-child(11),#ordTable td:nth-child(11){width:56px}
+#ordTable tbody tr.row>td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ordTable tbody tr.detail>td{overflow:visible;white-space:normal;width:auto}
+#ordTable .cur-suffix{font-size:10px;color:var(--ink-soft);margin-left:2px}
 #ariTable{table-layout:fixed;width:100%}
 #ariTable th:nth-child(1),#ariTable td:nth-child(1){width:88px}
 #ariTable th:nth-child(2),#ariTable td:nth-child(2){width:92px}
@@ -610,7 +640,8 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-soft);margin:-4px 0 14px;cursor:pointer">
         <input type="checkbox" id="loginRemember" style="accent-color:var(--pine);width:15px;height:15px">记住用户名（本机）
       </label>
-    <div class="login-err" id="loginErr"></div>
+    <div style="text-align:center;margin:4px 0 2px"><button type="button" id="netDiagLogin" style="background:none;border:none;color:var(--ink-soft);font-size:11.5px;text-decoration:underline;cursor:pointer">登录不上？点此线路自检</button></div>
+      <div class="login-err" id="loginErr"></div>
     <button class="btn btn-primary" id="loginBtn" type="button">进入平台</button>
     <div class="login-note">选择账户并输入密码进入。数据经云端实时同步，异地办公共享同一台账；离线时自动使用本机副本。</div>
   </div>
@@ -633,6 +664,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
     <span class="tag" id="storeStatus" style="background:rgba(255,255,255,.15);border-radius:20px;padding:2px 10px;font-size:12px"></span>
     <button class="link-btn" id="ntfBtn" type="button" style="display:none;position:relative" title="通知"><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><span class="mod-dot" id="ntfDot" style="display:none;position:absolute;top:-4px;right:-6px">0</span></button>
     <button class="link-btn" id="logBtn" type="button" style="display:none" title="操作日志"><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg></button>
+    <button class="link-btn" id="netDiagBtn" type="button" title="线路自检：检测认证服务是否可达" style="display:none"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></button>
     <button class="link-btn theme-btn" id="themeBtn" type="button" title="切换为深色" aria-label="切换深浅色"><svg class="ic" aria-hidden="true"><use href="#i-moon"/></svg></button>
     <button class="link-btn" id="refreshBtn" type="button">刷新</button>
     <button class="link-btn" id="logoutBtn" type="button">退出</button>
@@ -783,6 +815,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <button class="btn-ghost" id="ordMrBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg> 月报</button>
       <button class="btn-ghost" id="ordCaBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-users"/></svg> 客户分析</button>
       <button class="btn-ghost" id="ordSupBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-truck"/></svg> 供应商分析</button>
+      <button class="btn-ghost" id="rcBtn" type="button" title="按服务项/客户/月度分析收入成本毛利"><svg class="ic" aria-hidden="true"><use href="#i-coins"/></svg> 收入成本</button>
       <button class="btn-ghost" id="ordStatsBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> 业务员分析</button><button class="btn-ghost" id="ordInqSaBtn" type="button" style="display:none"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> 业务员分析</button>
       <button class="btn-ghost" id="ordExportBtn" type="button">导出 Excel</button>
       <button class="btn-add" id="ordAddBtn" type="button">＋ 新建订单</button>
@@ -864,7 +897,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v20.6</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v21.9</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1002,8 +1035,22 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
         <div id="aiFileName" style="font-size:12px;color:var(--ink-soft);margin-top:4px">未选择文件</div>
       </div>
     </div>
-    <div id="aiLinesBox" style="display:none;margin:2px 0 12px;padding:10px 12px;border:1.5px dashed var(--brass);border-radius:10px;background:#FCFAF4"></div>
-      <div class="login-err" id="ariErr"></div>
+    <!-- v21.8 收入明细：与成本侧对齐，财务可直接编辑 / 从订单带出 -->
+    <div id="aiLinesBox" style="display:none;margin:2px 0 8px;padding:10px 12px;border:1.5px dashed var(--brass);border-radius:10px;background:#FCFAF4;font-size:12.5px"></div>
+    <div id="aiRevBox" style="margin:2px 0 12px;border:1.5px solid var(--line);border-radius:10px;padding:12px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <b style="font-size:13px">收入明细</b>
+        <span style="font-size:12px;color:var(--ink-soft)">按服务项拆分，与成本侧一一对应</span>
+        <span class="spacer" style="flex:1"></span>
+        <button class="btn-sm" id="aiRevPull" type="button" title="按本发票关联的成单号，把订单服务项带出">从订单带出</button>
+        <button class="btn-sm" id="aiRevAdd" type="button">+ 添加收入行</button>
+      </div>
+      <div id="aiRevRows"></div>
+      <div id="aiRevSum" style="display:flex;justify-content:flex-end;gap:14px;font-size:12.5px;font-family:var(--font-num);padding-top:8px;margin-top:6px;border-top:1px dashed var(--line)"></div>
+      <div id="aiRevWarn" style="display:none;margin-top:8px;padding:7px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:12px;font-weight:600"></div>
+      <div id="aiRevLock" style="display:none;margin-top:8px;font-size:11.5px;color:var(--ink-soft)"></div>
+    </div>
+    <div class="login-err" id="ariErr"></div>
     <div class="modal-actions">
       <button class="btn-cancel" id="ariCancel" type="button">取消</button>
       <button class="btn btn-primary" style="width:auto" id="ariSave" type="button">保存</button>
@@ -1022,6 +1069,32 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
     </div>
     <div id="drillBody" style="max-height:60vh;overflow:auto"></div>
     <div class="modal-actions"><button class="btn-cancel" id="drillClose" type="button">关闭</button></div>
+  </div>
+</div>
+
+<!-- v21.6 阶段3：收入成本分析（按服务项 / 客户 / 月度） -->
+<div class="overlay" id="rcOverlay">
+  <div class="modal" style="max-width:1100px">
+    <h2>收入成本分析</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
+      <input type="month" id="rcMonth" style="max-width:150px">
+      <select id="rcDim" style="max-width:140px">
+        <option value="svc">按服务项</option>
+        <option value="cat">按服务分类</option>
+        <option value="cust">按客户</option>
+        <option value="month">按月度</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer">
+        <input type="checkbox" id="rcNoPT" style="width:15px;height:15px;accent-color:var(--pine)">
+        <span>剔除代垫</span>
+      </label>
+      <span class="spacer" style="flex:1"></span>
+      <span id="rcHint" style="font-size:11.5px;color:var(--ink-soft)"></span>
+      <button class="btn-ghost" id="rcExport" type="button">导出 Excel</button>
+    </div>
+    <div id="rcKpi" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px"></div>
+    <div id="rcBody" style="max-height:52vh;overflow:auto"></div>
+    <div class="modal-actions"><button class="btn-cancel" id="rcClose" type="button">关闭</button></div>
   </div>
 </div>
 
@@ -1376,6 +1449,19 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
       <div class="field full" id="apDueWrap"><label for="apDue">到期日</label><input type="date" id="apDue"><div style="font-size:12px;color:var(--ink-soft);margin-top:4px" id="apDueHint">按账期自动计算，可手动调整</div></div>
       <div class="field full"><label for="apNote">备注</label><textarea id="apNote" rows="2" placeholder="可选，例如：需先核对运单后付款"></textarea></div>
+    </div>
+    <!-- v21.5 阶段2：成本明细（按服务项 + 归属订单拆分） -->
+    <div id="apCostBox" style="margin-top:12px;border:1.5px solid var(--line);border-radius:10px;padding:12px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <b style="font-size:13px">成本明细</b>
+        <span style="font-size:12px;color:var(--ink-soft)">按服务项拆分，与收入侧一一对应</span>
+        <span class="spacer" style="flex:1"></span>
+        <button class="btn-sm" id="apCostPull" type="button" title="按本单归属订单，把订单上的服务项列出来供勾选">从订单带出</button>
+        <button class="btn-sm" id="apCostAdd" type="button">+ 添加成本行</button>
+      </div>
+      <div id="apCostRows"></div>
+      <div id="apCostSum" style="display:flex;justify-content:flex-end;gap:14px;font-size:12.5px;font-family:var(--font-num);padding-top:8px;margin-top:6px;border-top:1px dashed var(--line)"></div>
+      <div id="apCostWarn" style="display:none;margin-top:8px;padding:7px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:12px;font-weight:600"></div>
     </div>
     <div class="login-err" id="apEntryErr"></div>
     <div class="modal-actions">
@@ -1801,50 +1887,51 @@ $('loginBtn').onclick=async()=>{
   if(!pw){err.textContent='请输入密码。';err.style.display='block';return;}
   /* v20.0 由 Firebase 认证校验；密码不出现在前端代码，也不写入本地存储 */
   $('loginBtn').textContent='正在验证…';
+  /* v21.9 双向线路自动切换：直连与代理互为备份。
+     当前偏好线路先试，若为网络类失败（含超时）自动改走另一条；成功即记住该线路。
+     此前代理一旦被记住便再无回退，代理本身被阻断时会彻底登不上（Steven 遇到的正是此情形）。
+     超时由 9s 放宽至 15s —— 跨境链路首包较慢，9 秒过于激进。 */
   try{
     if(!(window.firebase&&firebase.auth))throw new Error('auth-missing');
-    await Promise.race([
-      firebase.auth().signInWithEmailAndPassword(acctEmail(canonical),pw),
-      new Promise((_,rej)=>setTimeout(()=>rej(Object.assign(new Error('auth-timeout'),{code:'auth/timeout'})),9000))
-    ]); /* v20.4 被阻断时请求可能长时间挂起，9 秒后转降级校验 */
-  }catch(e){
-    const code0=(e&&e.code)||'';
-    /* v20.5 认证服务不可达（中国大陆被阻断 / 断网）→ 启用代理后重试一次 */
-    if((code0==='auth/network-request-failed'||code0==='auth/timeout'||(e&&e.message==='auth-timeout'))&&AUTH_PROXY&&!_proxyOn){
-      $('loginBtn').textContent='切换线路重试…';
-      proxyEnable(true);
+    const tryLogin=async function(useProxy,ms){
+      if(useProxy)proxyEnable(false);
+      return await Promise.race([
+        firebase.auth().signInWithEmailAndPassword(acctEmail(canonical),pw),
+        new Promise(function(_,rej){setTimeout(function(){rej(Object.assign(new Error('auth-timeout'),{code:'auth/timeout'}));},ms);})
+      ]);
+    };
+    const isNetErr=function(e){
+      const c=(e&&e.code)||'';
+      return c==='auth/network-request-failed'||c==='auth/timeout'||(e&&e.message==='auth-timeout');
+    };
+    const routes=AUTH_PROXY?(_proxyOn?[true,false]:[false,true]):[false];
+    let ok=false,lastErr=null;
+    for(let ri=0;ri<routes.length;ri++){
+      if(ri>0)$('loginBtn').textContent='切换线路重试…';
       try{
-        await Promise.race([
-          firebase.auth().signInWithEmailAndPassword(acctEmail(canonical),pw),
-          new Promise((_,rej)=>setTimeout(()=>rej(Object.assign(new Error('auth-timeout'),{code:'auth/timeout'})),12000))
-        ]);
+        await tryLogin(routes[ri],15000);
+        ok=true;
         try{
-          if($('loginRemember').checked)localStorage.setItem(REMEMBER_KEY,btoa(unescape(encodeURIComponent(JSON.stringify({u:canonical})))));
-          else localStorage.removeItem(REMEMBER_KEY);
+          if(routes[ri])localStorage.setItem(PROXY_KEY,'1');
+          else localStorage.removeItem(PROXY_KEY);
         }catch(_){}
-        $('loginBtn').textContent='正在进入…';
-        await loadAll();
-        $('loginBtn').textContent='进入平台';
-        session={name:canonical,role:RO_ACCTS.includes(canonical)?'readonly':(FIN_ACCTS.includes(canonical)?'finance':'business')};
-        enterApp();
-        return;
-      }catch(e2){
-        try{localStorage.removeItem(PROXY_KEY);}catch(_){}
-        $('loginBtn').textContent='进入平台';
-        const c2=(e2&&e2.code)||'';
-        if(c2==='auth/wrong-password'||c2==='auth/invalid-credential'||c2==='auth/invalid-login-credentials')err.textContent='密码不正确。';
-        else err.textContent='无法连接认证服务（含代理线路）。请联系管理员检查 AUTH_PROXY 配置。';
-        err.style.display='block';return;
+        break;
+      }catch(e){
+        lastErr=e;
+        if(!isNetErr(e))break;   /* 密码错等非网络问题，换线路也无用 */
       }
     }
+    if(!ok)throw lastErr||new Error('auth-failed');
+  }catch(e){
     $('loginBtn').textContent='进入平台';
-    const code=code0;
+    const code=(e&&e.code)||'';
+    const netErr=(code==='auth/network-request-failed'||code==='auth/timeout'||(e&&e.message==='auth-timeout'));
     if(code==='auth/wrong-password'||code==='auth/invalid-credential'||code==='auth/invalid-login-credentials')err.textContent='密码不正确。';
     else if(code==='auth/user-not-found')err.textContent='该账号尚未在 Firebase 创建，请联系管理员（Emma）开通。';
     else if(code==='auth/too-many-requests')err.textContent='尝试次数过多，请稍后再试。';
-    else if(code==='auth/network-request-failed')err.textContent='网络不可用，请检查连接后重试。';
     else if(code==='auth/operation-not-allowed'||(e&&e.message==='auth-missing'))err.textContent='登录服务尚未启用：请在 Firebase 控制台开启「电子邮件/密码」登录方式。';
-    else err.textContent='登录失败：'+((e&&e.message)||code);
+    else if(netErr)err.textContent='无法连接认证服务（直连与代理线路均超时）。若在中国大陆，请联系管理员检查代理线路是否可达。';
+    else err.textContent='登录失败：'+((e&&e.message)||code||'未知错误');
     err.style.display='block';return;
   }
   try{
@@ -1877,6 +1964,7 @@ function enterApp(){
   if($('balBtn'))$('balBtn').style.display=(session.role==='finance'&&!isRO())?'':'none';
   if($('logBtn'))$('logBtn').style.display=canLog()?'':'none'; /* v18.4 #3 仅 Emma */
   if($('ntfBtn')){$('ntfBtn').style.display='';try{ntfBadge();}catch(e){}} /* v19.3 P3 */
+  {const el=$('rcBtn');if(el)el.style.display=canAnalytics()?'':'none';} /* v21.6 登录即按权限决定收入成本入口，勿只依赖子页签切换 */
   if($('apUploadBtn'))$('apUploadBtn').style.display=isRO()?'none':'';
   if(isRO()){for(const id of ['ariDunBtn','ariArchBtn','ariOvdBtn2'])if($(id)&&id==='ariDunBtn')$(id).style.display='none';} /* 只读不发催款函 */
   $('ordAddBtn').style.display=isRO()?'none':'';
@@ -1941,6 +2029,7 @@ function editingNow(){
   const ae=document.activeElement;
   if(ae&&ae.closest&&ae.closest('tr.detail'))return true;
   for(const el of document.querySelectorAll('tr.detail textarea, tr.detail input')){
+    if(el.type==='hidden')continue;   /* v21.4 隐藏字段（如服务项 unit 常量）不代表用户在编辑，否则会永久挂起远端同步 */
     if(el.type==='checkbox'){if(el.checked)return true;continue;}
     if((el.value||'')!==(el.dataset.init||''))return true;
   }
@@ -2517,7 +2606,7 @@ function exportRows(){
 function exportCsv(){
   const d=exportRows();if(!d)return;
   const line=r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');
-  const trA=xlT([d.head,...d.rows]);
+  const trA=xlT(aoaWithTotal([d.head,...d.rows],0));
   const csv='\uFEFF'+trA.map(line).join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
@@ -2542,7 +2631,7 @@ async function exportXlsx(){
   btn.disabled=true;btn.textContent='生成中…';
   try{
     await ensureXLSX();
-    const ws=XLSX.utils.aoa_to_sheet(xlT([d.head,...d.rows]));
+    const ws=XLSX.utils.aoa_to_sheet(xlT(aoaWithTotal([d.head,...d.rows],0)));
     ws['!cols']=[{wch:12},{wch:38},{wch:12},{wch:6},{wch:10},{wch:30},{wch:10},{wch:8},{wch:9},{wch:16},{wch:40},{wch:8}];
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,trStr('到账台账'));
@@ -3469,6 +3558,168 @@ function renderAP(){
   apHealBtnUpdate();
   if(typeof ordAlertUpdate==='function')ordAlertUpdate();
 }
+/* v21.5 阶段2：应付详情内的成本明细展示（只读，编辑走录入弹窗） */
+/* ── v21.6 阶段3：收入成本分析引擎 ──
+   收入源：应收发票的服务明细（已开票优先读 linesLocked 快照，未开票读 lines）
+   成本源：应付发票的 costLines
+   两侧共用服务项字典（含代垫标记），故可按服务项一一对应算毛利。 */
+function rcSvcCat(name){
+  const x=(typeof svcResolve==='function')?svcResolve(name):null;
+  return (x&&x.cat)||'未分类';
+}
+function rcCollect(month){
+  const inRange=d=>!month||String(d||'').slice(0,7)===month;
+  const rows=[];   /* {dim值, rev, cost, pt, cust, mon} */
+  /* 收入侧 */
+  /* v21.7 口径对齐：收入必须与「应收发票」导出完全一致 —— 以发票 net 为唯一真源。
+     ① 冲销单（cancelledBy）与红字 Credit Note 一并计入（导出含之，排除会导致对不上账）；
+     ② 有服务明细时按明细占比把 net 分摊到各服务项，明细与 net 的历史差额自动落到「（未分服务项）」，
+        绝不让明细合计凌驾于发票金额之上。 */
+  for(const x of ariItems){
+    if(x.deleted)continue;
+    if(!inRange(x.invDate))continue;
+    const net=Math.round((Number(x.net)||0)*100)/100;
+    if(!net)continue;
+    const mon=String(x.invDate||'').slice(0,7);
+    const ls=(x.linesLocked&&x.linesLocked.length)?x.linesLocked:(x.lines||[]);
+    let lsum=0;const parts=[];
+    for(const l of (ls||[])){
+      const v=(l.tot!=null)?Number(l.tot):((Number(l.qty)||1)*(Number(l.unit!=null?l.unit:l.price)||0)*(1-(Number(l.disc)||0)/100));
+      if(!isFinite(v)||!v)continue;
+      parts.push({name:l.name||'（未分服务项）',v:v});lsum+=v;
+    }
+    if(parts.length&&Math.abs(lsum)>0.005){
+      let acc=0;
+      parts.forEach(function(p,i){
+        /* 末行取残差，保证分摊之和恒等于 net（净额铁律） */
+        const a=(i===parts.length-1)?Math.round((net-acc)*100)/100:Math.round(net*(p.v/lsum)*100)/100;
+        acc=Math.round((acc+a)*100)/100;
+        rows.push({svc:p.name,rev:a,cost:0,
+                   pt:(typeof svcIsPassThrough==='function')&&svcIsPassThrough(p.name)?1:0,
+                   cust:x.customer||'—',mon:mon});
+      });
+    }else{
+      rows.push({svc:'（未分服务项）',rev:net,cost:0,pt:0,cust:x.customer||'—',mon:mon});
+    }
+  }
+  /* 成本侧 */
+  for(const it of apItems){
+    if(it.deleted)continue;
+    if(!inRange(it.invDate))continue;
+    const mon=String(it.invDate||'').slice(0,7);
+    const cl=it.costLines||[];
+    if(cl.length){
+      for(const l of cl){
+        rows.push({svc:l.svc||'（未分服务项）',rev:0,cost:Math.round((Number(l.net)||0)*100)/100,
+                   pt:l.pt?1:0,cust:rcOrdCust(l.ord)||'—',mon:mon});
+      }
+    }else if(Number(it.amount)){
+      rows.push({svc:'（未拆分成本）',rev:0,cost:Math.round((Number(it.amount)||0)*100)/100,pt:0,
+                 cust:rcOrdCust(it.orderNo)||'—',mon:mon});
+    }
+  }
+  return rows;
+}
+function rcOrdCust(no){
+  if(!no)return '';
+  const o=(typeof ordItems!=='undefined'?ordItems:[]).find(x=>x&&!x.deleted&&x.orderNo===no);
+  return o?(o.customer||''):'';
+}
+function rcAggregate(month,dim,noPT){
+  const rows=rcCollect(month).filter(r=>!(noPT&&r.pt));
+  const key=r=>dim==='svc'?r.svc:(dim==='cat'?rcSvcCat(r.svc):(dim==='cust'?r.cust:r.mon));
+  const m={};
+  for(const r of rows){
+    const k=key(r)||'—';
+    if(!m[k])m[k]={k:k,rev:0,cost:0,n:0,pt:0};
+    m[k].rev+=r.rev;m[k].cost+=r.cost;m[k].n++;
+    if(r.pt)m[k].pt+=r.rev||r.cost;
+  }
+  const list=Object.values(m).map(x=>{
+    x.rev=Math.round(x.rev*100)/100;x.cost=Math.round(x.cost*100)/100;
+    x.gp=Math.round((x.rev-x.cost)*100)/100;
+    x.gpr=x.rev?Math.round(x.gp/x.rev*1000)/10:null;
+    return x;
+  });
+  list.sort((a,b)=>Math.abs(b.rev)-Math.abs(a.rev));
+  const tot=list.reduce((a,x)=>({rev:a.rev+x.rev,cost:a.cost+x.cost}),{rev:0,cost:0});
+  tot.rev=Math.round(tot.rev*100)/100;tot.cost=Math.round(tot.cost*100)/100;
+  tot.gp=Math.round((tot.rev-tot.cost)*100)/100;
+  tot.gpr=tot.rev?Math.round(tot.gp/tot.rev*1000)/10:null;
+  return {list,tot,rowN:rows.length};
+}
+function rcRender(){
+  const month=$('rcMonth').value||'';
+  const dim=$('rcDim').value;
+  const noPT=$('rcNoPT').checked;
+  const {list,tot,rowN}=rcAggregate(month,dim,noPT);
+  const gpColor=v=>v==null?'var(--ink-soft)':(v<0?'var(--bad)':(v<10?'var(--warn)':'var(--ok)'));
+  $('rcHint').textContent=rowN+' 条明细'+(noPT?' · 已剔除代垫':'')+(month?'':' · 全部月份');
+  $('rcKpi').innerHTML=[
+    {l:'收入（不含税）',v:fmt(tot.rev),c:''},
+    {l:'成本（不含税）',v:fmt(tot.cost),c:''},
+    {l:'毛利',v:fmt(tot.gp),c:tot.gp<0?'bad':'good'},
+    {l:'毛利率',v:(tot.gpr==null?'—':tot.gpr+'%'),c:(tot.gpr!=null&&tot.gpr<10)?'warn':'good'}
+  ].map(k=>'<div class="stat '+(k.c||'')+' minor" style="border-radius:9px"><div class="s-label">'+esc(k.l)+'</div><div class="s-value">'+k.v+'</div></div>').join('');
+  const head=({svc:'服务项',cat:'服务分类',cust:'客户',month:'月份'})[dim];
+  $('rcBody').innerHTML=list.length?
+   ('<div style="border:1px solid var(--n-line);border-radius:8px;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:12.3px">'+
+    '<thead><tr>'+[head,'收入','成本','毛利','毛利率','占收入'].map((h,i)=>'<th style="text-align:'+(i?'right':'left')+';padding:6px 9px;background:var(--n-soft);color:var(--ink-soft);font-weight:600;white-space:nowrap">'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+
+    list.map(x=>{
+      const share=tot.rev?Math.round(x.rev/tot.rev*1000)/10:0;
+      const isPT=(dim==='svc')&&(typeof svcIsPassThrough==='function')&&svcIsPassThrough(x.k);
+      return '<tr>'+
+      '<td style="padding:5px 9px;border-top:1px solid var(--n-line)">'+esc(x.k)+(isPT?' <span class="badge" style="background:var(--info-bg);color:var(--info);font-size:9.5px;padding:0 4px">代垫</span>':'')+'</td>'+
+      '<td style="padding:5px 9px;border-top:1px solid var(--n-line);text-align:right;font-family:var(--font-num)">'+fmt(x.rev)+'</td>'+
+      '<td style="padding:5px 9px;border-top:1px solid var(--n-line);text-align:right;font-family:var(--font-num)">'+fmt(x.cost)+'</td>'+
+      '<td style="padding:5px 9px;border-top:1px solid var(--n-line);text-align:right;font-family:var(--font-num);font-weight:700">'+fmt(x.gp)+'</td>'+
+      '<td style="padding:5px 9px;border-top:1px solid var(--n-line);text-align:right;font-family:var(--font-num);font-weight:700;color:'+gpColor(x.gpr)+'">'+(x.gpr==null?'—':x.gpr+'%')+'</td>'+
+      '<td style="padding:5px 9px;border-top:1px solid var(--n-line);text-align:right;font-family:var(--font-num);color:var(--ink-soft)">'+share+'%</td>'+
+      '</tr>';}).join('')+
+    '</tbody><tfoot><tr>'+
+      '<td style="padding:6px 9px;border-top:2px solid var(--line);font-weight:700">合计</td>'+
+      '<td style="padding:6px 9px;border-top:2px solid var(--line);text-align:right;font-family:var(--font-num);font-weight:700">'+fmt(tot.rev)+'</td>'+
+      '<td style="padding:6px 9px;border-top:2px solid var(--line);text-align:right;font-family:var(--font-num);font-weight:700">'+fmt(tot.cost)+'</td>'+
+      '<td style="padding:6px 9px;border-top:2px solid var(--line);text-align:right;font-family:var(--font-num);font-weight:700">'+fmt(tot.gp)+'</td>'+
+      '<td style="padding:6px 9px;border-top:2px solid var(--line);text-align:right;font-family:var(--font-num);font-weight:700;color:'+gpColor(tot.gpr)+'">'+(tot.gpr==null?'—':tot.gpr+'%')+'</td>'+
+      '<td style="padding:6px 9px;border-top:2px solid var(--line)"></td>'+
+    '</tr></tfoot></table></div>')
+   :'<div style="color:var(--ink-soft);text-align:center;padding:26px">该期间暂无数据。收入需应收发票带服务明细，成本需应付发票已拆分成本明细。</div>';
+}
+function rcOpen(){
+  if(!canAnalytics())return;
+  if(!$('rcMonth').value)$('rcMonth').value=todayStr().slice(0,7);
+  rcRender();
+  $('rcOverlay').classList.add('open');
+}
+function apCostHTML(it){
+  const ls=(it&&it.costLines)||[];
+  if(!ls.length)return '';
+  let net=0,vat=0,ptNet=0;
+  for(const l of ls){net+=Number(l.net)||0;vat+=Number(l.vat)||0;if(l.pt)ptNet+=Number(l.net)||0;}
+  net=Math.round(net*100)/100;vat=Math.round(vat*100)/100;
+  const gross=Math.round((net+vat)*100)/100;
+  const amt=Math.round((Number(it.amount)||0)*100)/100;
+  const diff=Math.round((gross-amt)*100)/100;
+  return '<div style="margin-top:10px;padding:10px 12px;border:1.5px dashed var(--pine);border-radius:10px;background:var(--n-wash)">'+
+    '<div style="font-size:12px;color:var(--pine);font-weight:700;margin-bottom:6px">'+ic('coins','ic-sm')+' 成本明细（'+ls.length+' 项）</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr>'+['服务项','归属订单','不含税','税额','含税'].map((h,i)=>'<th style="text-align:'+(i<2?'left':'right')+';padding:3px 6px;color:var(--ink-soft);font-weight:600">'+h+'</th>').join('')+'</tr></thead><tbody>'+
+    ls.map(l=>'<tr>'+
+      '<td style="padding:3px 6px;border-top:1px solid var(--n-line)">'+esc(l.svc||'—')+(l.pt?' <span class="badge" style="background:var(--info-bg);color:var(--info);font-size:9.5px;padding:0 4px">代垫</span>':'')+'</td>'+
+      '<td style="padding:3px 6px;border-top:1px solid var(--n-line);font-family:var(--font-num)">'+esc(l.ord||'—')+'</td>'+
+      '<td style="padding:3px 6px;border-top:1px solid var(--n-line);text-align:right;font-family:var(--font-num)">'+fmt(Number(l.net)||0)+'</td>'+
+      '<td style="padding:3px 6px;border-top:1px solid var(--n-line);text-align:right;font-family:var(--font-num)">'+fmt(Number(l.vat)||0)+'</td>'+
+      '<td style="padding:3px 6px;border-top:1px solid var(--n-line);text-align:right;font-family:var(--font-num);font-weight:700">'+fmt(Number(l.gross)||0)+'</td>'+
+    '</tr>').join('')+'</tbody></table>'+
+    '<div style="display:flex;justify-content:flex-end;gap:12px;font-size:12px;font-family:var(--font-num);padding-top:6px;margin-top:4px;border-top:1px dashed var(--line)">'+
+      '<span style="color:var(--ink-soft)">不含税 <b style="color:var(--ink)">'+fmt(net)+'</b></span>'+
+      (ptNet?('<span style="color:var(--info)">其中代垫 '+fmt(Math.round(ptNet*100)/100)+'</span>'):'')+
+      '<span style="color:var(--ink-soft)">含税 <b style="color:var(--ink)">'+fmt(gross)+'</b></span>'+
+    '</div>'+
+    (Math.abs(diff)>0.01?('<div style="margin-top:6px;padding:6px 9px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:11.5px;font-weight:600">'+ic('warn','ic-sm')+' 明细含税合计与发票金额 '+fmt(amt)+' 相差 '+fmt(Math.abs(diff))+'</div>'):'')+
+  '</div>';
+}
 function apDetail(it){
   const wrap=document.createElement('div');wrap.className='detail-grid';
   const s=apState(it), paid=apPaid(it), amt=Number(it.amount)||0;
@@ -3492,7 +3743,8 @@ function apDetail(it){
     (it.due?'<dt>到期日</dt><dd style="font-family:var(--font-num)">'+esc(it.due)+'</dd>':'')+
     (it.note?'<dt>备注</dt><dd>'+esc(it.note)+'</dd>':'')+
     payHtml+
-    '</dl>';
+    '</dl>'+
+    apCostHTML(it);   /* v21.5 阶段2：成本明细 */
 
   /* 付款记录删除（财务，双确认，墓碑防复活） */
   if(session.role==='finance'){
@@ -3710,8 +3962,126 @@ function apOpenEntry(it){
   $('apNote').value=it.note||'';
   if(!it.due)apCalcDue();
   $('apEntryErr').style.display='none';
+  /* v21.5 阶段2：载入已保存的成本明细（编辑时回填，新单为空） */
+  try{
+    const _it=apItems.find(x=>x.id===apEditingId);
+    _apCostLines=(_it&&Array.isArray(_it.costLines))?JSON.parse(JSON.stringify(_it.costLines)):[];
+    apCostRender();
+  }catch(e){_apCostLines=[];}
   $('apEntryOverlay').classList.add('open');
   $('apSupplier').focus();
+}
+/* ── v21.5 阶段2：应付成本明细（按服务项 + 归属订单拆分）──
+   与收入侧共用同一套服务项字典（含代垫标记与英文别名），实现收入成本一一对应。
+   一张供应商发票可覆盖多个订单、多个服务项，故明细行需各自指明归属订单。 */
+let _apCostLines=[];
+function apCostCalc(l){
+  const net=Math.round((Number(l.net)||0)*100)/100;
+  const vat=Math.round((Number(l.vat)||0)*100)/100;
+  return {net,vat,gross:Math.round((net+vat)*100)/100};
+}
+function apCostRender(){
+  const box=$('apCostRows'); if(!box)return;
+  try{svcLibDLEnsure();}catch(e){}
+  const ords=[...new Set(ordItems.filter(o=>!o.deleted).map(o=>o.orderNo).filter(Boolean))];
+  if(!_apCostLines.length){
+    box.innerHTML='<div style="color:var(--ink-soft);font-size:12.5px;padding:8px 2px">尚未拆分成本明细。可点「从订单带出」快速带入，或「+ 添加成本行」手工录入。</div>';
+  }else{
+    box.innerHTML='<div style="display:flex;gap:6px;font-size:11px;color:var(--ink-soft);padding:0 2px 4px"><span style="flex:2.2">服务项</span><span style="flex:1.4">归属订单</span><span style="width:96px;text-align:right">不含税</span><span style="width:86px;text-align:right">税额</span><span style="width:96px;text-align:right">含税</span><span style="width:26px"></span></div>';
+    _apCostLines.forEach((l,idx)=>{
+      const c=apCostCalc(l);
+      const pt=(typeof svcIsPassThrough==='function')&&svcIsPassThrough(l.svc);
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:6px';
+      const st='border:1.5px solid var(--line);border-radius:8px;padding:5px 7px;font-size:12.5px';
+      const iSvc=document.createElement('input');
+      iSvc.setAttribute('list','svcLibDL'); iSvc.value=l.svc||''; iSvc.placeholder='服务项';
+      iSvc.style.cssText=st+';flex:2.2;min-width:0';
+      iSvc.oninput=()=>{ /* 别名自动归位：供应商写 Roadtax/Toll 一律解析为「道路通行费」 */
+        const hit=(typeof svcResolve==='function')?svcResolve(iSvc.value):null;
+        _apCostLines[idx].svc=hit?hit.name:iSvc.value;
+        if(hit&&hit.name!==iSvc.value)iSvc.value=hit.name;
+        apCostSum();
+      };
+      const iOrd=document.createElement('input');
+      iOrd.setAttribute('list','apCostOrdDL'); iOrd.value=l.ord||''; iOrd.placeholder='IMG 成单号';
+      iOrd.style.cssText=st+';flex:1.4;min-width:0';
+      iOrd.oninput=()=>{_apCostLines[idx].ord=iOrd.value.trim();};
+      const mkNum=(v,ph,w,on)=>{const i=document.createElement('input');i.type='number';i.step='0.01';i.value=(v==null?'':v);i.placeholder=ph;
+        i.style.cssText=st+';width:'+w+'px;text-align:right';i.oninput=()=>on(i.value);return i;};
+      const iNet=mkNum(l.net,'0.00',96,v=>{_apCostLines[idx].net=v;apCostRenderGross(idx);apCostSum();});
+      const iVat=mkNum(l.vat,'0.00',86,v=>{_apCostLines[idx].vat=v;apCostRenderGross(idx);apCostSum();});
+      const sGross=document.createElement('span');
+      sGross.className='ap-cost-gross';
+      sGross.style.cssText='width:96px;text-align:right;font-family:var(--font-num);font-weight:700';
+      sGross.textContent=fmt(c.gross);
+      const bDel=document.createElement('button');bDel.className='btn-sm danger';
+      bDel.style.cssText='padding:2px 7px;font-size:11px';bDel.textContent='✕';
+      bDel.onclick=()=>{_apCostLines.splice(idx,1);apCostRender();apCostSum();};
+      row.append(iSvc,iOrd,iNet,iVat,sGross,bDel);
+      if(pt){
+        const tag=document.createElement('span');
+        tag.className='badge';tag.style.cssText='background:var(--info-bg);color:var(--info);font-size:10px;padding:1px 5px';
+        tag.textContent='代垫';row.insertBefore(tag,bDel);
+      }
+      box.appendChild(row);
+    });
+  }
+  let dl=$('apCostOrdDL');
+  if(!dl){dl=document.createElement('datalist');dl.id='apCostOrdDL';document.body.appendChild(dl);}
+  dl.innerHTML=ords.slice(0,300).map(n=>'<option value="'+esc(n)+'">').join('');
+  apCostSum();
+}
+function apCostRenderGross(idx){
+  const rows=$('apCostRows').querySelectorAll('.ap-cost-gross');
+  if(rows[idx])rows[idx].textContent=fmt(apCostCalc(_apCostLines[idx]).gross);
+}
+function apCostSum(){
+  let net=0,vat=0,ptNet=0;
+  for(const l of _apCostLines){
+    const c=apCostCalc(l); net+=c.net; vat+=c.vat;
+    if((typeof svcIsPassThrough==='function')&&svcIsPassThrough(l.svc))ptNet+=c.net;
+  }
+  net=Math.round(net*100)/100; vat=Math.round(vat*100)/100;
+  const gross=Math.round((net+vat)*100)/100;
+  const box=$('apCostSum');
+  if(box)box.innerHTML=_apCostLines.length?
+    ('<span style="color:var(--ink-soft)">不含税 <b style="color:var(--ink)">'+fmt(net)+'</b></span>'+
+     '<span style="color:var(--ink-soft)">税额 <b style="color:var(--ink)">'+fmt(vat)+'</b></span>'+
+     (ptNet?('<span style="color:var(--info)">其中代垫 '+fmt(Math.round(ptNet*100)/100)+'</span>'):'')+
+     '<span style="color:var(--ink-soft)">含税合计 <b style="color:var(--ink)">'+fmt(gross)+'</b></span>'):'';
+  /* 与发票金额一致性校验，容差 0.01（与收入侧同口径） */
+  const w=$('apCostWarn'); if(!w)return;
+  const amt=Math.round((parseFloat($('apAmount').value)||0)*100)/100;
+  if(!_apCostLines.length||!amt){w.style.display='none';return;}
+  const d=Math.round((gross-amt)*100)/100;
+  if(Math.abs(d)<=0.01){w.style.display='none';}
+  else{w.style.display='';w.innerHTML=ic('warn','ic-sm')+' 成本明细含税合计 '+fmt(gross)+' 与发票金额 '+fmt(amt)+' 相差 '+fmt(Math.abs(d))+'，请核对';}
+}
+function apCostPull(){
+  /* 从本单归属订单带出候选服务项：财务只需填金额，避免手工敲服务项名 */
+  const it=apItems.find(x=>x.id===apEditingId);
+  const no=(it&&it.orderNo)||'';
+  if(!no){toast('本单未关联订单，请先手工添加成本行');return;}
+  /* v21.5 订单数据可能尚未载入本模块内存（应付与订单分属不同集合），先查内存再回退本地缓存 */
+  let o=(typeof ordItems!=='undefined'?ordItems:[]).find(x=>x&&!x.deleted&&x.orderNo===no);
+  if(!o||!(o.svc||[]).length){
+    try{
+      const raw=localStorage.getItem(ORD_KEY);
+      if(raw){const arr=JSON.parse(raw)||[];const c=arr.find(x=>x&&!x.deleted&&x.orderNo===no);if(c&&(c.svc||[]).length)o=c;}
+    }catch(e){}
+  }
+  if(!o||!(o.svc||[]).length){toast(no+' 暂无服务项（若订单刚录入，请切到订单管理刷新后重试）');return;}
+  const exist=new Set(_apCostLines.map(l=>svcNorm(l.svc)+'|'+(l.ord||'')));
+  let add=0;
+  for(const sv of o.svc){
+    const key=svcNorm(sv.name)+'|'+no;
+    if(exist.has(key))continue;
+    _apCostLines.push({svc:sv.name,ord:no,net:'',vat:''});
+    add++;
+  }
+  apCostRender();
+  toast(add?('已带出 '+add+' 项，请填写成本金额'):'服务项均已带出');
 }
 async function apSaveEntry(){
   const err=$('apEntryErr');err.style.display='none';
@@ -3727,6 +4097,17 @@ async function apSaveEntry(){
   const cmp={supplier:['供应商',sup],invNo:['发票号',no],amount:['金额',Math.round(amt*100)/100],
              currency:['币种',$('apCurrency').value],invDate:['发票日期',d],due:['到期日',due]};
   for(const k in cmp){if(String(it[k]??'')!==String(cmp[k][1]))changes.push(cmp[k][0]+'：'+(it[k]||'—')+' → '+cmp[k][1]);}
+  /* v21.5 阶段2：保存成本明细（过滤空行，金额规范化为两位小数） */
+  const cl=_apCostLines.filter(l=>(l.svc||'').trim()&&(Number(l.net)||Number(l.vat)))
+    .map(l=>({svc:(l.svc||'').trim(),ord:(l.ord||'').trim(),
+              net:Math.round((Number(l.net)||0)*100)/100,
+              vat:Math.round((Number(l.vat)||0)*100)/100,
+              gross:Math.round(((Number(l.net)||0)+(Number(l.vat)||0))*100)/100,
+              pt:((typeof svcIsPassThrough==='function')&&svcIsPassThrough(l.svc))?1:0}));
+  const clOld=JSON.stringify((it.costLines||[]).map(x=>x.svc+':'+x.net+':'+x.vat));
+  if(clOld!==JSON.stringify(cl.map(x=>x.svc+':'+x.net+':'+x.vat)))
+    changes.push('成本明细：'+((it.costLines||[]).length)+' 项 → '+cl.length+' 项');
+  it.costLines=cl;
   it.supplier=sup;it.invNo=no;it.amount=Math.round(amt*100)/100;
   it.currency=$('apCurrency').value;it.invDate=d;
   it.term=$('apTerm').value==='custom'?null:Number($('apTerm').value);
@@ -3803,14 +4184,14 @@ async function apExport(){
   const btn=$('apExportBtn');btn.disabled=true;btn.textContent='生成中…';
   try{
     await ensureXLSX();
-    const ws=XLSX.utils.aoa_to_sheet(xlT([d.head,...d.rows]));
+    const ws=XLSX.utils.aoa_to_sheet(xlT(aoaWithTotal([d.head,...d.rows],0)));
     ws['!cols']=[{wch:12},{wch:32},{wch:18},{wch:16},{wch:12},{wch:6},{wch:9},{wch:12},{wch:12},{wch:12},{wch:10},{wch:10},{wch:10},{wch:26},{wch:30}];
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,trStr('应付台账'));
     XLSX.writeFile(wb,fnT(d.fname)+'.xlsx');
   }catch(e){
     const line=r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');
-    const trA=xlT([d.head,...d.rows]);
+    const trA=xlT(aoaWithTotal([d.head,...d.rows],0));
     const csv='\uFEFF'+trA.map(line).join('\n');
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
@@ -4194,7 +4575,7 @@ async function ovdGo(){
     let xlsxOk=false;
     try{
       await ensureXLSX();
-      const ws=XLSX.utils.aoa_to_sheet(xlT(ovdAoa(list,csel)));
+      const ws=XLSX.utils.aoa_to_sheet(xlT(aoaWithTotal(ovdAoa(list,csel))));
       ws['!cols']=[{wch:12},{wch:14},{wch:26},{wch:14},{wch:12},{wch:9},{wch:12},{wch:12},{wch:12},{wch:6}];
       const wb=XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb,ws,'逾期发票');
@@ -4203,7 +4584,7 @@ async function ovdGo(){
     }catch(e){}
     if(!xlsxOk){
       const line=r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');
-      zip.file(fnT('逾期发票明细')+'.csv','\uFEFF'+xlT(ovdAoa(list,csel)).map(line).join('\n'));
+      zip.file(fnT('逾期发票明细')+'.csv','\uFEFF'+xlT(aoaWithTotal(ovdAoa(list,csel))).map(line).join('\n'));
     }
     const failed=[];let got=0;
     for(const x of list){
@@ -4285,6 +4666,24 @@ async function balStmtExport(cust,cur){
 }
 $('subKAN').onclick=()=>kanShow(true);
 $('subORD').addEventListener('click',()=>{if(_kanOn)kanShow(false);});
+if($('netDiagLogin'))$('netDiagLogin').onclick=netDiag;
+if($('netDiagBtn'))$('netDiagBtn').onclick=netDiag;
+$('rcBtn').onclick=rcOpen;
+$('rcClose').onclick=()=>$('rcOverlay').classList.remove('open');
+$('rcOverlay').addEventListener('click',e=>{if(e.target===$('rcOverlay'))$('rcOverlay').classList.remove('open');});
+for(const id of ['rcMonth','rcDim','rcNoPT'])$(id).onchange=rcRender;
+$('rcExport').onclick=async function(){
+  const month=$('rcMonth').value||'', dim=$('rcDim').value, noPT=$('rcNoPT').checked;
+  const {list,tot}=rcAggregate(month,dim,noPT);
+  const head=({svc:'服务项',cat:'服务分类',cust:'客户',month:'月份'})[dim];
+  const aoa=[['收入成本分析 · '+({svc:'按服务项',cat:'按服务分类',cust:'按客户',month:'按月度'})[dim]],
+    ['期间：'+(month||'全部')+'　口径：'+(noPT?'剔除代垫':'含代垫')+'　生成：'+todayStr()+'　IMG Europe GmbH'],[],
+    [head,'收入(不含税)','成本(不含税)','毛利','毛利率%','占收入%']];
+  for(const x of list)aoa.push([x.k,x.rev,x.cost,x.gp,x.gpr==null?'':x.gpr,tot.rev?Math.round(x.rev/tot.rev*1000)/10:0]);
+  aoa.push(['合计',tot.rev,tot.cost,tot.gp,tot.gpr==null?'':tot.gpr,'']);
+  await exportSheet(aoa,'收入成本分析',fnT('收入成本分析')+(month?'-'+month:''),[{wch:30},{wch:15},{wch:15},{wch:14},{wch:10},{wch:10}],true); /* 报表已自带合计行 */
+  toast('已导出');
+};
 $('ntfBtn').onclick=ntfOpen;
 $('ntfClose').onclick=()=>{$('ntfOverlay').classList.remove('open');ntfMarkRead();};
 $('ntfReadAll').onclick=()=>{ntfMarkRead();ntfRender();toast('已全部标记已读');};
@@ -4429,7 +4828,7 @@ $('zipGo').onclick=async function(){
     let manifestOk=false;
     try{
       await ensureXLSX();
-      const ws=XLSX.utils.aoa_to_sheet(xlT(rows));
+      const ws=XLSX.utils.aoa_to_sheet(xlT(aoaWithTotal(rows)));
       ws['!cols']=[{wch:12},{wch:32},{wch:18},{wch:16},{wch:12},{wch:6},{wch:12},{wch:12},{wch:10},{wch:8}];
       const wb=XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb,ws,trStr('发票清单'));
@@ -4499,7 +4898,7 @@ async function stmtZip(){
     let xlsxOk=false;
     try{
       await ensureXLSX();
-      const ws=XLSX.utils.aoa_to_sheet(xlT(stmtAoa(sup,year,d)));
+      const ws=XLSX.utils.aoa_to_sheet(xlT(aoaWithTotal(stmtAoa(sup,year,d))));
       ws['!cols']=[{wch:12},{wch:20},{wch:16},{wch:12},{wch:6},{wch:12},{wch:12},{wch:12},{wch:10}];
       const wb=XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb,ws,'对账单');
@@ -4508,7 +4907,7 @@ async function stmtZip(){
     }catch(e){}
     if(!xlsxOk){
       const line=r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');
-      zip.file(fnT('对账单')+'-'+sup.slice(0,20)+'.csv','\uFEFF'+xlT(stmtAoa(sup,year,d)).map(line).join('\n'));
+      zip.file(fnT('对账单')+'-'+sup.slice(0,20)+'.csv','\uFEFF'+xlT(aoaWithTotal(stmtAoa(sup,year,d))).map(line).join('\n'));
     }
     /* ② 发票 PDF（gs→Storage，缺省/失败→db 副本兜底，与整单打包同构） */
     const failed=[];let got=0;
@@ -4535,6 +4934,9 @@ $('apFMonth').onchange=renderAP;
 $('apFStatus').onchange=renderAP;
 let _apQT=null;$('apFSearch').oninput=()=>{clearTimeout(_apQT);_apQT=setTimeout(renderAP,180);};
 $('apExportBtn').onclick=apExport;
+$('apCostAdd').onclick=()=>{_apCostLines.push({svc:'',ord:'',net:'',vat:''});apCostRender();};
+$('apCostPull').onclick=apCostPull;
+$('apAmount').addEventListener('input',()=>{try{apCostSum();}catch(e){}});
 $('apEntryCancel').onclick=()=>$('apEntryOverlay').classList.remove('open');
 $('apEntrySave').onclick=apSaveEntry;
 $('apPayCancel').onclick=()=>$('apPayOverlay').classList.remove('open');
@@ -4591,7 +4993,7 @@ function logiBadge(o){
   if(!k)return '<span class="badge muted" style="opacity:.65">未标注</span>';
   return '<span class="badge '+LOGI_C(k)+'">'+(k==='issue'?ic('warn','ic-sm')+' ':'')+LOGI_L(k)+'</span>';
 }
-const SVC_LIB_SEED=[{"n": "港杂", "en": "Port Charge / THC", "cat": "港口"}, {"n": "换单费用", "en": "DO Release", "cat": "港口"}, {"n": "码头附加费", "en": "Terminal Surcharge", "cat": "港口"}, {"n": "滞港费用", "en": "Demurrage / Storage", "cat": "港口"}, {"n": "操作费", "en": "Handling Fee", "cat": "港口"}, {"n": "第三方代缴", "en": "Payment per Outlay", "cat": "港口"}, {"n": "仓储费", "en": "Storage Fee", "cat": "港口"}, {"n": "系统放行", "en": "Port System Release", "cat": "港口"}, {"n": "箱使费", "en": "Detention", "cat": "港口"}, {"n": "安全附加费", "en": "Security Surcharge (ISPS)", "cat": "港口"}, {"n": "清关费", "en": "Customs Clearance", "cat": "关务"}, {"n": "展会清关", "en": "ATA Carnet", "cat": "关务"}, {"n": "超品名费", "en": "Extra HS Code", "cat": "关务"}, {"n": "T1过境单", "en": "T1 Document", "cat": "关务"}, {"n": "T1关闭", "en": "T1 Close", "cat": "关务"}, {"n": "出口报关", "en": "Export Declaration", "cat": "关务"}, {"n": "关税", "en": "Duty", "cat": "关务"}, {"n": "增值税", "en": "VAT", "cat": "关务"}, {"n": "税费代缴3%", "en": "Customs Tax Payment Handling", "cat": "关务"}, {"n": "查验费", "en": "Inspection Fee", "cat": "关务"}, {"n": "查验操作费", "en": "Inspection Handling", "cat": "关务"}, {"n": "扫描费", "en": "Scan Fee", "cat": "关务"}, {"n": "车架租赁", "en": "Chassis Rental", "cat": "关务"}, {"n": "装卸费", "en": "Unloading / Loading", "cat": "关务"}, {"n": "文件费", "en": "Documentation Fee", "cat": "关务"}, {"n": "派送费", "en": "Delivery", "cat": "派送"}, {"n": "燃油附加", "en": "Fuel Surcharge", "cat": "派送"}, {"n": "约仓费", "en": "Appointment Booking", "cat": "派送"}, {"n": "空箱归还", "en": "Empty Container Drop-off", "cat": "派送"}, {"n": "超重附加", "en": "Overweight Surcharge", "cat": "派送"}, {"n": "危品附加", "en": "DG Surcharge", "cat": "派送"}, {"n": "尾板费", "en": "Tailift", "cat": "派送"}, {"n": "手叉", "en": "Forklift", "cat": "派送"}, {"n": "等时费", "en": "Waiting Hours", "cat": "派送"}, {"n": "过夜费", "en": "Overnight Waiting", "cat": "派送"}, {"n": "取消费", "en": "Cancellation Fee", "cat": "派送"}, {"n": "多点停靠", "en": "Multi-Stop Service", "cat": "派送"}, {"n": "海关点清关", "en": "Custom-Stop", "cat": "派送"}, {"n": "再次派送", "en": "Second Delivery", "cat": "派送"}, {"n": "提货空驶", "en": "Deadfreight (pickup)", "cat": "派送"}, {"n": "空驶费", "en": "Deadfreight", "cat": "派送"}, {"n": "运费", "en": "Freight Charge", "cat": "派送"}, {"n": "服务费", "en": "Service Fee", "cat": "其他"}, {"n": "逾期罚金", "en": "Overdue Penalty", "cat": "其他"}, {"n": "发票抵扣", "en": "Credit Note", "cat": "其他"}];
+const SVC_LIB_SEED=[{"n": "港杂", "en": "Port Charge / THC", "cat": "港口"}, {"n": "换单费用", "en": "DO Release", "cat": "港口", "al": ["Delivery Order"]}, {"n": "码头附加费", "en": "Terminal Surcharge", "cat": "港口", "al": ["Terminal surcharge EUROMAX"]}, {"n": "滞港费用", "en": "Demurrage / Storage", "cat": "港口", "pt": 1, "al": ["Demurrage", "Storage Fee / Demurrage"]}, {"n": "操作费", "en": "Handling Fee", "cat": "港口", "al": ["Temporary Handling Fee"]}, {"n": "第三方代缴", "en": "Payment per Outlay", "cat": "港口", "pt": 1, "al": ["MSK local charges"]}, {"n": "仓储费", "en": "Storage Fee", "cat": "港口", "pt": 1}, {"n": "系统放行", "en": "Port System Release", "cat": "港口", "al": ["Terminal SLOT"]}, {"n": "箱使费", "en": "Detention", "cat": "港口", "al": ["Truck detention"]}, {"n": "安全附加费", "en": "Security Surcharge (ISPS)", "cat": "港口"}, {"n": "清关费", "en": "Customs Clearance", "cat": "关务"}, {"n": "展会清关", "en": "ATA Carnet", "cat": "关务"}, {"n": "超品名费", "en": "Extra HS Code", "cat": "关务", "al": ["HS Code"]}, {"n": "T1过境单", "en": "T1 Document", "cat": "关务"}, {"n": "T1关闭", "en": "T1 Close", "cat": "关务", "al": ["closing T1"]}, {"n": "出口报关", "en": "Export Declaration", "cat": "关务"}, {"n": "关税", "en": "Duty", "cat": "关务", "pt": 1}, {"n": "增值税", "en": "VAT", "cat": "关务"}, {"n": "税费代缴3%", "en": "Customs Tax Payment Handling", "cat": "关务"}, {"n": "查验费", "en": "Inspection Fee", "cat": "关务", "al": ["Customs inspection-related costs"]}, {"n": "查验操作费", "en": "Inspection Handling", "cat": "关务"}, {"n": "扫描费", "en": "Scan Fee", "cat": "关务", "pt": 1, "al": ["SCAN FYCO", "Scan Handling Fee", "Security Scan"]}, {"n": "车架租赁", "en": "Chassis Rental", "cat": "关务"}, {"n": "装卸费", "en": "Unloading / Loading", "cat": "关务", "pt": 1, "al": ["Stripping/Loading", "Unloading", "Unloading Fee", "unloading"]}, {"n": "文件费", "en": "Documentation Fee", "cat": "关务"}, {"n": "派送费", "en": "Delivery", "cat": "派送"}, {"n": "燃油附加", "en": "Fuel Surcharge", "cat": "派送"}, {"n": "约仓费", "en": "Appointment Booking", "cat": "派送", "al": ["Booking fee"]}, {"n": "空箱归还", "en": "Empty Container Drop-off", "cat": "派送", "pt": 1, "al": ["EMPTY CONTAINER DROP OFF"]}, {"n": "超重附加", "en": "Overweight Surcharge", "cat": "派送", "pt": 1, "al": ["Overweight Container Fee", "Overweight fee"]}, {"n": "危品附加", "en": "DG Surcharge", "cat": "派送"}, {"n": "尾板费", "en": "Tailift", "cat": "派送"}, {"n": "手叉", "en": "Forklift", "cat": "派送"}, {"n": "等时费", "en": "Waiting Hours", "cat": "派送", "al": ["Waiting"]}, {"n": "过夜费", "en": "Overnight Waiting", "cat": "派送", "al": ["Overnight fee"]}, {"n": "取消费", "en": "Cancellation Fee", "cat": "派送", "pt": 1, "al": ["Warehouse no-show charge", "failed trip"]}, {"n": "多点停靠", "en": "Multi-Stop Service", "cat": "派送", "pt": 1, "al": ["Extra stop", "Redirection delivery fee"]}, {"n": "海关点清关", "en": "Custom-Stop", "cat": "派送"}, {"n": "再次派送", "en": "Second Delivery", "cat": "派送"}, {"n": "提货空驶", "en": "Deadfreight (pickup)", "cat": "派送"}, {"n": "空驶费", "en": "Deadfreight", "cat": "派送", "al": ["FTL 100% Deadfreight"]}, {"n": "运费", "en": "Freight Charge", "cat": "派送", "pt": 1, "al": ["Shipping fee"]}, {"n": "服务费", "en": "Service Fee", "cat": "其他", "pt": 1, "al": ["Additional fees"]}, {"n": "逾期罚金", "en": "Overdue Penalty", "cat": "其他"}, {"n": "发票抵扣", "en": "Credit Note", "cat": "其他", "pt": 1, "al": ["Overpaid customs duties"]}, {"n": "入库操作费", "en": "Inbound Handling", "cat": "港口"}, {"n": "出库操作费", "en": "Outbound Handling", "cat": "港口"}, {"n": "整车运输", "en": "FTL", "cat": "派送"}, {"n": "危品派送", "en": "Delivery-DG", "cat": "派送"}, {"n": "关T1", "en": "T1 Customs Transit", "cat": "关务"}, {"n": "开T1", "en": "T1 Issuance", "cat": "关务"}, {"n": "优惠折让", "en": "Discount", "cat": "其他"}, {"n": "保险费", "en": "Insurance Fee", "cat": "其他"}, {"n": "拖车费", "en": "Trucking Fee", "cat": "派送", "al": ["Container Transfer", "Trailer Fee / Charge", "Trucking Warehouse"]}, {"n": "报关费", "en": "Customs Clearance Fee", "cat": "关务"}, {"n": "海运费", "en": "Ocean Freight", "cat": "运输", "al": ["Seafreight"]}, {"n": "空运费", "en": "Air Freight", "cat": "运输", "pt": 1, "al": ["Air freight charges"]}, {"n": "港杂费", "en": "Port Charge / THC", "cat": "港口"}, {"n": "道路通行费", "en": "Road toll", "cat": "运输", "pt": 1, "al": ["Highway toll fee", "Roadtax", "Toll", "roadtax"]}, {"n": "铁路运费", "en": "Rail Freight", "cat": "运输"}];
 const ARI_SEED=[{"invNo": "202600652", "invDate": "2026-08-23", "due": "2026-08-23", "term": 0, "customer": "H & H GmbH", "net": 185000.0, "vatRate": 19, "vat": 35150.0, "gross": 220150.0, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600651", "invDate": "2026-08-21", "due": "2026-08-21", "term": 0, "customer": "Schnelland Trade Service UG", "net": 1150.0, "vatRate": 19, "vat": 218.5, "gross": 1368.5, "currency": "EUR", "settled": false, "orderNo": "IMG260439", "note": "8月历史导入"}, {"invNo": "202600650", "invDate": "2026-08-20", "due": "2026-09-03", "term": 14, "customer": "Moolar GmbH", "net": -1150.0, "vatRate": 19, "vat": -218.5, "gross": -1368.5, "currency": "EUR", "settled": true, "orderNo": "IMG260439", "cancel": true, "note": "冲销发票 → 原发票 202600176 · 8月历史导入"}, {"invNo": "202600649", "invDate": "2026-08-20", "due": "2026-08-20", "term": 0, "customer": "CONWEST LOGISTIC POLAND SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ", "net": 28507.5, "vatRate": 0, "vat": 0.0, "gross": 28507.5, "currency": "EUR", "settled": false, "orderNo": "IMG2607118", "note": "8月历史导入"}, {"invNo": "202600647", "invDate": "2026-08-20", "due": "2026-08-20", "term": 0, "customer": "CONWEST LOGISTIC POLAND SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ", "net": -31310.0, "vatRate": 0, "vat": 0.0, "gross": -31310.0, "currency": "EUR", "settled": true, "orderNo": "IMG2607118", "cancel": true, "note": "冲销发票 → 原发票 202600646 · 8月历史导入"}, {"invNo": "202600648", "invDate": "2026-08-20", "due": "2026-08-20", "term": 0, "customer": "H & H GmbH", "net": 3290.6, "vatRate": 19, "vat": 625.22, "gross": 3915.82, "currency": "EUR", "settled": false, "orderNo": "IMG2607126", "note": "8月历史导入"}, {"invNo": "202600646", "invDate": "2026-08-19", "due": "2026-08-19", "term": 0, "customer": "CONWEST LOGISTIC POLAND SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ", "net": 31310.0, "vatRate": 0, "vat": 0.0, "gross": 31310.0, "currency": "EUR", "settled": true, "orderNo": "IMG2607118", "note": "sevdesk 已收讫 · 8月历史导入"}, {"invNo": "202600645", "invDate": "2026-08-19", "due": "2026-08-19", "term": 0, "customer": "H & H GmbH", "net": 380.0, "vatRate": 19, "vat": 72.2, "gross": 452.2, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600644", "invDate": "2026-08-19", "due": "2026-08-19", "term": 0, "customer": "GLOBAL FAST LOGISTIC SRL", "net": 1378.0, "vatRate": 0, "vat": 0.0, "gross": 1378.0, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600643", "invDate": "2026-08-18", "due": "2026-08-21", "term": 3, "customer": "H & H GmbH", "net": 10500.0, "vatRate": 19, "vat": 1995.0, "gross": 12495.0, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600642", "invDate": "2026-08-18", "due": "2026-08-21", "term": 3, "customer": "H & H GmbH", "net": 20890.0, "vatRate": 19, "vat": 3969.1, "gross": 24859.1, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600641", "invDate": "2026-08-18", "due": "2026-08-21", "term": 3, "customer": "H & H GmbH", "net": 3943.8, "vatRate": 19, "vat": 749.33, "gross": 4693.13, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600640", "invDate": "2026-08-18", "due": "2026-08-21", "term": 3, "customer": "H & H GmbH", "net": 9382.2, "vatRate": 19, "vat": 1782.61, "gross": 11164.81, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600639", "invDate": "2026-08-17", "due": "2026-08-20", "term": 3, "customer": "SHILIAN HUTONG SUPPLY CHAIN (HK) LIMITED", "net": 2185.32, "vatRate": 0, "vat": 0.0, "gross": 2185.32, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600638", "invDate": "2026-08-17", "due": "2026-08-20", "term": 3, "customer": "SHILIAN HUTONG SUPPLY CHAIN (HK) LIMITED", "net": 2950.0, "vatRate": 0, "vat": 0.0, "gross": 2950.0, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600637", "invDate": "2026-08-17", "due": "2026-08-20", "term": 3, "customer": "Euroway International Logistics GmbH", "net": 1200.0, "vatRate": 19, "vat": 228.0, "gross": 1428.0, "currency": "EUR", "settled": false, "orderNo": "IMG260823", "note": "8月历史导入"}, {"invNo": "202600636", "invDate": "2026-08-17", "due": "2026-08-20", "term": 3, "customer": "Euroway International Logistics GmbH", "net": 4405.0, "vatRate": 19, "vat": 836.95, "gross": 5241.95, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600635", "invDate": "2026-08-17", "due": "2026-08-17", "term": 0, "customer": "Flexispot GmbH", "net": 900.0, "vatRate": 19, "vat": 171.0, "gross": 1071.0, "currency": "EUR", "settled": false, "orderNo": "IMG260811", "note": "8月历史导入"}, {"invNo": "202600634", "invDate": "2026-08-14", "due": "2026-08-21", "term": 7, "customer": "SHENZHEN BAOSEN SUNTOP LOGISTICS CO.,LTD", "net": 3497.0, "vatRate": 0, "vat": 0.0, "gross": 3497.0, "currency": "EUR", "settled": true, "note": "sevdesk 已收讫（2026-08-18） · 8月历史导入"}, {"invNo": "202600633", "invDate": "2026-08-14", "due": "2026-08-21", "term": 7, "customer": "SHENZHEN BAOSEN SUNTOP LOGISTICS CO.,LTD", "net": -3142.0, "vatRate": 0, "vat": 0.0, "gross": -3142.0, "currency": "EUR", "settled": true, "cancel": true, "note": "冲销发票 → 原发票 202600430 · 8月历史导入"}, {"invNo": "202600632", "invDate": "2026-08-12", "due": "2026-08-15", "term": 3, "customer": "Euroway International Logistics GmbH", "net": 4307.5, "vatRate": 19, "vat": 818.43, "gross": 5125.93, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600631", "invDate": "2026-08-11", "due": "2026-08-11", "term": 0, "customer": "CONWEST LOGISTIC POLAND SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ", "net": 39555.0, "vatRate": 0, "vat": 0.0, "gross": 39555.0, "currency": "EUR", "settled": false, "orderNo": "IMG260773", "note": "8月历史导入"}, {"invNo": "202600630", "invDate": "2026-08-10", "due": "2026-08-10", "term": 0, "customer": "H & H GmbH", "net": 25130.0, "vatRate": 19, "vat": 4774.7, "gross": 29904.7, "currency": "EUR", "settled": false, "orderNo": "IMG2607120", "note": "8月历史导入"}, {"invNo": "202600629", "invDate": "2026-08-10", "due": "2026-08-10", "term": 0, "customer": "H & H GmbH", "net": 10325.9, "vatRate": 19, "vat": 1961.92, "gross": 12287.82, "currency": "EUR", "settled": false, "orderNo": "IMG2607115", "note": "8月历史导入"}, {"invNo": "202600628", "invDate": "2026-08-10", "due": "2026-08-10", "term": 0, "customer": "H & H GmbH", "net": 4009.0, "vatRate": 19, "vat": 761.71, "gross": 4770.71, "currency": "EUR", "settled": false, "orderNo": "IMG260803", "note": "8月历史导入"}, {"invNo": "202600627", "invDate": "2026-08-10", "due": "2026-08-10", "term": 0, "customer": "H & H GmbH", "net": 4004.1, "vatRate": 19, "vat": 760.78, "gross": 4764.88, "currency": "EUR", "settled": false, "orderNo": "IMG2607125", "note": "8月历史导入"}, {"invNo": "202600626", "invDate": "2026-08-10", "due": "2026-08-10", "term": 0, "customer": "H & H GmbH", "net": 3232.0, "vatRate": 19, "vat": 614.08, "gross": 3846.08, "currency": "EUR", "settled": false, "orderNo": "IMG2607123", "note": "8月历史导入"}, {"invNo": "202600625", "invDate": "2026-08-10", "due": "2026-08-10", "term": 0, "customer": "H & H GmbH", "net": 5378.9, "vatRate": 19, "vat": 1021.99, "gross": 6400.89, "currency": "EUR", "settled": false, "orderNo": "IMG2607119", "note": "8月历史导入"}, {"invNo": "202600624", "invDate": "2026-08-10", "due": "2026-08-10", "term": 0, "customer": "H & H GmbH", "net": 5080.0, "vatRate": 19, "vat": 965.2, "gross": 6045.2, "currency": "EUR", "settled": false, "orderNo": "IMG2607117", "note": "8月历史导入"}, {"invNo": "202600623", "invDate": "2026-08-10", "due": "2026-08-10", "term": 0, "customer": "H & H GmbH", "net": 1721.0, "vatRate": 19, "vat": 326.99, "gross": 2047.99, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600622", "invDate": "2026-08-10", "due": "2026-08-10", "term": 0, "customer": "H & H GmbH", "net": 2500.0, "vatRate": 19, "vat": 475.0, "gross": 2975.0, "currency": "EUR", "settled": false, "orderNo": "IMG2607122", "note": "8月历史导入"}, {"invNo": "202600621", "invDate": "2026-08-10", "due": "2026-08-10", "term": 0, "customer": "H & H GmbH", "net": 848.0, "vatRate": 19, "vat": 161.12, "gross": 1009.12, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600620", "invDate": "2026-08-07", "due": "2026-08-07", "term": 0, "customer": "QIAN TANG (HONG KONG) INTERNATIONAL SUPPLY CHAIN CO., LIMITED", "net": 1961.76, "vatRate": 0, "vat": 0.0, "gross": 1961.76, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600619", "invDate": "2026-08-07", "due": "2026-08-07", "term": 0, "customer": "QIAN TANG (HONG KONG) INTERNATIONAL SUPPLY CHAIN CO., LIMITED", "net": 11700.05, "vatRate": 0, "vat": 0.0, "gross": 11700.05, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600618", "invDate": "2026-08-07", "due": "2026-08-07", "term": 0, "customer": "QIAN TANG (HONG KONG) INTERNATIONAL SUPPLY CHAIN CO., LIMITED", "net": -13661.81, "vatRate": 0, "vat": 0.0, "gross": -13661.81, "currency": "EUR", "settled": true, "cancel": true, "note": "冲销发票 → 原发票 202600616 · 8月历史导入"}, {"invNo": "202600617", "invDate": "2026-08-07", "due": "2026-08-07", "term": 0, "customer": "QIAN TANG (HONG KONG) INTERNATIONAL SUPPLY CHAIN CO., LIMITED", "net": 2210.0, "vatRate": 0, "vat": 0.0, "gross": 2210.0, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600616", "invDate": "2026-08-07", "due": "2026-08-07", "term": 0, "customer": "QIAN TANG (HONG KONG) INTERNATIONAL SUPPLY CHAIN CO., LIMITED", "net": 13661.81, "vatRate": 0, "vat": 0.0, "gross": 13661.81, "currency": "EUR", "settled": true, "note": "sevdesk 已收讫 · 8月历史导入"}, {"invNo": "202600614", "invDate": "2026-08-07", "due": "2026-08-07", "term": 0, "customer": "H & H GmbH", "net": 145.6, "vatRate": 19, "vat": 27.66, "gross": 173.26, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600611", "invDate": "2026-08-07", "due": "2026-08-07", "term": 0, "customer": "H & H GmbH", "net": -145.6, "vatRate": 19, "vat": -27.66, "gross": -173.26, "currency": "EUR", "settled": true, "cancel": true, "note": "冲销发票 → 原发票 202600579 · 8月历史导入"}, {"invNo": "202600615", "invDate": "2026-08-07", "due": "2026-08-07", "term": 0, "customer": "H & H GmbH", "net": 3524.0, "vatRate": 19, "vat": 669.56, "gross": 4193.56, "currency": "EUR", "settled": false, "orderNo": "IMG260787", "note": "8月历史导入"}, {"invNo": "202600610", "invDate": "2026-08-07", "due": "2026-08-07", "term": 0, "customer": "H & H GmbH", "net": -6116.0, "vatRate": 19, "vat": -1162.04, "gross": -7278.04, "currency": "EUR", "settled": true, "orderNo": "IMG260787", "cancel": true, "note": "冲销发票 → 原发票 202600592 · 8月历史导入"}, {"invNo": "202600609", "invDate": "2026-08-06", "due": "2026-08-06", "term": 0, "customer": "Hangzhou Baosen International Logistics Co., Ltd.", "net": -2699.61, "vatRate": 0, "vat": 0.0, "gross": -2699.61, "currency": "EUR", "settled": true, "cancel": true, "note": "冲销发票 → 原发票 202600241 · 8月历史导入"}, {"invNo": "202600612", "invDate": "2026-08-06", "due": "2026-08-13", "term": 7, "customer": "SHENZHEN BAOSEN SUNTOP LOGISTICS CO.,LTD", "net": 3176.0, "vatRate": 0, "vat": 0.0, "gross": 3176.0, "currency": "EUR", "settled": true, "note": "sevdesk 已收讫（2026-08-18） · 8月历史导入"}, {"invNo": "202600608", "invDate": "2026-08-06", "due": "2026-08-13", "term": 7, "customer": "SHENZHEN BAOSEN SUNTOP LOGISTICS CO.,LTD", "net": -3316.0, "vatRate": 0, "vat": 0.0, "gross": -3316.0, "currency": "EUR", "settled": true, "cancel": true, "note": "冲销发票 → 原发票 202600526 · 8月历史导入"}, {"invNo": "202600613", "invDate": "2026-08-06", "due": "2026-08-13", "term": 7, "customer": "SHENZHEN BAOSEN SUNTOP LOGISTICS CO.,LTD", "net": 1795.0, "vatRate": 0, "vat": 0.0, "gross": 1795.0, "currency": "EUR", "settled": true, "note": "sevdesk 已收讫（2026-08-18） · 8月历史导入"}, {"invNo": "202600607", "invDate": "2026-08-06", "due": "2026-08-13", "term": 7, "customer": "SHENZHEN BAOSEN SUNTOP LOGISTICS CO.,LTD", "net": -1655.0, "vatRate": 0, "vat": 0.0, "gross": -1655.0, "currency": "EUR", "settled": true, "cancel": true, "note": "冲销发票 → 原发票 202600603 · 8月历史导入"}, {"invNo": "202600606", "invDate": "2026-08-06", "due": "2026-08-06", "term": 0, "customer": "HONG KONG JINCHENG SUPPLY CHAIN LTD", "net": 2020.0, "vatRate": 0, "vat": 0.0, "gross": 2020.0, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600605", "invDate": "2026-08-06", "due": "2026-08-20", "term": 14, "customer": "Moolar GmbH", "net": -2020.0, "vatRate": 19, "vat": -383.8, "gross": -2403.8, "currency": "EUR", "settled": true, "cancel": true, "note": "冲销发票 → 原发票 202600177 · 8月历史导入"}, {"invNo": "202600577", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "Hong Kong JSW Tech Group Limited", "net": 2820.0, "vatRate": 0, "vat": 0.0, "gross": 2820.0, "currency": "EUR", "settled": true, "note": "sevdesk 已收讫（2026-08-06） · 8月历史导入"}, {"invNo": "202600576", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "Hong Kong JSW Tech Group Limited", "net": 520.0, "vatRate": 0, "vat": 0.0, "gross": 520.0, "currency": "EUR", "settled": true, "note": "sevdesk 已收讫（2026-08-13） · 8月历史导入"}, {"invNo": "202600604", "invDate": "2026-08-06", "due": "2026-08-06", "term": 0, "customer": "AISWEI B.V.", "net": 5400.0, "vatRate": 0, "vat": 0.0, "gross": 5400.0, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600603", "invDate": "2026-08-06", "due": "2026-08-13", "term": 7, "customer": "SHENZHEN BAOSEN SUNTOP LOGISTICS CO.,LTD", "net": 1655.0, "vatRate": 0, "vat": 0.0, "gross": 1655.0, "currency": "EUR", "settled": true, "note": "sevdesk 已收讫 · 8月历史导入"}, {"invNo": "202600575", "invDate": "2026-08-05", "due": "2026-08-12", "term": 7, "customer": "SHENZHEN BAOSEN SUNTOP LOGISTICS CO.,LTD", "net": -1795.0, "vatRate": 0, "vat": 0.0, "gross": -1795.0, "currency": "EUR", "settled": true, "cancel": true, "note": "冲销发票 → 原发票 202600527 · 8月历史导入"}, {"invNo": "202600602", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 2636.8, "vatRate": 19, "vat": 501.0, "gross": 3137.8, "currency": "EUR", "settled": false, "orderNo": "IMG260799", "note": "8月历史导入"}, {"invNo": "202600601", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 3289.0, "vatRate": 19, "vat": 624.91, "gross": 3913.91, "currency": "EUR", "settled": false, "orderNo": "IMG260797", "note": "8月历史导入"}, {"invNo": "202600600", "invDate": "2026-08-04", "due": "2026-08-04", "term": 0, "customer": "H & H GmbH", "net": 1097.2, "vatRate": 19, "vat": 208.47, "gross": 1305.67, "currency": "EUR", "settled": false, "orderNo": "IMG260759", "note": "8月历史导入"}, {"invNo": "202600599", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 3750.0, "vatRate": 19, "vat": 712.5, "gross": 4462.5, "currency": "EUR", "settled": false, "orderNo": "IMG2607100", "note": "8月历史导入"}, {"invNo": "202600598", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 11250.0, "vatRate": 19, "vat": 2137.5, "gross": 13387.5, "currency": "EUR", "settled": false, "orderNo": "IMG260775", "note": "8月历史导入"}, {"invNo": "202600597", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 8750.0, "vatRate": 19, "vat": 1662.5, "gross": 10412.5, "currency": "EUR", "settled": false, "orderNo": "IMG260779", "note": "8月历史导入"}, {"invNo": "202600596", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 1250.0, "vatRate": 19, "vat": 237.5, "gross": 1487.5, "currency": "EUR", "settled": false, "orderNo": "IMG260798", "note": "8月历史导入"}, {"invNo": "202600595", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 1250.0, "vatRate": 19, "vat": 237.5, "gross": 1487.5, "currency": "EUR", "settled": false, "orderNo": "IMG260793", "note": "8月历史导入"}, {"invNo": "202600594", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 1250.0, "vatRate": 19, "vat": 237.5, "gross": 1487.5, "currency": "EUR", "settled": false, "orderNo": "IMG260784", "note": "8月历史导入"}, {"invNo": "202600593", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 1250.0, "vatRate": 19, "vat": 237.5, "gross": 1487.5, "currency": "EUR", "settled": false, "orderNo": "IMG260760", "note": "8月历史导入"}, {"invNo": "202600592", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 6116.0, "vatRate": 19, "vat": 1162.04, "gross": 7278.04, "currency": "EUR", "settled": true, "orderNo": "IMG260787", "note": "sevdesk 已收讫 · 8月历史导入"}, {"invNo": "202600591", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 848.0, "vatRate": 19, "vat": 161.12, "gross": 1009.12, "currency": "EUR", "settled": false, "orderNo": "IMG260794", "note": "8月历史导入"}, {"invNo": "202600590", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 896.0, "vatRate": 19, "vat": 170.24, "gross": 1066.24, "currency": "EUR", "settled": false, "orderNo": "IMG260795", "note": "8月历史导入"}, {"invNo": "202600589", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 932.0, "vatRate": 19, "vat": 177.08, "gross": 1109.08, "currency": "EUR", "settled": false, "orderNo": "IMG260759", "note": "8月历史导入"}, {"invNo": "202600588", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 3299.0, "vatRate": 19, "vat": 626.82, "gross": 3925.82, "currency": "EUR", "settled": false, "orderNo": "IMG260780", "note": "8月历史导入"}, {"invNo": "202600587", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 4997.0, "vatRate": 19, "vat": 949.43, "gross": 5946.43, "currency": "EUR", "settled": false, "orderNo": "IMG260792", "note": "8月历史导入"}, {"invNo": "202600586", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 18648.0, "vatRate": 19, "vat": 3543.12, "gross": 22191.12, "currency": "EUR", "settled": false, "orderNo": "IMG260783", "note": "8月历史导入"}, {"invNo": "202600585", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 302.4, "vatRate": 19, "vat": 57.45, "gross": 359.85, "currency": "EUR", "settled": false, "orderNo": "IMG260749", "note": "8月历史导入"}, {"invNo": "202600584", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 607.6, "vatRate": 19, "vat": 115.44, "gross": 723.04, "currency": "EUR", "settled": false, "orderNo": "IMG260762", "note": "8月历史导入"}, {"invNo": "202600583", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 4810.0, "vatRate": 19, "vat": 913.9, "gross": 5723.9, "currency": "EUR", "settled": false, "orderNo": "IMG260763", "note": "8月历史导入"}, {"invNo": "202600582", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 609.0, "vatRate": 19, "vat": 115.71, "gross": 724.71, "currency": "EUR", "settled": false, "orderNo": "IMG260767", "note": "8月历史导入"}, {"invNo": "202600581", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 462.0, "vatRate": 19, "vat": 87.78, "gross": 549.78, "currency": "EUR", "settled": false, "orderNo": "IMG260761", "note": "8月历史导入"}, {"invNo": "202600580", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 1222.2, "vatRate": 19, "vat": 232.22, "gross": 1454.42, "currency": "EUR", "settled": false, "orderNo": "IMG260750", "note": "8月历史导入"}, {"invNo": "202600579", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 145.6, "vatRate": 19, "vat": 27.66, "gross": 173.26, "currency": "EUR", "settled": true, "note": "sevdesk 已收讫 · 8月历史导入"}, {"invNo": "202600578", "invDate": "2026-08-05", "due": "2026-08-05", "term": 0, "customer": "H & H GmbH", "net": 89.6, "vatRate": 19, "vat": 17.02, "gross": 106.62, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600574", "invDate": "2026-08-04", "due": "2026-08-04", "term": 0, "customer": "H & H GmbH", "net": 7625.2, "vatRate": 19, "vat": 1448.79, "gross": 9073.99, "currency": "EUR", "settled": false, "orderNo": "IMG2607110", "note": "8月历史导入"}, {"invNo": "202600573", "invDate": "2026-08-04", "due": "2026-08-04", "term": 0, "customer": "H & H GmbH", "net": 2540.0, "vatRate": 19, "vat": 482.6, "gross": 3022.6, "currency": "EUR", "settled": false, "orderNo": "IMG2607113", "note": "8月历史导入"}, {"invNo": "202600572", "invDate": "2026-08-04", "due": "2026-08-04", "term": 0, "customer": "H & H GmbH", "net": 4721.6, "vatRate": 19, "vat": 897.1, "gross": 5618.7, "currency": "EUR", "settled": false, "orderNo": "IMG2607114", "note": "8月历史导入"}, {"invNo": "202600571", "invDate": "2026-08-04", "due": "2026-08-04", "term": 0, "customer": "H & H GmbH", "net": 1466.8, "vatRate": 19, "vat": 278.69, "gross": 1745.49, "currency": "EUR", "settled": false, "orderNo": "IMG2607104", "note": "8月历史导入"}, {"invNo": "202600570", "invDate": "2026-08-04", "due": "2026-08-04", "term": 0, "customer": "H & H GmbH", "net": 1250.0, "vatRate": 19, "vat": 237.5, "gross": 1487.5, "currency": "EUR", "settled": false, "orderNo": "IMG2607109", "note": "8月历史导入"}, {"invNo": "202600569", "invDate": "2026-08-04", "due": "2026-08-04", "term": 0, "customer": "H & H GmbH", "net": 1250.0, "vatRate": 19, "vat": 237.5, "gross": 1487.5, "currency": "EUR", "settled": false, "orderNo": "IMG2607112", "note": "8月历史导入"}, {"invNo": "202600568", "invDate": "2026-08-04", "due": "2026-08-04", "term": 0, "customer": "H & H GmbH", "net": 4650.0, "vatRate": 19, "vat": 883.5, "gross": 5533.5, "currency": "EUR", "settled": false, "orderNo": "IMG260796", "note": "8月历史导入"}, {"invNo": "202600567", "invDate": "2026-08-04", "due": "2026-08-04", "term": 0, "customer": "H & H GmbH", "net": 3750.0, "vatRate": 19, "vat": 712.5, "gross": 4462.5, "currency": "EUR", "settled": false, "orderNo": "IMG2607108", "note": "8月历史导入"}, {"invNo": "202600566", "invDate": "2026-08-04", "due": "2026-08-04", "term": 0, "customer": "H & H GmbH", "net": 7500.0, "vatRate": 19, "vat": 1425.0, "gross": 8925.0, "currency": "EUR", "settled": false, "orderNo": "IMG2607106", "note": "8月历史导入"}, {"invNo": "202600565", "invDate": "2026-08-04", "due": "2026-08-04", "term": 0, "customer": "H & H GmbH", "net": 30000.0, "vatRate": 19, "vat": 5700.0, "gross": 35700.0, "currency": "EUR", "settled": false, "orderNo": "IMG2607100", "note": "8月历史导入"}, {"invNo": "202600564", "invDate": "2026-08-04", "due": "2026-08-04", "term": 0, "customer": "H & H GmbH", "net": 2220.0, "vatRate": 19, "vat": 421.8, "gross": 2641.8, "currency": "EUR", "settled": false, "orderNo": "IMG2607107", "note": "8月历史导入"}, {"invNo": "202600563", "invDate": "2026-08-03", "due": "2026-08-03", "term": 0, "customer": "Shenzhen Wei Sa International logistics Co.. LTD", "net": 3594.38, "vatRate": 0, "vat": 0.0, "gross": 3594.38, "currency": "EUR", "settled": false, "note": "8月历史导入"}, {"invNo": "202600562", "invDate": "2026-08-03", "due": "2026-08-10", "term": 7, "customer": "SEAEVER SUPPLY CHAIN LIMITED.", "net": 3255.0, "vatRate": 0, "vat": 0.0, "gross": 3255.0, "currency": "EUR", "settled": true, "note": "sevdesk 已收讫（2026-08-04） · 8月历史导入"}, {"invNo": "202600561", "invDate": "2026-08-03", "due": "2026-08-10", "term": 7, "customer": "SEAEVER SUPPLY CHAIN LIMITED.", "net": -3382.87, "vatRate": 0, "vat": 0.0, "gross": -3382.87, "currency": "EUR", "settled": true, "cancel": true, "note": "冲销发票 → 原发票 202600553 · 8月历史导入"}];
 const CLI_SEED=[{"name": "AGRIVOLT RASOŠKY s.r.o.", "email": "info@company.de", "vat": "CZ14433249", "addr": "V Šáreckém údolí 764/1, Dejvice, / 160 00 Praha 6 / Tschechische Republik"}, {"name": "AISWEI B.V.", "email": "logistics.emea@solplanet.net", "vat": "NL860394517B01", "addr": "Weerdestein 97 / 1083 GG Amsterdam / Niederlande"}, {"name": "AISWEI GmbH", "email": "info@aiswei.com", "addr": "An den Dieken 92 / 40885 Ratingen / Deutschland"}, {"name": "ALASCOM SRL", "email": "contacts@alascom.it", "addr": "IT13395360152 Viale delle Industrie / 720055 VIMODRONE(MI) / Italien"}, {"name": "ALLEY BRIDGE ROUP LIMITED", "email": "glotrax001@gmail.com", "addr": "FLAT/RM 1911 LEE GARDEN ONE / 33 HYSAN AVENUE CAUSEWAY BAY / Hongkong"}, {"name": "ALUFRONT, s.r.o.", "email": "jan.broz@alufront.cz", "vat": "CZ60912910", "addr": "Nachodska 2101 / 549 01 Nove Mesto nad Metuji / Tschechische Republik"}, {"name": "Bolita GmbH", "email": "chao.aftersales@hermwin.com", "addr": "Am Rosenbaum 29 / 40882 Ratingen / Deutschland"}, {"name": "BUY AND SELL STOCK SL", "email": "buyysellstock@gmail.com", "vat": "ESB56182298", "addr": "Calle Ramon Y Cajal 22N / 28914 Leganes (Madrid) / Spanien"}, {"name": "BV JINYI TRADING INTERNATIONAL", "email": "Info@jinyi.be", "vat": "BE0757595437", "addr": "LIMANDERSTRAAT 3 B 3 / 1070 BRUSSEL / Belgien"}, {"name": "Chengdu Euro Link Supply Chain Management Co., Ltd", "email": "account@eurolink56.com", "addr": "Floor 3, building 3, No. 189, Hongtai Avenue, Chengxiang Town, / . Qingbaijiang District, Chengdu / Volksrepublik China"}, {"name": "CONWEST LOGISTIC POLAND SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ", "email": "info@company.de", "vat": "PL5342700565", "addr": "UL. SĘKOCIŃSKA 11 / 05-090 Sękocin Stary / Polen"}, {"name": "CTG Trading GmbH", "email": "yuanyuan.liu@petrhein.de", "addr": "Immengarten 8 / 30926 Seelze / Deutschland"}, {"name": "Dalian Auto Tech GmbH", "email": "zhu.xiaojun@dlautotech.de", "addr": "Gewerbestr. 4 / 85652 Pliening / Deutschland"}, {"name": "DISTACT Energy GmbH & Co. KG", "addr": "Gewerbeallee 2 / 18107 Elmenhorst/Lichtenhagen / Deutschland"}, {"name": "Domilar UG", "email": "chenwenqi0703@gmail.com", "addr": "Kimplerstraße 288 / 47807 Krefeld / Deutschland"}, {"name": "Eeeza Home B.V", "email": "customerservice@eeezahome.com", "addr": "RIVIUM QUADRANT 1 2909 LC CAPELLE AAN DEN IJSSEL / 0 NIEDERLANDE / Niederlande"}, {"name": "EUROPAMOVE LOGISTICS LIMITED", "email": "dilraba@europamove.com", "addr": "RM S068, 2/F THE CAPITAL / 61-65 CHATHAM RD SOUTH TSIM SHA TSUI / Hongkong"}, {"name": "Euroway International Logistics GmbH", "email": "yan@euroway.group", "addr": "Blücherstraße 5 / 22767 Hamburg / Deutschland"}, {"name": "Falcon e-Fulfillment GmbH", "email": "cui.liu@link-ease.de", "addr": "Bochumer Str. 119 / 44866 Bochum / Deutschland"}, {"name": "Flexispot GmbH", "email": "invoice-versand@flexispot.de", "vat": "DE332003466", "addr": "Franz-Greiß-Straße 7, 50735 Köln, Germany / 50735 Köln / Deutschland"}, {"name": "Forest Shipping Germany GmbH", "email": "rechnung@forestshipping.com", "addr": "Geitlingstr.82 / 45472 Mülheim an der Ruhr / Deutschland"}, {"name": "FS.COM GmbH", "email": "balaji.balakrishnan@feisu.com", "addr": "Roentgenstrasse 18 / 85757 Karlsfeld / Deutschland"}, {"name": "GLOBAL ETON CO., LIMITED", "email": "wangqianwei@zrsupply.com", "addr": "RM 09,27/F HO KING COMM CTR 2- 16 FA,YUE YUEN ST MONGKOK KLN / 0 HONGKONG / Hongkong"}, {"name": "GLOBAL FAST LOGISTIC SRL", "email": "ruxandra@globalfast.ro", "vat": "RO41158190", "addr": "Strada Polona 25E / 75100 Otopeni / Rumänien"}, {"name": "Goldhof Logistik GmbH", "email": "info@goldhof.com", "addr": "Wilhelm-Mauser-Straße 40 / 50827 Köln / Deutschland"}, {"name": "Greatsell GmbH", "email": "DEDUI1@greatsell.net", "vat": "DE452976728", "addr": "Krefelder Str. 85 / 40549 Düsseldorf / Deutschland"}, {"name": "H & H GmbH", "email": "shi@hhwarenhaus.de", "addr": "Raiffeisenstraße 9-10 Tor 5-10 / 40764 Langenfeld (Rheinland) / Deutschland"}, {"name": "H+W GmbH", "email": "c.he@hw-hamburg.de", "addr": "Rehmendamm 20 / 21217 Seevetal / Deutschland"}, {"name": "Hangzhou Baosen International Logistics Co., Ltd.", "email": "petty@baosen.com", "addr": "Room 204, Building 4, Chuangzhi Greenvalley Development Center, / No. 788 Hongpu Road, Jiubao Street, Shangcheng District, Hangzhou City, Zhejiang Province / Volksrepublik China"}, {"name": "HOLA GLOBAL SOURCING LOGISTICS CO., LIMITED", "email": "freya@holaintl.com", "addr": "FLAT B02 2/F HOOVER INDUSTRIAL BUILDING NO / 26-38 KWAI CHEONG ROAD KWAI CHUNG NT CORP / Hongkong"}, {"name": "HONG KONG HONGHU CROSS BORDER TECHNOLOGY CO., LTD", "email": "info@company.com", "addr": "OFFICE NO.6 ON 12 FLOOR, WEALTH COMMERCIAL CENTRE, NO. / 48 KWONG WA STREET, KOWLOON / Hongkong"}, {"name": "HONG KONG JINCHENG SUPPLY CHAIN LTD", "email": "ino@company.com", "addr": "RM A133 OF UNIT 1, 15F, BLOCK A WAH SANG BUILDING, NOS.14-18 WONG CHUK YEUNG STREET, SHATIN HONG KONG / hongkong hongkong / Hongkong"}, {"name": "Hong Kong JSW Tech Group Limited", "addr": "UNIT 616, 6/F., KAM TEEM IND BUILDING / 135 CONNAUGHT RD WEST, SAI YING PUN / Hongkong", "email": "yuki@szjisuwei.com"}, {"name": "HONGKONG IM GLOBAL CO.,LIMITED", "email": "caixiaowen@weisagroup.com", "addr": "RM 09,27/F HO KING COMM CTR 2-16 FA YUEN ST / 999077 HONGKONG / Hongkong"}, {"name": "Intropa Speditionsgesellschaft mbH", "email": "Matteo.Pasini@intropa.de", "vat": "DE114170732", "addr": "Peutestrasse 53 C / 20539 Hamburg / Deutschland"}, {"name": "JCEX International Logistik Germany GmbH", "email": "wn@jcex.com", "vat": "DE461639890", "addr": "Bergheimer Str. 140 / 47228 Duisburg / Deutschland"}, {"name": "JG Supply Chain Management B.V.", "email": "florence.zheng@jgsct.com", "addr": "Hofplein 20, 12.16-19 / 3032 Rotterdam / Karibische Niederlande"}, {"name": "Le Glamour Suisse GmbH", "email": "svape41@gmail.com", "addr": "Jungfraustrase 6 / 3800 Interlaken / Schweiz"}, {"name": "Mogan3 GmbH", "email": "info@mogan3.com", "addr": "Erftstr.20 / 40219 Düsseldorf / Deutschland"}, {"name": "Moolar GmbH", "email": "hyc1059800310@gmail.com", "addr": "Mergenthalerallee 15-21 65760 Eschborn DE450553702 / 65760 Eschborn / Deutschland"}, {"name": "Mulan Transportation GmbH", "email": "fra@mulan-trans.com", "addr": "Rathausplatz 12 / 61348 Bad Homburg v. d. Höhe / Deutschland"}, {"name": "MWH GmbH", "email": "buchhaltung@mwhgmbh.de", "vat": "DE259763641", "addr": "Blindeisenweg 23 / 41468 Neuss / Deutschland"}, {"name": "QIAN TANG (HONG KONG) INTERNATIONAL SUPPLY CHAIN CO., LIMITED", "email": "Info@hotmail.com", "addr": "23 Floor,1050 Dongdaming Road, Hongkou District / 200082 Shanghai / Volksrepublik China"}, {"name": "Rexville Solutions Limited", "email": "arlone.ouyang@rexvillesolutions.co.uk", "vat": "290729969", "addr": "Unit 30 Maybrook Industrial Estate Maybrook Road Walsall, West Midlands, / WS8 7DG GROßBRITANNIEN / England"}, {"name": "SAS M.G. Maintenance", "email": "support@sas.com", "addr": "FR18520064338, 3 Rue des Compagnons ZAE Route de Bressuire / 79320 Moncoutant Sur Servres / Frankreich"}, {"name": "Schnelland Trade Service UG", "vat": "DE 426 197 925", "addr": "Oberdorfstrasse 19-21 / 45143 Essen / Deutschland"}, {"name": "SEAEVER SUPPLY CHAIN LIMITED.", "email": "maggie@seaever.com", "addr": "ROOM 2008，20/F，LANDMARK NORTH / 39 LUNG SUM AVE.,SHEUNG SHUI,N.T., / Hongkong"}, {"name": "SF SCM LIMITED", "email": "Op1@hlsscm.com", "addr": "Room 604, 6/F, Easey Commercial Building, Nos 253-261 Hennessy Road / . Wan Chai / Hongkong"}, {"name": "Shanghai Haona International Logistics Co., Ltd.", "email": "albert.sh@shhaona.cn", "addr": "No. 556 Tongji Road, Baoshan District / . Shanghai / Volksrepublik China"}, {"name": "SHARP INT'L LOGISTICS CO.,LTD XIAMEN BRANCH", "email": "vicky@sharpsha.com", "addr": "6F,A TOWER OF ENJOY CENTRE, NO.6,SONGYUE ROAD.SIMING DISTRICT / . XIAMEN / Volksrepublik China"}, {"name": "SHENZHEN BAOSEN SUNTOP LOGISTICS CO.,LTD", "email": "op13@baosen.com", "addr": "RM 2509- 2511,BLOCK B,IPARK BLDG,DENGLIANG RD 26,NANSHAN / DIST SHENZHEN,GD / Volksrepublik China"}, {"name": "Shenzhen Honghu Cross-border Supply Chain Management Co., Ltd.", "email": "liaofl@hh-kj.com", "addr": "13D, Block D, Central Avenue, Xixiang Subdistrict, Bao'an District, / guangdong shenzhen / Volksrepublik China"}, {"name": "Shenzhen IMG Supply Chain Management Co., LTD", "email": "zrbusiness@zrsupply.com", "addr": "Room 905,Xilongwan Business International Building,N23 District,Haibin Community, Xin 'an Subdistrict / . Bao 'an District Shenzhen / Volksrepublik China"}, {"name": "SHENZHEN ONTIME LOGISTICS CO.,LTD", "email": "sharonwang@ontimesz.com", "addr": "16F, Room1662, Luohu District Sungang East Road 3002, Wantong Building, / guangdong shenzhen / Volksrepublik China"}, {"name": "Shenzhen Wei Sa International logistics Co.. LTD", "email": "liuxu@weisagroup.com", "addr": "Room 507. 5th Floor, Building E, Bantian International Center, No. 5Huancheng South Road, Maantang Community, Bantian Subdistrict.Longgang District / . Shenzhen / Volksrepublik China"}, {"name": "Shenzhen WKSP Power Technology Co., Ltd", "addr": "Floor 14, Baiwang R D Building Block 1, 5298 ShaheWest Road, Nanshan District / 518000 Shenzhen / Volksrepublik China"}, {"name": "Shenzhen Yuanyou international Logistics Co.，Ltd.", "email": "david.dai@yypostal.com", "addr": "Ltd. Room 201, Warehouse H, Zhongsheng Lixin Industrial Park / No.4 Lixin Road, Qiaotou Community, Fuhai Street, Baoan District, Shenzhen / Volksrepublik China"}, {"name": "Shenzhen Zhongrui Supply Chain Management Co., Ltd", "email": "qgcwyfgy@zrsupply.cn", "addr": "Room 905,Xilongwan Business International Building,N23 District,Haibin Community, Xin 'an Subdistrict / Bao'an District, Shenzhen / Volksrepublik China"}, {"name": "Shenzhenshiwanhangtongkejiyouxiangongsi", "email": "Info@company.com", "addr": "bantianjiedaoyangmeishequlongjingxiaoqu5hacliuweishangwuzhongxin2dong5ceng503 Shenzhen longgangquGuangdong 518116 China / guangdong shenzhen / Volksrepublik China"}, {"name": "SHILIAN HUTONG SUPPLY CHAIN (HK) LIMITED", "email": "ops@worlddlink.com", "addr": "Room I-1, 4/F, Block 2 Golden Dragon Industrial Centre, / 162-170 Tai Lin Pai Road,Kwai Chung, N.T / Hongkong"}, {"name": "Shuerci (Xuzhou) shangmao youxiangongsi", "email": "t.zhang@schulz-eu.com", "addr": "Qingfeng Straße 7, Greenland Gebäude 1-1216-1 / 221000 Xuzhou / Volksrepublik China"}, {"name": "SINO-GLOBAL SUPPLY CHAIN CO., LIMITED", "email": "doc@sgschain.com", "addr": "RM 1005,10/F HO KING COMM CTR / Feb 16 FA YUEN ST MONGKOK KLN / Hongkong"}, {"name": "SMART ASIA (GUANGZHOU) INTERNATIONAL TRANSPORTATION CO., LTD", "email": "Raymond.luo_sal@glsmartasia.com", "addr": "15F,NO.1507 R&F WELL CENTER, No.180 JIANG NAN DA DAO ZHONG ROAD / 510220 GUANGZHOU / Volksrepublik China"}, {"name": "Timeline Logistics Consultant SRL", "email": "diane@tlbe.net", "vat": "BE1011916866", "addr": "Rue Saint Exupéry 17 / 4460 Grâce-hollogne / Belgien"}, {"name": "TradeSphere GmbH", "email": "venki@cfugroup.com", "vat": "DE454211528", "addr": "Prinzenallee 7 / 40549 Düsseldorf / Deutschland"}, {"name": "TYRENET NOOTEBOOM", "email": "barry@tyrenetnooteboom.nl", "vat": "NL801892570B01", "addr": "Grote Esch 490 / 2841 MJ Moordrecht / Niederlande"}, {"name": "VALLEY BRIDGE ROUP LIMITED", "email": "glotrax001@gmail.com", "addr": "FLAT/RM 1911 LEE GARDEN ONE / 33 HYSAN AVENUE CAUSEWAY BAY / Hongkong"}, {"name": "Vaptio GmbH", "email": "venki@cfugroup.com", "vat": "DE256133876", "addr": "4. Stockwerk / Prinzenallee 7 / 40549 Düsseldorf / Deutschland"}, {"name": "WEESS GmbH", "email": "dingyuntao@weyland-x.com", "addr": "Graf-Adolf-Straße 14 / 40212 Düsseldorf / Deutschland"}, {"name": "WORLD DEPOT B.V.", "email": "transportation.eu@hoymiles.com", "addr": "NL863277500B01 SHANNONWEG 39 3197LG BOTLEK ROTTERDAM / 0 NIEDERLANDE / Niederlande"}, {"name": "WorldEx Logistics B.V.(NL)", "email": "import.nl@euworldex.com", "vat": "NL864497210B01", "addr": "Lange Kleiweg 14, unit 1.14 / 2288 GK Rijswijk / Niederlande"}, {"name": "Worldwide Partner Logistics Company Limited -Shanghai branch", "email": "youyou.chen-sha@worldwide-partner.com", "addr": "Room 2201, T1 Office Building, Tianshan SOHO Plaza, No. / 1717 Tianshan Road, Changning District, Shanghai / Volksrepublik China"}, {"name": "Y2C Fulfillment", "email": "tommy@hw-hamburg.de", "addr": "WeerdesteinMärkische Str.10 97 / 44866 Bochum / Deutschland"}, {"name": "YOKEE TRADING（HK）CO.，LIMITED", "email": "op1@ypkegroup.com", "addr": "FLAT/RM 205C 2 /F KWONG ON BANK MONGKOK BRANCH BUILDING / 728-730 NATHAN ROAD MONGKOK KL / Hongkong"}, {"name": "Youngstar International Freight Forwarding Co., Limited", "email": "louisto@eu-cansee.com", "addr": "Unit I-1, 4th Floor, Phase II, Golden Dragon Industrial Center, No. / 162-170 Dalian Pai Road, Kwai Chung / Hongkong"}, {"name": "ZhongYunDa International Forwarding Wuhan Co.,Ltd.", "email": "paul.zhang@zydwu.com", "addr": "1501 Taihe Plaza, No. 72 Wusheng Road, Qiaokou District / 430033 wu'han / Volksrepublik China"}, {"name": "ZXL B.V.", "email": "info1@eeezahome.com", "addr": "Marten Meesweg 8, unit 211 / 3068 AV Rotterdam / Niederlande"}];
 const SUP_SEED=[{"name": "A3trans BV", "vat": "NL863521277", "iban": "NL06 BUNQ 2082 1822 66", "addr": "Driebergenstraat 194 / 2546bp Den-Haag / Niederlande"}, {"name": "Amtsgericht Düsseldorf", "iban": "DE84 4400 0000 0041 0015 09", "addr": "Werdenerstr. 1 / 40227 Düsseldorf / Deutschland"}, {"name": "APEX GLOBAL LOGISTICS (NL) B.V."}, {"name": "AUKLogis GmbH", "addr": "Am Pattberg 23 / 47445 Moers / Deutschland"}, {"name": "Baltic Transline, UAB", "addr": "R. Kalantos g. 49 / LT-52303 Kaunas / Litauen", "vat": "LT355849917", "iban": "LT21 7044 0600 0334 3310"}, {"name": "Cargocare Netherlands B.V.", "email": "operations@cargocarenl.com", "vat": "NL868571830B01", "iban": "NL91 ABNA 0150 3617 26", "addr": "Twijnstraweg 15 / 2941 BW Lekkerkerk / Niederlande"}, {"name": "Cargomate", "email": "forwarding@cargomate.nl", "vat": "NL860449750B01", "iban": "NL84 ABNA 0867 4081 62", "addr": "Slotenmakerstraat 7 / 2672GC Naaldwijk / Niederlande"}, {"name": "CHINAction UG", "vat": "DE305416481", "iban": "DE88 3504 0038 0596 4614 00", "addr": "Wilhelminenstr. 11 / 45479 Mülheim an der Ruhr / Deutschland"}, {"name": "CMA CGM DEUTSCHLAND GMBH SHIPPING AGENCY", "vat": "FR72562024422", "iban": "DE56 2907 0050 0205 1183 02", "addr": "Schellackstraße 1 / 28217 Bremen / Deutschland"}, {"name": "COSCO SHIPPING Lines CO.,Ltd."}, {"name": "CTV Duisburg GmbH"}, {"name": "CTV Venlo B.V."}, {"name": "Dakosy", "email": "info@dakosy.de", "vat": "DE 118540538", "iban": "DE92 2007 0000 0370 4624 00", "addr": "Mattentwiete 2 / 20457 Hamburg / Deutschland"}, {"name": "Datenkommunikationssystem AG", "vat": "DE 118540538", "iban": "DE92 2007 0000 0370 4624 00", "addr": "Mattentwiete 2 / 20457 Hamburg / Deutschland"}, {"name": "Delamode Baltics UAB", "addr": "Naugarduko str. 98 / LT-03160 Vilnius / Litauen", "email": "info.lt@delamode-group.com", "vat": "LT100002783011", "iban": "LT36 7300 0100 9885 6085"}, {"name": "DHL Express Germany GmbH"}, {"name": "Direct Shipping Europe B.V."}, {"name": "Douaneopleidingen Nederland", "email": "info@douaneopleidingen.nl", "vat": "NL866004154B01", "iban": "NL66KNAB0413728161", "addr": "Navolaan 44 / 9501 VJ STADSKANAAL / Niederlande"}, {"name": "DSV Air & Sea Nederland B.V.", "addr": "Deutschland"}, {"name": "Ecomercio Special Post sl", "addr": "Calle Eratóstenes 18 / 28906 Getafe / Spanien", "email": "info@espost.es", "vat": "ESB87924932", "iban": "ES02 0075 0321 3106 0709 0290"}, {"name": "Essener ESSENER FERNTRANSPORT GMBH", "addr": "Deutschland"}, {"name": "Evergreen Marine(Singapore)PTE LTD."}, {"name": "EVERGREEN SHIPPING AGENCY (EUROPE) GMBH", "addr": "Amsinckstraße 55 / 20097 Hamburg / Deutschland", "iban": "DE06 5002 1000 0010 1679 63"}, {"name": "Fly Sky Europe GmbH", "email": "hr@flyskyde.com", "vat": "DE290644472", "iban": "DE81 5141 0700 9700 3404 74", "addr": "Kurt-Schumacher-Ring 17A / 63329 Egelsbach / Deutschland"}, {"name": "For Customs B.V."}, {"name": "FRECOUR LOGISTICS GmbH"}, {"name": "GEOSPEED S.R.L", "addr": "VIA 1° MAGGIO 6 / 20014 NERVIANO / Italien"}, {"name": "Globaltrans Interaionale Logistik GmbH", "vat": "DE 814243631", "iban": "DE78 3005 0110 1007 3979 36", "addr": "Franz-Rennefeld-Weg 5 / D-40472 Duesseldorf / Deutschland"}, {"name": "Globaltrans Internationale Logistik GmbH 2008客户号不再使用"}, {"name": "Hapag-Lloyd AG", "vat": "DE813960018", "iban": "DE59 1207 0070 0890 0099 08", "addr": "Ballindamm 25 / 20095 Hamburg / Deutschland"}, {"name": "HMM (Germany) GmbH & Co. KG", "email": "dispute.ger@hmm21.com", "iban": "DE02 2003 0000 0003 6141 12", "addr": "Herrengraben 3 / 20459 Hamburg / Deutschland"}, {"name": "Hupac Intermodal SA", "iban": "DE79692700380080170400", "addr": "Viale R. Manzoni 6 / CH-6830 Chiasso / Schweiz"}, {"name": "Idustrie- und Handelskammer zu Düsseldorf", "email": "beitrag@duesseldorf.ihk.de", "iban": "DE27 5901 0016 0000 6935 82", "addr": "Emst-Schneider Platz 1 / 40212 Düsseldorf / Deutschland"}, {"name": "JCL Logistics Benelux B.V.", "addr": "Distributiestraat 5 / 7041 Heerenberg / Niederlande"}, {"name": "KLN FREIGHT (GERMANY) GMBH", "addr": "Deutschland"}, {"name": "KühneKühne + Nagel ( AG & Co. ) KG", "addr": "Deutschland"}, {"name": "Linktis Sp. Z O.O.", "vat": "PL9512373803", "iban": "PL 08 2530 0008 2090 1029 7453 0002", "addr": "CZERNIAKOWSKA 87A / 00-718 WARSZAWA / Polen"}, {"name": "LMAR GmbH", "addr": "Deutschland"}, {"name": "M&M Militzer & Münch", "addr": "Avenue de Menin, CS 70136 / 59433 Halluin Cedex / Frankreich", "email": "contact@mumnet.com", "vat": "FR58307048439"}, {"name": "Maersk A/S", "addr": "Esplanaden 50 / 1263 Copenhagen K / Dänemark", "vat": "DK53139655", "iban": "NL06 BNPA 8027 0000 11"}, {"name": "Marcel Richhardt- Steuerberater"}, {"name": "MclsMCLS SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ", "addr": "Deutschland"}, {"name": "MOTO SPEED SPÓŁKA Z OGRANICZONĄODPOWIEDZIALNOŚCIĄMoto", "addr": "1 Maja 191 / 25-671 Kielce / Polen", "email": "dokumenty@motospeed.biz.pl", "vat": "PL5213915401", "iban": "PL13 1870 1045 2078 1083 4759 0002"}, {"name": "MOTO SPEED SPÓŁKA Z OGRANICZONĄODPOWIEDZIALNOŚCIĄ不使用"}, {"name": "MSC Mediterranean Shipping Company S.A.", "email": "deu-invoices@msc.com", "vat": "CHE-111.954.803 TVA", "iban": "DE45 2004 0050 0645 5224 00", "addr": "CH - 1208 / CH - 1208 Geneva / Schweiz"}, {"name": "NxtPort BV"}, {"name": "OCEAN NETWORK EXPRESS PTE LTD", "email": "de.accountsreceivable@one-line.com", "vat": "44/144/146", "iban": "FR7630056000280028005865755", "addr": "7 Straits View / 18936 #16-01 Marina One East Tower / Singapur"}, {"name": "Orient Overseas Container Line Limited", "email": "INVQUERY@OOCL.COM", "iban": "DE50 3003 0880 0014 9250 07", "addr": "Am Wall 157 / 28195 Bremen / Deutschland"}, {"name": "Peakwell GmbH", "addr": "Oehleckerring 11 / 22419 Hamburg / Deutschland", "email": "forwarding@peakwell.de", "vat": "DE815386544", "iban": "DE68 2007 0024 0422 9340 00"}, {"name": "REAL LOGISTICS Sp. z o.o. Sp.k.", "addr": "Deutschland"}, {"name": "RTSB GmbH", "addr": "Deutschland"}, {"name": "Servipark Deutschland GmbH", "addr": "Möllendorffstr. 47 / 10367 Berlin / Deutschland"}, {"name": "Stempestempel-fabrik.de GmbHl", "addr": "Deutschland"}, {"name": "T-Mining nv", "email": "invoicing@t-mining.be", "vat": "BE 0667.928.835", "iban": "BE96 0018 0173 6705", "addr": "Sint Pietersvliet 7 / 2000 Antwerpen / Deutschland"}, {"name": "TAEWOONG LOGISTICS GERMANY GMBH", "vat": "DE359810458", "iban": "DE57 5242 0300 7000 0149 30", "addr": "FRANKFURTER STR. 63-69 / 65760 Eschborn / Deutschland"}, {"name": "TRUST FORWARDING", "addr": "Winterplein 6 / 3297 SB Puttershoek / Niederlande", "email": "info@trustforwarding.nl", "vat": "NL005396416B35", "iban": "NL91 RABO 0169 8816 95"}, {"name": "UAB Express Heroes\"\""}, {"name": "UNIWEG SP. Z O.O.", "vat": "PL5391511901", "iban": "60 2530 0008 2060 1057 9042 0002", "addr": "PIEKARY 19 LOK. 404 / 61-823 POZNAŃ / Polen"}, {"name": "Veepeak GmbH", "email": "info@veepeak.de", "vat": "DE325669928", "iban": "DE69 3055 0000 0093 6186 43", "addr": "Fri.-Ebert-Str. 11 / 41564 Kaarst / Deutschland"}, {"name": "Viking Office Deutschland GmbH", "vat": "DE812166759", "iban": "DE32795800990156120001", "addr": "Linus-Pauling-Str.2 / 63762 Großostheim / Deutschland"}, {"name": "WorldEx Logistics B.V.", "addr": "Lange Kleiweg 14 / 2288 GK Rijswijk / Niederlande", "email": "import.nl@euworldex.com", "vat": "NL864497210B01", "iban": "NL26 INGB 0676 0524 01"}, {"name": "YukonPro GmbH", "email": "consulting@yukonpro.com", "vat": "135/5778/2236", "iban": "DE49300700100656601200", "addr": "Kleinhülsen 9 / 40721 Hilden / Deutschland"}, {"name": "Yusen Logistics (Deutschland) GMBH"}];
@@ -4772,20 +5174,52 @@ function contactsEnsure(m){
   runList('clients',CLI_SEED,['contact','email','vat','addr'],'cl');
   return changed;
 }
+/* v21.3 服务项解析：按中文名 / 英文名 / 英文别名（忽略大小写与标点）归位到唯一服务项。
+   成本侧录入供应商发票时，把 "Roadtax" / "roadtax" / "Toll" 一律解析为「道路通行费」。 */
+function svcNorm(t){return String(t==null?'':t).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]/g,'');}
+function svcResolve(txt){
+  const q=svcNorm(txt); if(!q)return null;
+  const lib=(meta&&meta.svcLib)||[];
+  for(const x of lib)if(svcNorm(x.name)===q)return x;
+  for(const x of lib)if(svcNorm(x.en)===q)return x;
+  for(const x of lib){
+    for(const a of (x.al||[]))if(svcNorm(a)===q)return x;
+  }
+  return null;
+}
+function svcIsPassThrough(name){const x=svcResolve(name);return !!(x&&x.pt);}
+/* v21.8 服务项候选列表：订单详情、应收收入明细、应付成本明细三处共用。
+   此前仅订单详情内按需创建，另两处引用了不存在的 datalist（不影响输入但失去候选提示）。 */
+function svcLibDLEnsure(){
+  let dl=document.getElementById('svcLibDL');
+  if(!dl){dl=document.createElement('datalist');dl.id='svcLibDL';document.body.appendChild(dl);}
+  const lib=(meta&&meta.svcLib)||[];
+  dl.innerHTML=lib.map(function(x){
+    return '<option value="'+esc(x.name)+'">'+esc([x.en,x.cat].filter(Boolean).join(' · '))+'</option>';
+  }).join('');
+  return dl;
+}
 function svcLibEnsure(m){
-  /* 保证服务项目库始终包含45项标准服务（中文/英文/分类），老数据自动补齐英文 */
+  /* v21.3 服务项字典定稿：61 项（原 54 + 新增 7），每项可带 pt=代垫标记、al=英文别名。
+     别名用于成本侧录入时把供应商发票的英文变体（如 Roadtax/roadtax/Toll）自动归位到同一服务项。
+     代垫项（关税/第三方代缴/发票抵扣等 15 项）收入≈成本、毛利为 0，分析时可单独口径剔除。 */
   m.clients=m.clients||[];m.suppliers=m.suppliers||[];m.svcLib=m.svcLib||[];
   let changed=false;
   const seedByName={};for(const s of SVC_LIB_SEED)seedByName[s.n]=s;
   for(const x of m.svcLib){
     const sd=seedByName[x.name]||(typeof SVC_ALIAS!=='undefined'?SVC_ALIAS[x.name]:null);
     if(sd&&(!x.en||!x.cat)){x.en=x.en||sd.en;x.cat=x.cat||sd.cat;x.at=x.at||Date.now();changed=true;}
+    /* v21.3 把定稿字典的代垫标记与英文别名回填到云端已存在的项（云端 54 项 > 种子，手工添加的也要覆盖到） */
+    if(sd){
+      if(sd.pt&&!x.pt){x.pt=1;changed=true;}
+      if(sd.al&&sd.al.length&&!(x.al&&x.al.length)){x.al=sd.al.slice();changed=true;}
+    }
   }
   const have=new Set(m.svcLib.map(x=>x.name));
   const svcDelN=new Set((m.svcLibDelNames||[]).map(normName));
   for(const s of SVC_LIB_SEED){
     if(!have.has(s.n)&&!svcDelN.has(normName(s.n))){
-      m.svcLib.push({id:'sv'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),name:s.n,en:s.en,cat:s.cat,at:Date.now()});
+      m.svcLib.push(Object.assign({id:'sv'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),name:s.n,en:s.en,cat:s.cat,at:Date.now()},s.pt?{pt:1}:{},s.al?{al:s.al.slice()}:{})); /* v21.3 新建项带上代垫标记与别名 */
       changed=true;
     }
   }
@@ -5038,12 +5472,29 @@ function ordSvcLines(o){
     amount:Math.round((s.qty||1)*(s.price||0)*(1-(s.disc||0)/100)*100)/100
   }));
 }
+/* v21.4 阶段1③：服务明细合计与发票净额一致性校验（容差 0.01，纯舍入误差不报警） */
+function ariLineNet(x){
+  const ls=(x&&(x.linesLocked||x.lines))||[];
+  let t=0;
+  for(const l of ls){
+    const a=(l.tot!=null)?Number(l.tot):((Number(l.qty)||1)*(Number(l.unit!=null?l.unit:l.price)||0)*(1-(Number(l.disc)||0)/100));
+    if(isFinite(a))t+=a;
+  }
+  return Math.round(t*100)/100;
+}
+function ariLineDiff(x){
+  if(!x||!((x.linesLocked||x.lines)||[]).length)return null;
+  const net=Number(x.net)||0;
+  const d=Math.round((ariLineNet(x)-net)*100)/100;
+  return Math.abs(d)<=0.01?0:d;   /* 容差 0.01 */
+}
 function ordFinStubSyncLines(o){
   /* 服务项变更后，未开票存根的明细同步刷新 */
   try{
     const stubs=ariItems.filter(x=>!x.deleted&&x.orderNo===o.orderNo&&!x.invNo);
     if(!stubs.length)return;
     for(const stub of stubs){
+      if(stub.linesLocked)continue;   /* v21.4 已锁定的发票明细不再随订单变动 */
       stub.lines=ordSvcLines(o);
       if(!stub.extra)stub.refSale=o.salePrice||stub.refSale;
       stub._up=Date.now();
@@ -5160,7 +5611,7 @@ function kanRender(){
   const cols=LOGI.filter(v=>v.k!==''||true);
   box.innerHTML='<div class="kan-wrap">'+cols.map(col=>{
     const items=list.filter(o=>(o.logi||'')===col.k);
-    return '<div class="kan-col" data-k="'+col.k+'">'+
+    return '<div class="kan-col'+(items.length?'':' kc-empty')+'" data-k="'+col.k+'" title="'+esc(col.l+'：'+items.length+' 单')+'">'+
       '<div class="kan-h"><span>'+esc(col.l)+'</span><span class="n">'+items.length+'</span></div>'+
       (items.length?items.map(o=>{
         const ar=ordArStat(o),ap=ordApStat(o);
@@ -5205,10 +5656,14 @@ function kanBind(){
   });
 }
 function kanShow(on){
-  _kanOn=!!on;
-  $('kanView').style.display=on?'':'none';
+  /* v21.2 一致性保护：确保「看板」与「表格」恒有且仅有一个可见，杜绝两者同时隐藏导致的白屏 */
+  on=!!on;
+  _kanOn=on;
+  const kv=$('kanView');if(!kv)return;
+  kv.style.display=on?'':'none';
   const led=$('ordTable')&&$('ordTable').closest('.ledger');
   if(led)led.style.display=on?'none':'';
+  else if(on===false&&$('ordTable'))$('ordTable').style.display='';
   $('subORD').classList.toggle('active',!on);
   $('subKAN').classList.toggle('active',on);
   if(on)kanRender();
@@ -5251,7 +5706,7 @@ function renderORD(){
     tr.innerHTML=
       '<td style="font-family:var(--font-num);white-space:nowrap">'+(cd?cd.getFullYear()+'-'+z(cd.getMonth()+1)+'-'+z(cd.getDate()):'—')+'</td>'+
       '<td style="font-family:var(--font-num)"><b>'+esc(o.orderNo)+'</b></td>'+
-      '<td><span class="p360-lnk" data-kind="cli" data-name="'+esc(o.customer||'')+'">'+esc(o.customer||'—')+'</span></td>'+
+      '<td title="'+esc(o.customer||'')+'"><span class="p360-lnk" data-kind="cli" data-name="'+esc(o.customer||'')+'">'+esc(o.customer||'—')+'</span></td>'+ /* v21.0 截断后悬停看全名 */
       '<td>'+esc(o.owner||'—')+'</td>'+
       '<td class="amount">'+(o.salePrice?fmt(o.salePrice)+'<span class="cur">'+esc(o.saleCur||'EUR')+'</span>':'—')+'</td>'+
       '<td class="amount">'+(c.v!==null&&c.v!==undefined&&c.cur&&c.cur!=='混合'?fmt(c.v)+'<span class="cur">'+esc(c.cur)+'</span>'+(c.src==='quote'?'<span class="cur" title="按选定报价，应付发票录入后自动切换">报价</span>':''):(c.cur==='混合'?'多币种':'—'))+'</td>'+
@@ -5432,6 +5887,10 @@ function ordDetail(o){
       const mk=(txt,w)=>{const el=document.createElement('span');el.style.cssText='font-family:var(--font-num);white-space:nowrap;min-width:'+w+'px;text-align:right';el.innerHTML=txt;return el;};
       row.appendChild(mk((s.qty||1)+' '+esc(s.unit||'unit'),56));
       row.appendChild(mk(s.price!=null?fmt(s.price):'—',72));
+      /* v21.4 阶段1①：代垫项（关税等，收入≈成本、毛利0）显式标记，避免混入业务收入口径 */
+      if(typeof svcIsPassThrough==='function'&&svcIsPassThrough(s.name)){
+        row.appendChild(mk('<span class="badge" style="background:var(--info-bg);color:var(--info);font-size:10px;padding:1px 5px">代垫</span>',40));
+      }else row.appendChild(mk('',40));
       row.appendChild(mk('<span style="color:var(--ink-soft)">VAT '+(s.vat!=null?s.vat:19)+'%</span>',56));
       row.appendChild(mk(s.disc?(s.disc>0?'<span style="color:var(--warn)">-'+s.disc+'%</span>':'<span style="color:var(--ok)">+'+Math.abs(s.disc)+'%</span>'):'',44));
       row.appendChild(mk(s.price!=null?'<b>'+fmt(amt)+'</b>'+((s.cur&&s.cur!=='EUR')?' <span style="font-size:10.5px;color:var(--ink-soft)">'+esc(s.cur)+'</span>':''):'',84));
@@ -5457,17 +5916,22 @@ function ordDetail(o){
       svcBox.appendChild(row);
     }
     if(netSum||true){
-      const sums={};
+      const sums={},ptSums={};
       for(const s of (o.svc||[])){
         if(s.price==null)continue;
         const a=Math.round((s.qty||1)*(s.price||0)*(1-(s.disc||0)/100)*100)/100;
         const c=s.cur||'EUR';sums[c]=Math.round(((sums[c]||0)+a)*100)/100;
+        /* v21.4 阶段1①：代垫单独归集，供「业务收入口径」= 合计 − 代垫 */
+        if(typeof svcIsPassThrough==='function'&&svcIsPassThrough(s.name))ptSums[c]=Math.round(((ptSums[c]||0)+a)*100)/100;
       }
       const curKeys=Object.keys(sums);
       if(curKeys.length){
       const sumRow=document.createElement('div');
       sumRow.style.cssText='display:flex;justify-content:flex-end;align-items:center;gap:10px;font-size:12.5px;font-family:var(--font-num);color:var(--ink-soft);padding:2px 8px';
-      sumRow.innerHTML='<span>服务项净额合计 <b style="color:var(--ink)">'+curKeys.map(c=>fmt(sums[c])+' '+esc(c)).join(' · ')+'</b></span>';
+      const hasPT=curKeys.some(c=>Math.abs(ptSums[c]||0)>0.005);
+      sumRow.innerHTML='<span>服务项净额合计 <b style="color:var(--ink)">'+curKeys.map(c=>fmt(sums[c])+' '+esc(c)).join(' · ')+'</b></span>'+
+        (hasPT?('<span style="color:var(--info)">其中代垫 '+curKeys.filter(c=>Math.abs(ptSums[c]||0)>0.005).map(c=>fmt(ptSums[c])+' '+esc(c)).join(' · ')+'</span>'+
+                '<span>业务收入口径 <b style="color:var(--ok)">'+curKeys.map(c=>fmt(Math.round((sums[c]-(ptSums[c]||0))*100)/100)+' '+esc(c)).join(' · ')+'</b></span>'):'');
       if(canOp&&curKeys.length===1&&Math.abs((Number(o.salePrice)||0)-sums[curKeys[0]])>0.005){
         const bSync=document.createElement('button');bSync.className='btn-sm';
         bSync.style.cssText='padding:2px 10px;font-size:11px;border-color:var(--brass);color:var(--brass)';
@@ -5503,9 +5967,9 @@ function ordDetail(o){
       const st='border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px';
       iName=document.createElement('input');iName.placeholder='🔍 服务项 / Line item';iName.setAttribute('list','svcLibDL');iName.style.cssText=st+';flex:2;min-width:150px';
       iQty=document.createElement('input');iQty.type='number';iQty.step='0.01';iQty.value='1';iQty.title='Quantity 数量';iQty.style.cssText=st+';width:58px';
-      iUnit=document.createElement('select');iUnit.title='单位';
-      for(const u of ['unit','ctn','cbm','kg','shpt','h','day']){const op=document.createElement('option');op.textContent=u;iUnit.appendChild(op);}
-      iUnit.style.cssText=st+';padding:6px 4px';
+      /* v21.4 阶段1③：按确认只保留「数量」，移除单位下拉。
+         历史数据的 unit 仍被读取与展示，新录入统一记为 'unit'，避免旧单显示异常。 */
+      iUnit=document.createElement('input');iUnit.type='hidden';iUnit.value='unit';
       iPrice=document.createElement('input');iPrice.type='number';iPrice.step='0.01';iPrice.placeholder='Price (Net)';iPrice.title='单价·净额';iPrice.style.cssText=st+';width:96px';
       iVat=document.createElement('select');iVat.title='VAT';
       for(const v of [['19','19%'],['0','0%']]){const op=document.createElement('option');op.value=v[0];op.textContent='VAT '+v[1];iVat.appendChild(op);}
@@ -6305,7 +6769,7 @@ function baseExport(key,title,fields){
     const head=['名称'].concat(fields.map(f=>f.l.replace(/\(.*$/,'')));
     const rows=(meta[key]||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''))
       .map(it=>[it.name||''].concat(fields.map(f=>it[f.k]||'')));
-    const ws=XLSX.utils.aoa_to_sheet(xlT([head,...rows]));
+    const ws=XLSX.utils.aoa_to_sheet(xlT(aoaWithTotal([head,...rows],0)));
     ws['!cols']=head.map((_,ix)=>({wch:ix===0?30:(head[ix]==='地址'?40:20)}));
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,trStr(title));
@@ -6314,7 +6778,7 @@ function baseExport(key,title,fields){
     const line=r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');
     const head=['名称'].concat(fields.map(f=>f.l.replace(/\(.*$/,'')));
     const rows=(meta[key]||[]).map(it=>[it.name||''].concat(fields.map(f=>it[f.k]||'')));
-    const csv='\uFEFF'+xlT([head,...rows]).map(line).join('\n');
+    const csv='\uFEFF'+xlT(aoaWithTotal([head,...rows],0)).map(line).join('\n');
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
     a.download=fnT('IMG-Europe-'+title+'-')+todayStr()+'.csv';a.click();URL.revokeObjectURL(a.href);
@@ -6435,14 +6899,14 @@ async function ordExport(){
   });
   try{
     await ensureXLSX();
-    const ws=XLSX.utils.aoa_to_sheet(xlT([head,...rows]));
+    const ws=XLSX.utils.aoa_to_sheet(xlT(aoaWithTotal([head,...rows],0)));
     ws['!cols']=head.map(()=>({wch:12}));ws['!cols'][2]={wch:26};ws['!cols'][4]={wch:28};ws['!cols'][9]={wch:22};
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,trStr('订单台账'));
     XLSX.writeFile(wb,fnT('IMG-Europe-订单台账-')+todayStr()+'.xlsx');
   }catch(e){
     const line=r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');
-    const trA=xlT([head,...rows]);
+    const trA=xlT(aoaWithTotal([head,...rows],0));
     const csv='\uFEFF'+trA.map(line).join('\n');
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
@@ -6898,7 +7362,17 @@ function ariDetail(x){
     (x.due?'<dt>账期</dt><dd>'+(x.term===0?'立即支付':x.term+' 天')+' · 到期 '+esc(x.due)+'</dd>':(x.term!=null?'<dt>账期(业务指定)</dt><dd style="color:var(--brass);font-weight:600">'+(x.term===0?'立即支付':x.term+' 天')+'</dd>':''))+
     (x.note?'<dt>备注</dt><dd>'+esc(x.note)+'</dd>':'')+
     '</dl>'+
-    ((x.lines&&x.lines.length)?'<div style="margin-top:8px;padding:10px 12px;border:1.5px dashed var(--brass);border-radius:10px;background:#FCFAF4">'+ariLinesHTML(x,false)+'</div>':'');
+    (((x.linesLocked||x.lines)||[]).length?'<div style="margin-top:8px;padding:10px 12px;border:1.5px dashed var(--brass);border-radius:10px;background:#FCFAF4">'+
+      /* v21.4 阶段1②③：锁定态标识 + 服务明细与发票净额差额校验 */
+      (x.linesLocked?('<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px" title="开票时已冻结，如需修改请走冲销重开">'+ic('warn','ic-sm')+' 明细已随发票锁定'+(x.linesLockedAt?('（'+new Date(x.linesLockedAt).toLocaleDateString('zh-CN')+' '+esc(x.linesLockedBy||'')+'）'):'')+'</div>'):'')+
+      ariLinesHTML(x,false)+
+      (function(){
+        const d=ariLineDiff(x);
+        if(d===null||d===0)return '';
+        return '<div style="margin-top:8px;padding:7px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:12px;font-weight:600">'+
+          ic('warn','ic-sm')+' 服务项合计 '+fmt(ariLineNet(x))+' 与发票净额 '+fmt(Number(x.net)||0)+' 相差 '+fmt(Math.abs(d))+'，请核对</div>';
+      })()+
+    '</div>':'');
   /* 到账匹配 */
   const rc=ariReceipts(x);
   const rBox=document.createElement('div');
@@ -7240,7 +7714,7 @@ $('stornoOk').onclick=async function(){
   btn.disabled=false;
 };
 function ariLinesHTML(x,compact){
-  const ls=x.lines||[];
+  const ls=(x.linesLocked&&x.linesLocked.length)?x.linesLocked:(x.lines||[]);  /* v21.4 已锁定优先读快照 */
   if(!ls.length)return '';
   let net=0,vat=0;
   let h='<div style="font-size:12px;color:var(--brass);font-weight:700;margin-bottom:6px">📋 订单报价明细（请按此逐行在 sevdesk 开票）</div>';
@@ -7272,12 +7746,137 @@ function ariLinesHTML(x,compact){
   h+='</table>';
   return h;
 }
+/* ── v21.8 收入明细编辑（与成本侧 apCost* 同构）──
+   财务可在应收发票里直接增删服务行、或从关联订单带出，使收入成本按服务项一一对应。
+   已开票锁定的发票（linesLocked）为只读，如需修改须走冲销重开。 */
+let _aiRevLines=[],_aiRevLocked=false;
+function aiRevCalc(l){
+  const qty=(l.qty==null||l.qty==='')?1:Number(l.qty)||0;
+  const price=Number(l.price)||0;
+  const disc=Number(l.disc)||0;
+  const net=Math.round(qty*price*(1-disc/100)*100)/100;
+  const vr=(l.vat==null||l.vat==='')?19:Number(l.vat)||0;
+  return {net:net,vat:Math.round(net*vr/100*100)/100,vr:vr};
+}
+function aiRevRender(){
+  const box=$('aiRevRows'); if(!box)return;
+  try{svcLibDLEnsure();}catch(e){}
+  const lockNote=$('aiRevLock');
+  if(lockNote)lockNote.style.display=_aiRevLocked?'':'none';
+  if(lockNote&&_aiRevLocked)lockNote.innerHTML=ic('warn','ic-sm')+' 该发票已开票并锁定明细，如需修改请走「冲销重开」。';
+  $('aiRevPull').disabled=_aiRevLocked;
+  $('aiRevAdd').disabled=_aiRevLocked;
+  if(!_aiRevLines.length){
+    box.innerHTML='<div style="color:var(--ink-soft);font-size:12.5px;padding:8px 2px">尚未拆分收入明细。可点「从订单带出」快速带入，或「+ 添加收入行」手工录入。</div>';
+    aiRevSum();return;
+  }
+  box.innerHTML='<div style="display:flex;gap:6px;font-size:11px;color:var(--ink-soft);padding:0 2px 4px"><span style="flex:2.2">服务项</span><span style="width:62px;text-align:right">数量</span><span style="width:92px;text-align:right">单价(净)</span><span style="width:70px;text-align:right">VAT%</span><span style="width:96px;text-align:right">金额(净)</span><span style="width:26px"></span></div>';
+  _aiRevLines.forEach(function(l,idx){
+    const c=aiRevCalc(l);
+    const pt=(typeof svcIsPassThrough==='function')&&svcIsPassThrough(l.name);
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:6px';
+    const st='border:1.5px solid var(--line);border-radius:8px;padding:5px 7px;font-size:12.5px';
+    const iName=document.createElement('input');
+    iName.setAttribute('list','svcLibDL');iName.value=l.name||'';iName.placeholder='服务项';
+    iName.style.cssText=st+';flex:2.2;min-width:0';iName.disabled=_aiRevLocked;
+    iName.oninput=function(){
+      const hit=(typeof svcResolve==='function')?svcResolve(iName.value):null;
+      _aiRevLines[idx].name=hit?hit.name:iName.value;
+      if(hit){_aiRevLines[idx].en=hit.en||'';if(hit.name!==iName.value)iName.value=hit.name;}
+      aiRevSum();
+    };
+    const mkN=(v,w,ph,on)=>{const i=document.createElement('input');i.type='number';i.step='0.01';i.value=(v==null?'':v);i.placeholder=ph;
+      i.style.cssText=st+';width:'+w+'px;text-align:right';i.disabled=_aiRevLocked;i.oninput=()=>{on(i.value);aiRevRefresh(idx);aiRevSum();};return i;};
+    const iQty=mkN(l.qty==null?1:l.qty,62,'1',v=>_aiRevLines[idx].qty=v);
+    const iPrice=mkN(l.price,92,'0.00',v=>_aiRevLines[idx].price=v);
+    const iVat=mkN(l.vat==null?19:l.vat,70,'19',v=>_aiRevLines[idx].vat=v);
+    const sNet=document.createElement('span');sNet.className='ai-rev-net';
+    sNet.style.cssText='width:96px;text-align:right;font-family:var(--font-num);font-weight:700';
+    sNet.textContent=fmt(c.net);
+    const bDel=document.createElement('button');bDel.className='btn-sm danger';
+    bDel.style.cssText='padding:2px 7px;font-size:11px';bDel.textContent='✕';bDel.disabled=_aiRevLocked;
+    bDel.onclick=function(){_aiRevLines.splice(idx,1);aiRevRender();};
+    row.append(iName,iQty,iPrice,iVat,sNet);
+    if(pt){const tag=document.createElement('span');
+      tag.className='badge';tag.style.cssText='background:var(--info-bg);color:var(--info);font-size:10px;padding:1px 5px';
+      tag.textContent='代垫';row.appendChild(tag);}
+    row.appendChild(bDel);
+    box.appendChild(row);
+  });
+  aiRevSum();
+}
+function aiRevRefresh(idx){
+  const els=$('aiRevRows').querySelectorAll('.ai-rev-net');
+  if(els[idx])els[idx].textContent=fmt(aiRevCalc(_aiRevLines[idx]).net);
+}
+function aiRevSum(){
+  let net=0,vat=0,pt=0;
+  for(const l of _aiRevLines){const c=aiRevCalc(l);net+=c.net;vat+=c.vat;
+    if((typeof svcIsPassThrough==='function')&&svcIsPassThrough(l.name))pt+=c.net;}
+  net=Math.round(net*100)/100;vat=Math.round(vat*100)/100;
+  const box=$('aiRevSum');
+  if(box)box.innerHTML=_aiRevLines.length?
+    ('<span style="color:var(--ink-soft)">净额 <b style="color:var(--ink)">'+fmt(net)+'</b></span>'+
+     '<span style="color:var(--ink-soft)">税额 <b style="color:var(--ink)">'+fmt(vat)+'</b></span>'+
+     (pt?('<span style="color:var(--info)">其中代垫 '+fmt(Math.round(pt*100)/100)+'</span>'):'')+
+     '<span style="color:var(--ink-soft)">含税 <b style="color:var(--ink)">'+fmt(Math.round((net+vat)*100)/100)+'</b></span>'):'';
+  /* 与发票不含税金额一致性校验（容差 0.01，与成本侧同口径） */
+  const w=$('aiRevWarn'); if(!w)return;
+  const inv=Math.round((parseFloat($('aiNet').value)||0)*100)/100;
+  if(!_aiRevLines.length||!inv){w.style.display='none';return;}
+  const d=Math.round((net-inv)*100)/100;
+  if(Math.abs(d)<=0.01)w.style.display='none';
+  else{w.style.display='';w.innerHTML=ic('warn','ic-sm')+' 收入明细净额合计 '+fmt(net)+' 与发票不含税金额 '+fmt(inv)+' 相差 '+fmt(Math.abs(d))+'，请核对';}
+}
+function aiRevPull(){
+  if(_aiRevLocked){toast('明细已锁定，如需修改请走冲销重开');return;}
+  const no=($('aiOrderNo').value||'').trim();
+  if(!no){toast('请先填写 IMG 成单号，再从订单带出');return;}
+  let o=(typeof ordItems!=='undefined'?ordItems:[]).find(x=>x&&!x.deleted&&x.orderNo===no);
+  if(!o||!(o.svc||[]).length){
+    try{const raw=localStorage.getItem(ORD_KEY);
+      if(raw){const arr=JSON.parse(raw)||[];const c=arr.find(x=>x&&!x.deleted&&x.orderNo===no);if(c&&(c.svc||[]).length)o=c;}
+    }catch(e){}
+  }
+  if(!o||!(o.svc||[]).length){toast(no+' 暂无服务项（若订单刚录入，请切到订单管理刷新后重试）');return;}
+  const exist=new Set(_aiRevLines.map(l=>svcNorm(l.name)));
+  let add=0;
+  for(const sv of o.svc){
+    if(sv.price==null)continue;
+    if(exist.has(svcNorm(sv.name)))continue;
+    _aiRevLines.push({name:sv.name,en:sv.en||'',qty:sv.qty==null?1:sv.qty,price:sv.price,vat:sv.vat==null?19:sv.vat,disc:sv.disc||0});
+    add++;
+  }
+  aiRevRender();
+  toast(add?('已带出 '+add+' 项'):'服务项均已带出');
+}
 function ariOpenEdit(x){
   ariEditingId=x?x.id:null;
   $('ariTitle').textContent=x?'编辑应收发票':'登记应收发票';
   selFillMaster($('aiCustomer'),(meta.clients||[]).map(c=>c.name),x?x.customer||'':'','— 请选择客户（新客户先在基础资料录入）—');
+  /* v21.8 载入收入明细：已锁定读快照且只读，否则读活动明细 */
+  _aiRevLocked=!!(x&&x.linesLocked&&x.linesLocked.length);
+  {
+    const src=x?((x.linesLocked&&x.linesLocked.length)?x.linesLocked:(x.lines||[])):[];
+    /* v21.8 lines 历史上存在两套字段格式，必须都兼容，否则名称/单价会读错：
+         A) ordSvcLines 产出：{name,qty,unit:'unit'(单位字符串),price:单价,amount:金额}
+         B) 报价单/本函数产出：{name,qty,unitN:'unit',unit:单价,tot:金额}
+       判定依据：unit 为数字才是单价，为字符串则单价取 price。 */
+    _aiRevLines=src.map(function(l){
+      const unitIsPrice=(typeof l.unit==='number');
+      const price=unitIsPrice?l.unit:(l.price!=null?Number(l.price):0);
+      return {name:l.name||'',en:l.en||'',
+              qty:(l.qty==null?1:l.qty),
+              price:(isFinite(price)?price:0),
+              vat:(l.vat==null?19:l.vat),disc:l.disc||0};
+    });
+    try{aiRevRender();}catch(e){}
+  }
+  /* v21.8 保留 extra 类发票（追加开票 / 冲销重开）的红色提示条 —— 该提示原挂在只读预览里，
+     预览改为可编辑区后必须单独保留，否则财务看不到「这是追加/重开发票」的关键上下文。 */
   const lb=$('aiLinesBox');
-  let lh=x?ariLinesHTML(x,true):'';
+  let lh='';
   if(x&&x.extra&&x.note)lh='<div style="font-size:12.5px;color:var(--bad);font-weight:700;margin-bottom:8px;padding:6px 10px;border:1.5px solid var(--bad);border-radius:8px;background:#FDF2F0">'+esc(x.note)+'</div>'+lh;
   if(lh){lb.innerHTML=lh;lb.style.display='';}else{lb.style.display='none';}
   $('aiInvNo').value=x?x.invNo||'':'';
@@ -7304,6 +7903,13 @@ async function ariSaveEdit(){
   const c=ariCalcShow();
   const btn=$('ariSave');btn.disabled=true;btn.textContent='保存中…';
   try{
+    /* v21.8 保存收入明细为 lines（锁定的发票不覆盖，保持凭证一致） */
+    const revLines=_aiRevLines.filter(function(l){return (l.name||'').trim()&&(Number(l.price)||0)!==0;})
+      .map(function(l){
+        const c=aiRevCalc(l);
+        return {name:(l.name||'').trim(),en:l.en||'',qty:(l.qty==null||l.qty===''?1:Number(l.qty)),
+                unitN:'unit',unit:Number(l.price)||0,tot:c.net,vat:c.vr,disc:Number(l.disc)||0,cur:$('aiCur').value};
+      });
     const data={customer:cust,invNo:no,invDate:d,orderNo:$('aiOrderNo').value.trim(),
       net:Math.round(net*100)/100,vatRate:parseFloat($('aiVatRate').value)||0,vat:c.vat,gross:c.gross,
       currency:$('aiCur').value,term:parseInt($('aiTerm').value)||0,due:c.due,note:$('aiNote').value.trim(),_up:Date.now()};
@@ -7321,7 +7927,16 @@ async function ariSaveEdit(){
     if(ariEditingId){
       const x=ariItems.find(y=>y.id===ariEditingId);
       const wasToinv=!x.invNo;
+      /* v21.8 未锁定则以财务编辑结果为准；已锁定保持快照不动 */
+      if(!x.linesLocked)x.lines=revLines;
       Object.assign(x,data);
+      /* v21.4 阶段1②：财务录入正式发票号的那一刻，把服务明细快照冻结为 linesLocked。
+         此后订单再改服务项也不影响已开票发票（发票是法律凭证）；如需修改须走冲销重开。 */
+      if(wasToinv&&no&&!x.linesLocked&&(x.lines||[]).length){
+        x.linesLocked=JSON.parse(JSON.stringify(x.lines));
+        x.linesLockedAt=Date.now();
+        x.linesLockedBy=session.name;
+      }
       if(fileMeta)(x.files=x.files||[]).push(fileMeta);
       (x.comments=x.comments||[]).push({author:session.name,role:'finance',
         text:wasToinv?('已在开票系统开出发票 '+no+'（含税 '+fmt(c.gross)+' '+$('aiCur').value+'，到期 '+c.due+'）'+(fileMeta?'，发票 PDF 已上传，请业务下载发送客户。':'。')):'✎ 财务修改发票信息。',time:Date.now()});
@@ -7335,6 +7950,16 @@ async function ariSaveEdit(){
         createdBy:session.name,createdAt:Date.now()
       },data);
       if(fileMeta)savedRec.files=[fileMeta];
+      if(revLines.length){
+        savedRec.lines=revLines;
+        /* v21.8 新建时若已带正式发票号，同样立即锁定明细
+           （此前仅「存根转正式」路径会锁，直接登记正式发票会漏锁） */
+        if(no){
+          savedRec.linesLocked=JSON.parse(JSON.stringify(revLines));
+          savedRec.linesLockedAt=Date.now();
+          savedRec.linesLockedBy=session.name;
+        }
+      }
       ariItems.push(savedRec);
       await ariSaveAll();toast('发票已登记');
     }
@@ -7370,14 +7995,14 @@ async function ariExport(){
   });
   try{
     await ensureXLSX();
-    const ws=XLSX.utils.aoa_to_sheet(xlT([head,...rows]));
+    const ws=XLSX.utils.aoa_to_sheet(xlT(aoaWithTotal([head,...rows],0)));
     ws['!cols']=[{wch:11},{wch:16},{wch:26},{wch:14},{wch:11},{wch:7},{wch:10},{wch:12},{wch:6},{wch:8},{wch:11},{wch:11},{wch:11},{wch:9},{wch:20}];
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,trStr('应收发票'));
     XLSX.writeFile(wb,fnT('IMG-Europe-应收发票-')+todayStr()+'.xlsx');
   }catch(e){
     const line=r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');
-    const trA=xlT([head,...rows]);
+    const trA=xlT(aoaWithTotal([head,...rows],0));
     const csv='\uFEFF'+trA.map(line).join('\n');
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
@@ -7388,15 +8013,21 @@ async function ariExport(){
 
 /* ---- 子板块切换与事件 ---- */
 function arSub(which){
+  /* v21.1 护栏：只接受 'ari' / 'arp'，其余一律回退到应收发票页；
+     此前传入未知值会把两个面板同时隐藏，页面变成全白且无任何报错，极难排查。 */
+  if(which!=='ari'&&which!=='arp'){try{console.warn('arSub: 未知子页签',which);}catch(e){}which='ari';}
   $('subARI').classList.toggle('active',which==='ari');
   $('subARP').classList.toggle('active',which==='arp');
   $('arInvPane').style.display=which==='ari'?'':'none';
   $('arPayPane').style.display=which==='arp'?'':'none';
-  if(which==='ari')renderARI();
+  if(which==='ari')renderARI();else{try{render();}catch(e){}}
 }
 $('subARI').onclick=()=>arSub('ari');
 $('subARP').onclick=()=>arSub('arp');
 $('ariAddBtn').onclick=()=>ariOpenEdit(null);
+$('aiRevAdd').onclick=()=>{if(_aiRevLocked)return;_aiRevLines.push({name:'',qty:1,price:'',vat:19});aiRevRender();};
+$('aiRevPull').onclick=aiRevPull;
+$('aiNet').addEventListener('input',()=>{try{aiRevSum();}catch(e){}});
 $('ariCancel').onclick=()=>$('ariOverlay').classList.remove('open');
 $('ariSave').onclick=ariSaveEdit;
 $('ariOverlay').addEventListener('click',e=>{if(e.target===$('ariOverlay'))$('ariOverlay').classList.remove('open');});
@@ -7479,6 +8110,7 @@ function ordSub(which){
   inqStatsRender();
   for(const id of ['ordMrBtn','ordSupBtn','ordStatsBtn']){const el=$(id);if(el)el.style.display=(which==='ord'&&canAnalytics())?'':'none';}
   {const el=$('ordCaBtn');if(el)el.style.display=canAnalytics()?'':'none';} /* v15.2 客户分析两个子页均可用 */
+  {const el=$('rcBtn');if(el)el.style.display=canAnalytics()?'':'none';} /* v21.6 收入成本分析同限权 */
   {const el=$('ordInqSaBtn');if(el)el.style.display=(which==='inq'&&canAnalytics())?'':'none';} /* v15.3 分析入口统一 canAnalytics（Peter/财务） */
   renderORD();
 }
@@ -7599,6 +8231,38 @@ function ordChipsRender(){
 }
 /* ── v17.6 B4 密度切换（记住选择，刷新后保持）── */
 /* v17.9 #5 主题切换 */
+/* v21.9 线路自检：直连 / 代理各测一次，明确告知哪条通，避免靠猜排查（尤其中国大陆） */
+async function netDiag(){
+  const box=$('loginErr');
+  const say=t=>{if(box){box.innerHTML=t;box.style.display='block';box.style.color='var(--ink)';}};
+  say('正在检测线路，请稍候（约 20 秒）…');
+  const probe=function(url,ms){
+    return new Promise(function(res){
+      const t0=Date.now();
+      const done=function(ok){res({ok:ok,ms:Date.now()-t0});};
+      const timer=setTimeout(function(){done(false);},ms);
+      fetch(url,{mode:'no-cors',cache:'no-store'})
+        .then(function(){clearTimeout(timer);done(true);})
+        .catch(function(){clearTimeout(timer);done(false);});
+    });
+  };
+  const direct=await probe('https://identitytoolkit.googleapis.com/v1/projects?key='+encodeURIComponent(FIREBASE_CONFIG.apiKey||''),12000);
+  const viaProxy=AUTH_PROXY?await probe(AUTH_PROXY.replace(/\/+$/,'')+'/',12000):{ok:false,ms:0};
+  const db=await probe((FIREBASE_CONFIG.databaseURL||'')+'/.json?shallow=true',12000);
+  const line=function(name,r,note){
+    return '<div style="margin:2px 0">'+(r.ok?'<span style="color:var(--ok)">✓ 通</span>':'<span style="color:var(--bad)">✗ 不通</span>')+
+      '　'+name+(r.ok?('（'+r.ms+' ms）'):'')+(note?('　<span style="color:var(--ink-soft)">'+note+'</span>'):'')+'</div>';
+  };
+  let concl='';
+  if(direct.ok)concl='直连可用，正常登录即可。';
+  else if(viaProxy.ok)concl='直连不通但代理可用 —— 登录时会自动切换线路，请重试。';
+  else concl='两条线路均不通。请把本结果截图发给管理员（Emma），需更换代理线路。';
+  say('<div style="text-align:left;font-weight:400">'+
+      line('直连 Google 认证',direct,'identitytoolkit.googleapis.com')+
+      line('代理线路',viaProxy,AUTH_PROXY||'未配置')+
+      line('数据库',db,'firebasedatabase.app')+
+      '<div style="margin-top:6px;font-weight:600">'+concl+'</div></div>');
+}
 function themeGet(){try{return localStorage.getItem('imgTheme')||'light';}catch(e){return 'light';}}
 function themeApply(v){
   document.body.classList.toggle('theme-dark',v==='dark');
@@ -7939,8 +8603,45 @@ function hmRows(items,empty){
    已读水位线存本地 localStorage，按人隔离。 ── */
 /* ── v19.4 V1 无障碍 + 键盘可达：27 个弹窗此前缺 role/焦点管理，Tab 会跑到背景元素上 ── */
 /* ── v19.5 C2 导出样板收敛：xlsx + CSV 兜底原先逐字重复多处，改动需同步多遍（易漏），统一为单一助手。 ── */
-async function exportSheet(aoa,sheetName,fileBase,cols){
-  const rows=xlT(aoa);
+/* ── v21.7 导出汇总行：各处导出此前只有明细、没有合计，核账时须自行求和。
+   自动识别数值列并追加「合计」行；文本列留空，首列写「合计（N 行）」。
+   numCols 可显式指定需合计的列索引（0 基），不传则自动判定（该列数值占比 ≥60%）。 ── */
+function aoaWithTotal(aoa,headerRowIdx,numCols,label){
+  try{
+    if(!Array.isArray(aoa)||aoa.length<2)return aoa;
+    let hi=(headerRowIdx==null)?-1:headerRowIdx;
+    if(hi<0){ /* 自动定位表头：首个「本行全为非空文本且下一行存在」的行 */
+      for(let i=0;i<Math.min(aoa.length,8);i++){
+        const r=aoa[i]||[];
+        if(r.length>=2&&r.filter(function(v){return v!=null&&v!=='';}).length>=2&&i+1<aoa.length){hi=i;break;}
+      }
+    }
+    if(hi<0)return aoa;
+    const body=aoa.slice(hi+1).filter(function(r){return Array.isArray(r)&&r.some(function(v){return v!=null&&v!=='';});});
+    if(!body.length)return aoa;
+    const width=(aoa[hi]||[]).length||Math.max.apply(null,body.map(function(r){return r.length;}));
+    let cols=numCols;
+    if(!cols){
+      cols=[];
+      for(let c=0;c<width;c++){
+        let num=0,tot=0;
+        for(const r of body){const v=r[c];if(v===''||v==null)continue;tot++;if(typeof v==='number')num++;}
+        if(tot>=1&&num/tot>=0.6)cols.push(c);
+      }
+    }
+    if(!cols.length)return aoa;
+    const sum=new Array(width).fill('');
+    sum[0]=(label||'合计')+'（'+body.length+' 行）';
+    for(const c of cols){
+      let t=0;
+      for(const r of body){const v=r[c];if(typeof v==='number')t+=v;}
+      sum[c]=Math.round(t*100)/100;
+    }
+    return aoa.concat([[],sum]);
+  }catch(e){return aoa;}
+}
+async function exportSheet(aoa,sheetName,fileBase,cols,noTotal){
+  const rows=xlT(noTotal?aoa:aoaWithTotal(aoa));   /* v21.7 统一附加合计行 */
   try{
     await ensureXLSX();
     const ws=XLSX.utils.aoa_to_sheet(rows);
@@ -8158,7 +8859,7 @@ function homeRender(){
     cards.push(hmCard(toinv.length?'warn':'ok','doc','待开票',toinv.length+' 单',toinv.length?'业务已完成待出票':'无积压','toinv'));
     const apNew=apItems.filter(x=>!x.deleted&&apState(x)==='new'); /* v19.1 业务已上传、财务未录金额 */
     cards.push(hmCard(apNew.length?'warn':'ok','upload','待财务录入',apNew.length+' 笔',apNew.length?'业务已上传待录金额':'全部已录入','apnew'));
-    out+='<div class="hm-hero">'+cards.map(c=>c.html).join('')+'</div>';
+      out+='<div class="hm-hero'+(cards.length===6?' hm-6':'')+'">'+cards.map(c=>c.html).join('')+'</div>';
     out+='<div class="hm-sec">'+ic('warn','ic-sm')+'逾期最久的应收（前 5）</div>';
     out+=hmRows(ovd.sort((a,b)=>(a.due||'')<(b.due||'')?-1:1).slice(0,5).map(x=>({
       no:x.invNo||'—',who:x.customer||'',act:'ari:'+x.invNo,
@@ -8209,7 +8910,7 @@ function homeAct(a){
   else if(k==='urg'){switchMod('tabAP');setTimeout(()=>{setF('apFMonth','');const c=$('apStUrgCard');if(c)c.click();},150);}
   else if(k==='apovd'){switchMod('tabAP');setTimeout(()=>{setF('apFMonth','');setF('apFStatus','overdue');},120);}
   else if(k==='apnew'){switchMod('tabAP');setTimeout(()=>{setF('apFMonth','');setF('apFStatus','new');},120);}
-  else if(k==='unrec'){switchMod('tabAR');arSub('pay');setTimeout(()=>setF('fMonth',''),120);}
+  else if(k==='unrec'){switchMod('tabAR');arSub('arp');setTimeout(()=>{setF('fMonth','');try{render();}catch(e){}},120);} /* v21.1 修正：参数应为 arp，此前传 'pay' 导致两个面板全隐藏 */
   else if(k==='toinv'){switchMod('tabAR');arSub('ari');setTimeout(()=>{setF('ariFMonth','');setF('ariFStatus','toinv');},120);}
   else if(k==='ord'){switchMod('tabORD');setTimeout(()=>setF('ordFMonth',''),120);}
   else if(k==='noari'){switchMod('tabORD');setTimeout(()=>{setF('ordFMonth','');setF('ordFStatus','noAri');},120);}
@@ -8843,7 +9544,7 @@ const I18N={
 '进行中订单':{en:'Active orders',de:'Laufende Aufträge'},'本月毛利（EUR）':{en:'Margin this month (EUR)',de:'Marge diesen Monat (EUR)'},
 '＋ 新建订单':{en:'+ New order',de:'+ Neuer Auftrag'},'全部阶段':{en:'All stages',de:'Alle Phasen'},
 '搜索成单号 / 客户 / 负责人 / 服务项':{en:'Search order / customer / owner / item',de:'Suche Auftrag / Kunde / Verantw. / Position'},
-'月报':{en:'📈 Monthly',de:'📈 Monatsbericht'},'客户分析':{en:'👥 Customers',de:'👥 Kundenanalyse'},'供应商分析':{en:'🚚 Suppliers',de:'🚚 Lieferantenanalyse'},'📊 统计':{en:'📊 Stats',de:'📊 Statistik'},'👤 业务员分析':{en:'👤 Sales Reps',de:'👤 Vertriebsanalyse'},'录入日期':{en:'Entry date',de:'Erfassungsdatum'},'日期类型':{en:'Date type',de:'Datumstyp'},'导出逾期发票':{en:'⚠ Export overdue invoices',de:'⚠ Überfällige Rechnungen exportieren'},'客户余额':{en:'💰 Customer credit',de:'💰 Kundenguthaben'},'紧凑':{en:'⇕ Compact',de:'⇕ Kompakt'},'立即生成快照':{en:'Create snapshot now',de:'Snapshot jetzt erstellen'},'生成中…':{en:'Creating…',de:'Wird erstellt…'},'快照已生成':{en:'Snapshot created',de:'Snapshot erstellt'},'待财务录入':{en:'Awaiting entry',de:'Zur Erfassung'},'业务已上传待录金额':{en:'Uploaded, amount pending',de:'Hochgeladen, Betrag offen'},'全部已录入':{en:'All entered',de:'Alles erfasst'},'通知':{en:'Notifications',de:'Benachrichtigungen'},'全部标记已读':{en:'Mark all read',de:'Alle gelesen'},'暂无通知':{en:'No notifications',de:'Keine Benachrichtigungen'},'已全部标记已读':{en:'All marked read',de:'Alle als gelesen markiert'},'工作台':{en:'Dashboard',de:'Übersicht'},'早上好':{en:'Good morning',de:'Guten Morgen'},'中午好':{en:'Good day',de:'Guten Tag'},'下午好':{en:'Good afternoon',de:'Guten Tag'},'晚上好':{en:'Good evening',de:'Guten Abend'},'财务视角':{en:'Finance view',de:'Finanzsicht'},'业务视角':{en:'Sales view',de:'Vertriebssicht'},'管理层只读视角':{en:'Management (read-only)',de:'Management (nur Lesen)'},'跟单看板':{en:'Tracking board',de:'Tracking-Board'},'物流状态':{en:'Logistics status',de:'Logistikstatus'},'未标注':{en:'Not set',de:'Nicht gesetzt'},'已订舱':{en:'Booked',de:'Gebucht'},'运输中':{en:'In transit',de:'Im Transit'},'清关中':{en:'Customs',de:'Verzollung'},'派送中':{en:'Out for delivery',de:'In Zustellung'},'异常':{en:'Exception',de:'Ausnahme'},'操作日志':{en:'Audit log',de:'Protokoll'},'全部模块':{en:'All modules',de:'Alle Module'},'全部人员':{en:'All users',de:'Alle Nutzer'},'搜索单号 / 内容…':{en:'Search ref / text…',de:'Beleg / Text suchen…'},'只读':{en:'Read-only',de:'Nur Lesen'},'管理层为只读账户，如需修改请联系财务或业务负责人':{en:'Management account is read-only; contact finance or the owner to make changes',de:'Management-Konto ist schreibgeschützt; Änderungen über Finanzen/Verantwortlichen'},'操作日志仅限管理员查看':{en:'Audit log is admin-only',de:'Protokoll nur für Administrator'},'切换为深色':{en:'Switch to dark',de:'Dunkelmodus'},'切换为浅色':{en:'Switch to light',de:'Hellmodus'},'切换深浅色':{en:'Toggle theme',de:'Design wechseln'},'⇕ 舒适':{en:'⇕ Cozy',de:'⇕ Komfort'},'切换行高：紧凑 / 舒适':{en:'Row height: compact / cozy',de:'Zeilenhöhe: kompakt / komfortabel'},'下载附件':{en:'Download file',de:'Datei herunterladen'},'当前筛选':{en:'Filters',de:'Filter'},'清除全部':{en:'Clear all',de:'Alle löschen'},'移除此条件':{en:'Remove filter',de:'Filter entfernen'},'收 / 付':{en:'AR / AP',de:'Forderung / Verbindl.'},'收:未开票':{en:'AR: no invoice',de:'F: keine Rechnung'},'收:已收讫':{en:'AR: paid',de:'F: bezahlt'},'收:待收':{en:'AR: open',de:'F: offen'},'付:已付清':{en:'AP: paid',de:'V: bezahlt'},'付:待付':{en:'AP: open',de:'V: offen'},'付:—':{en:'AP: —',de:'V: —'},'⚠ 缺应收(未开票)':{en:'⚠ Missing AR invoice',de:'⚠ Ohne Ausgangsrechnung'},'⚠ 超7天未开票':{en:'⚠ >7d not invoiced',de:'⚠ >7T nicht fakturiert'},'款项类型':{en:'Payment type',de:'Zahlungsart'},'核销发票':{en:'Settle invoices',de:'Rechnungen ausgleichen'},'💰 预充值（入客户余额）':{en:'💰 Deposit (to customer credit)',de:'💰 Vorauszahlung (Guthaben)'},'充值':{en:'💰 Deposit',de:'💰 Aufladung'},'对账单':{en:'Statement',de:'Auszug'},'预存对账单':{en:'Prepaid statement',de:'Guthaben-Auszug'},'预充值':{en:'Deposit',de:'Vorauszahlung'},'该客户未结清发票（勾选自动核销，老票在前）':{en:'Open invoices (tick to settle, oldest first)',de:'Offene Rechnungen (ankreuzen, älteste zuerst)'},'回款日期':{en:'Paid date',de:'Zahlungseingang'},'手动结清':{en:'Settled manually',de:'Manuell ausgeglichen'},'⚡ 需立即付款（不走账期）':{en:'⚡ Pay immediately (skip payment term)',de:'⚡ Sofort zahlen (ohne Zahlungsziel)'},'期望付款日 *':{en:'Requested payment date *',de:'Gewünschtes Zahldatum *'},'加急原因（写给财务）':{en:'Reason (for finance)',de:'Grund (für Finanzen)'},'⚡ 加急待付':{en:'⚡ Urgent to pay',de:'⚡ Dringend zu zahlen'},'下载':{en:'Download',de:'Herunterladen'},'下载备份文件':{en:'Download backup file',de:'Sicherungsdatei herunterladen'},'生成大陆副本':{en:'Generate mainland copy',de:'Festland-Kopie erzeugen'},'选择发票文件（PDF / 图片）':{en:'Choose invoice file (PDF / image)',de:'Rechnungsdatei wählen (PDF / Bild)'},'选择文件（PDF / 图片）':{en:'Choose file (PDF / image)',de:'Datei wählen (PDF / Bild)'},'加急':{en:'⚡ Urgent',de:'⚡ Dringend'},'✕ 取消加急':{en:'✕ Remove urgent',de:'✕ Dringend entfernen'},'期望付款日':{en:'Requested date',de:'Wunschdatum'},'加急原因':{en:'Reason',de:'Grund'},'全部客户':{en:'All customers',de:'Alle Kunden'},'打包下载':{en:'Download ZIP',de:'ZIP herunterladen'},'逾期发票明细':{en:'Overdue invoices',de:'Überfällige Rechnungen'},'逾期发票':{en:'Overdue invoices',de:'Überfällige Rechnungen'},'起始日期':{en:'From',de:'Von'},'截止日期':{en:'To',de:'Bis'},'留空 = 不限起始':{en:'Empty = no lower bound',de:'Leer = keine Untergrenze'},'留空 = 不限截止':{en:'Empty = no upper bound',de:'Leer = keine Obergrenze'},'打包ZIP（Excel+发票PDF）':{en:'📦 ZIP (Excel + invoice PDFs)',de:'📦 ZIP (Excel + Rechnungs-PDFs)'},'业务员分析':{en:'Sales Rep Analysis',de:'Vertriebsanalyse'},'业务员分析（询价转化）':{en:'Sales Reps (Inquiry Conversion)',de:'Vertrieb (Anfrage-Konversion)'},'转成单':{en:'Won',de:'Gewonnen'},'跟进中':{en:'Open',de:'Offen'},'转化率':{en:'Conv. rate',de:'Quote'},'询价':{en:'Inquiries',de:'Anfragen'},'该月份暂无询价记录':{en:'No inquiries for this month',de:'Keine Anfragen in diesem Monat'},'留空=全部月份 · 口径与询价页统计条一致':{en:'Empty = all months · same basis as inquiry stats bar',de:'Leer = alle Monate · gleiche Basis wie Statistikleiste'},
+'月报':{en:'📈 Monthly',de:'📈 Monatsbericht'},'客户分析':{en:'👥 Customers',de:'👥 Kundenanalyse'},'供应商分析':{en:'🚚 Suppliers',de:'🚚 Lieferantenanalyse'},'📊 统计':{en:'📊 Stats',de:'📊 Statistik'},'👤 业务员分析':{en:'👤 Sales Reps',de:'👤 Vertriebsanalyse'},'录入日期':{en:'Entry date',de:'Erfassungsdatum'},'日期类型':{en:'Date type',de:'Datumstyp'},'导出逾期发票':{en:'⚠ Export overdue invoices',de:'⚠ Überfällige Rechnungen exportieren'},'客户余额':{en:'💰 Customer credit',de:'💰 Kundenguthaben'},'紧凑':{en:'⇕ Compact',de:'⇕ Kompakt'},'立即生成快照':{en:'Create snapshot now',de:'Snapshot jetzt erstellen'},'快照已生成':{en:'Snapshot created',de:'Snapshot erstellt'},'待财务录入':{en:'Awaiting entry',de:'Zur Erfassung'},'业务已上传待录金额':{en:'Uploaded, amount pending',de:'Hochgeladen, Betrag offen'},'全部已录入':{en:'All entered',de:'Alles erfasst'},'通知':{en:'Notifications',de:'Benachrichtigungen'},'全部标记已读':{en:'Mark all read',de:'Alle gelesen'},'暂无通知':{en:'No notifications',de:'Keine Benachrichtigungen'},'已全部标记已读':{en:'All marked read',de:'Alle als gelesen markiert'},'工作台':{en:'Dashboard',de:'Übersicht'},'早上好':{en:'Good morning',de:'Guten Morgen'},'中午好':{en:'Good day',de:'Guten Tag'},'下午好':{en:'Good afternoon',de:'Guten Tag'},'晚上好':{en:'Good evening',de:'Guten Abend'},'财务视角':{en:'Finance view',de:'Finanzsicht'},'业务视角':{en:'Sales view',de:'Vertriebssicht'},'管理层只读视角':{en:'Management (read-only)',de:'Management (nur Lesen)'},'收入成本':{en:'Revenue & Cost',de:'Erlös & Kosten'},'收入成本分析':{en:'Revenue & cost analysis',de:'Erlös- und Kostenanalyse'},'按服务项':{en:'By service',de:'Nach Leistung'},'按服务分类':{en:'By category',de:'Nach Kategorie'},'按客户':{en:'By customer',de:'Nach Kunde'},'按月度':{en:'By month',de:'Nach Monat'},'剔除代垫':{en:'Exclude pass-through',de:'Durchlauf ausblenden'},'跟单看板':{en:'Tracking board',de:'Tracking-Board'},'物流状态':{en:'Logistics status',de:'Logistikstatus'},'未标注':{en:'Not set',de:'Nicht gesetzt'},'已订舱':{en:'Booked',de:'Gebucht'},'运输中':{en:'In transit',de:'Im Transit'},'清关中':{en:'Customs',de:'Verzollung'},'派送中':{en:'Out for delivery',de:'In Zustellung'},'异常':{en:'Exception',de:'Ausnahme'},'操作日志':{en:'Audit log',de:'Protokoll'},'全部模块':{en:'All modules',de:'Alle Module'},'全部人员':{en:'All users',de:'Alle Nutzer'},'搜索单号 / 内容…':{en:'Search ref / text…',de:'Beleg / Text suchen…'},'只读':{en:'Read-only',de:'Nur Lesen'},'管理层为只读账户，如需修改请联系财务或业务负责人':{en:'Management account is read-only; contact finance or the owner to make changes',de:'Management-Konto ist schreibgeschützt; Änderungen über Finanzen/Verantwortlichen'},'操作日志仅限管理员查看':{en:'Audit log is admin-only',de:'Protokoll nur für Administrator'},'切换为深色':{en:'Switch to dark',de:'Dunkelmodus'},'切换为浅色':{en:'Switch to light',de:'Hellmodus'},'切换深浅色':{en:'Toggle theme',de:'Design wechseln'},'⇕ 舒适':{en:'⇕ Cozy',de:'⇕ Komfort'},'切换行高：紧凑 / 舒适':{en:'Row height: compact / cozy',de:'Zeilenhöhe: kompakt / komfortabel'},'下载附件':{en:'Download file',de:'Datei herunterladen'},'当前筛选':{en:'Filters',de:'Filter'},'清除全部':{en:'Clear all',de:'Alle löschen'},'移除此条件':{en:'Remove filter',de:'Filter entfernen'},'收 / 付':{en:'AR / AP',de:'Forderung / Verbindl.'},'收:未开票':{en:'AR: no invoice',de:'F: keine Rechnung'},'收:已收讫':{en:'AR: paid',de:'F: bezahlt'},'收:待收':{en:'AR: open',de:'F: offen'},'付:已付清':{en:'AP: paid',de:'V: bezahlt'},'付:待付':{en:'AP: open',de:'V: offen'},'付:—':{en:'AP: —',de:'V: —'},'⚠ 缺应收(未开票)':{en:'⚠ Missing AR invoice',de:'⚠ Ohne Ausgangsrechnung'},'⚠ 超7天未开票':{en:'⚠ >7d not invoiced',de:'⚠ >7T nicht fakturiert'},'款项类型':{en:'Payment type',de:'Zahlungsart'},'核销发票':{en:'Settle invoices',de:'Rechnungen ausgleichen'},'💰 预充值（入客户余额）':{en:'💰 Deposit (to customer credit)',de:'💰 Vorauszahlung (Guthaben)'},'充值':{en:'💰 Deposit',de:'💰 Aufladung'},'对账单':{en:'Statement',de:'Auszug'},'预存对账单':{en:'Prepaid statement',de:'Guthaben-Auszug'},'预充值':{en:'Deposit',de:'Vorauszahlung'},'该客户未结清发票（勾选自动核销，老票在前）':{en:'Open invoices (tick to settle, oldest first)',de:'Offene Rechnungen (ankreuzen, älteste zuerst)'},'回款日期':{en:'Paid date',de:'Zahlungseingang'},'手动结清':{en:'Settled manually',de:'Manuell ausgeglichen'},'⚡ 需立即付款（不走账期）':{en:'⚡ Pay immediately (skip payment term)',de:'⚡ Sofort zahlen (ohne Zahlungsziel)'},'期望付款日 *':{en:'Requested payment date *',de:'Gewünschtes Zahldatum *'},'加急原因（写给财务）':{en:'Reason (for finance)',de:'Grund (für Finanzen)'},'⚡ 加急待付':{en:'⚡ Urgent to pay',de:'⚡ Dringend zu zahlen'},'下载':{en:'Download',de:'Herunterladen'},'下载备份文件':{en:'Download backup file',de:'Sicherungsdatei herunterladen'},'生成大陆副本':{en:'Generate mainland copy',de:'Festland-Kopie erzeugen'},'选择发票文件（PDF / 图片）':{en:'Choose invoice file (PDF / image)',de:'Rechnungsdatei wählen (PDF / Bild)'},'选择文件（PDF / 图片）':{en:'Choose file (PDF / image)',de:'Datei wählen (PDF / Bild)'},'加急':{en:'⚡ Urgent',de:'⚡ Dringend'},'✕ 取消加急':{en:'✕ Remove urgent',de:'✕ Dringend entfernen'},'期望付款日':{en:'Requested date',de:'Wunschdatum'},'加急原因':{en:'Reason',de:'Grund'},'全部客户':{en:'All customers',de:'Alle Kunden'},'打包下载':{en:'Download ZIP',de:'ZIP herunterladen'},'逾期发票明细':{en:'Overdue invoices',de:'Überfällige Rechnungen'},'逾期发票':{en:'Overdue invoices',de:'Überfällige Rechnungen'},'起始日期':{en:'From',de:'Von'},'截止日期':{en:'To',de:'Bis'},'留空 = 不限起始':{en:'Empty = no lower bound',de:'Leer = keine Untergrenze'},'留空 = 不限截止':{en:'Empty = no upper bound',de:'Leer = keine Obergrenze'},'打包ZIP（Excel+发票PDF）':{en:'📦 ZIP (Excel + invoice PDFs)',de:'📦 ZIP (Excel + Rechnungs-PDFs)'},'业务员分析':{en:'Sales Rep Analysis',de:'Vertriebsanalyse'},'业务员分析（询价转化）':{en:'Sales Reps (Inquiry Conversion)',de:'Vertrieb (Anfrage-Konversion)'},'转成单':{en:'Won',de:'Gewonnen'},'跟进中':{en:'Open',de:'Offen'},'转化率':{en:'Conv. rate',de:'Quote'},'询价':{en:'Inquiries',de:'Anfragen'},'该月份暂无询价记录':{en:'No inquiries for this month',de:'Keine Anfragen in diesem Monat'},'留空=全部月份 · 口径与询价页统计条一致':{en:'Empty = all months · same basis as inquiry stats bar',de:'Leer = alle Monate · gleiche Basis wie Statistikleiste'},
 '新建订单':{en:'New order',de:'Neuer Auftrag'},'新建询价单':{en:'New inquiry',de:'Neue Anfrage'},'编辑询价单':{en:'Edit inquiry',de:'Anfrage bearbeiten'},'编辑订单':{en:'Edit order',de:'Auftrag bearbeiten'},
 '客户名称':{en:'Customer',de:'Kunde'},'客户名称 *':{en:'Customer *',de:'Kunde *'},'业务负责人':{en:'Owner(s)',de:'Verantwortliche(r)'},
 'VAT 税率（报价单）':{en:'VAT rate (quotation)',de:'USt.-Satz (Angebot)'},'19%（德国境内）':{en:'19% (Germany)',de:'19% (Inland)'},'0%（出口/反向征收）':{en:'0% (export / reverse charge)',de:'0% (Export / Reverse Charge)'},
@@ -8885,7 +9586,7 @@ const I18N={
 '✓ 单号无误，确认':{en:'✓ Ref correct, confirm',de:'✓ Referenz korrekt'},'✗ 单号有误':{en:'✗ Ref wrong',de:'✗ Referenz falsch'},
 '✓ 开票系统已 Booking，标记已清':{en:'✓ Booked in sevdesk, mark cleared',de:'✓ In sevdesk verbucht, ausgleichen'},
 /* 应付板块 */
-'待财务录入':{en:'Awaiting entry',de:'Erfassung offen'},'待付款金额（EUR）':{en:'Open payables (EUR)',de:'Offene Verbindlichkeiten (EUR)'},
+'待付款金额（EUR）':{en:'Open payables (EUR)',de:'Offene Verbindlichkeiten (EUR)'},
 '上传发票':{en:'⬆ Upload invoice',de:'⬆ Rechnung hochladen'},'供应商对账单':{en:'📑 Supplier statement',de:'📑 Lieferantenabrechnung'},'批量下载发票':{en:'📦 Bulk download',de:'📦 Sammeldownload'},
 '供应商名称 *（来自基础资料）':{en:'Supplier * (from master data)',de:'Lieferant * (aus Stammdaten)'},
 '供应商名称':{en:'Supplier',de:'Lieferant'},'上传人':{en:'Uploaded by',de:'Hochgeladen von'},'上传':{en:'Upload',de:'Hochladen'},
