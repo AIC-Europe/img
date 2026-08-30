@@ -897,7 +897,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v21.9</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v21.9b</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1827,6 +1827,59 @@ const AUTH_PROXY='https://img-auth.b-zhang.workers.dev';   /* Cloudflare Worker 
 const PROXY_HOSTS={'identitytoolkit.googleapis.com':'identitytoolkit','securetoken.googleapis.com':'securetoken'};
 const PROXY_KEY='img-auth-proxy-on';
 let _proxyOn=false;
+/* ── v21.9b 应急降级登录（Plan B · 临时措施）──
+   两条线路（直连 + 代理）均不可达时，改用本地加盐 SHA-256 校验放行，保证中国同事不被锁在门外。
+   密码仍不以明文出现；错误密码在降级模式下同样被拒；进入后顶部显示醒目黄条。
+   ⚠ 降级期间数据库规则须为开放，安全等级低于完整认证。
+   ⚠ 线路恢复后应删除本段并把规则改回 auth != null。 */
+const FB_SALT='img-europe-2026-fallback';
+const ACCT_HASH={'Emma':'867ebedfa81afd5fd4d7754d486d35d207eaa861654c9a110cff28cde0338a24','Steven':'005ad6acd11542fa2d73eb82386158c5d758bd9d11aacf4240da78fdbb1667f1','Minglu':'28bd4d5c53c75dafd28a7febf0c545acec7babc7fa3c33e705d62ed074da2024','Teri':'7dfa5ccb1cc2f6f98f4d8421f58b64088f1b779441e8b24331f47bf9fd1a5bb1','Bowen':'fd6799724957625584b2b19b792703bffa9de4c07c15eff4ce674b5e1f770003','Lucy':'1a431a30178a64137bffb91591d06a757d6eb65528749adae84ec24709571a2e','Peter':'532f14cc0e8d789c19ae733b0024abe43f93106514a04a7917416de29a22ab0d','Christina':'7d0f49167053e34f6111881ff134546f39e8b95fbe875f4a035956b756330f30'};
+let AUTH_DEGRADED=false;
+function sha256Sync(msg){
+  function rr(x,n){return (x>>>n)|(x<<(32-n));}
+  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const bytes=[];
+  for(let i=0;i<msg.length;i++){let c=msg.charCodeAt(i);
+    if(c<128)bytes.push(c);else if(c<2048){bytes.push(192|(c>>6),128|(c&63));}
+    else{bytes.push(224|(c>>12),128|((c>>6)&63),128|(c&63));}}
+  const bl=bytes.length*8;bytes.push(0x80);
+  while(bytes.length%64!==56)bytes.push(0);
+  for(let i=7;i>=0;i--)bytes.push((bl/Math.pow(2,i*8))&255);
+  for(let i=0;i<bytes.length;i+=64){
+    const w2=new Array(64);
+    for(let j=0;j<16;j++)w2[j]=(bytes[i+j*4]<<24)|(bytes[i+j*4+1]<<16)|(bytes[i+j*4+2]<<8)|bytes[i+j*4+3];
+    for(let j=16;j<64;j++){
+      const s0=rr(w2[j-15],7)^rr(w2[j-15],18)^(w2[j-15]>>>3);
+      const s1=rr(w2[j-2],17)^rr(w2[j-2],19)^(w2[j-2]>>>10);
+      w2[j]=(w2[j-16]+s0+w2[j-7]+s1)|0;}
+    let [a,b,c,d,e,f,g,h2]=H;
+    for(let j=0;j<64;j++){
+      const S1=rr(e,6)^rr(e,11)^rr(e,25);const ch=(e&f)^((~e)&g);
+      const t1=(h2+S1+ch+K[j]+w2[j])|0;
+      const S0=rr(a,2)^rr(a,13)^rr(a,22);const mj=(a&b)^(a&c)^(b&c);
+      const t2=(S0+mj)|0;
+      h2=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0;}
+    H=[(H[0]+a)|0,(H[1]+b)|0,(H[2]+c)|0,(H[3]+d)|0,(H[4]+e)|0,(H[5]+f)|0,(H[6]+g)|0,(H[7]+h2)|0];}
+  return H.map(x=>((x>>>0).toString(16).padStart(8,'0'))).join('');
+}
+async function sha256Hex(t){
+  try{if(window.crypto&&crypto.subtle&&window.isSecureContext!==false){
+    const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));
+    return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+  }catch(e){}
+  return sha256Sync(t);
+}
+async function fallbackCheck(name,pw){
+  try{return ACCT_HASH[name]===await sha256Hex(FB_SALT+':'+name+':'+pw);}catch(e){return false;}
+}
 function proxyRewrite(u){
   try{
     if(!AUTH_PROXY||!u)return null;
@@ -1921,6 +1974,17 @@ $('loginBtn').onclick=async()=>{
         if(!isNetErr(e))break;   /* 密码错等非网络问题，换线路也无用 */
       }
     }
+    /* v21.9b Plan B：两条线路均为网络类失败时，转本地哈希校验放行（错误密码依然被拒） */
+    if(!ok&&isNetErr(lastErr)){
+      if(await fallbackCheck(canonical,pw)){
+        AUTH_DEGRADED=true;
+        ok=true;
+      }else{
+        $('loginBtn').textContent='进入平台';
+        err.textContent='密码不正确（当前网络无法连接认证服务，已按本地校验）。';
+        err.style.display='block';return;
+      }
+    }
     if(!ok)throw lastErr||new Error('auth-failed');
   }catch(e){
     $('loginBtn').textContent='进入平台';
@@ -1949,6 +2013,15 @@ $('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginPass').
 $('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click();});
 
 function enterApp(){
+  if(AUTH_DEGRADED){
+    try{
+      const b=document.createElement('div');b.id='degradeBar';
+      b.style.cssText='background:var(--warn-bg);color:var(--warn);border-bottom:1px solid var(--warn-line);padding:6px 14px;font-size:12.5px;font-weight:600;text-align:center';
+      b.innerHTML=ic('warn','ic-sm')+' 降级登录模式：当前网络无法连接认证服务（中国大陆常见），已按本地校验放行。数据读写正常，但安全等级低于完整认证——请联系管理员尽快恢复线路。';
+      const app=document.getElementById('appView');
+      if(app&&!document.getElementById('degradeBar'))app.insertBefore(b,app.firstChild);
+    }catch(e){}
+  }
   $('loginView').style.display='none';
   const app=$('appView');app.style.display='flex';
   $('userName').textContent=session.name;
