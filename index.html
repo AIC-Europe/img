@@ -897,7 +897,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v21.9b</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v22.1</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -6858,30 +6858,102 @@ function baseExport(key,title,fields){
     toast('Excel 组件不可用，已导出 CSV');
   });
 }
+/* v22.1 基础资料整行内联编辑：一次性表单，保存/取消一次决定，杜绝逐字段 prompt 丢数据 */
+const _baseQ={};   /* v22.1 各卡片搜索关键词（客户/供应商/服务项独立） */
+function baseEditRow(row,it,key,fields){
+  if(row.dataset.editing==='1')return;
+  row.dataset.editing='1';
+  const prev=row.innerHTML;
+  row.innerHTML='';
+  row.style.flexWrap='wrap';
+  const st='border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px;min-width:0';
+  const mk=(ph,val,flex)=>{const i=document.createElement('input');i.placeholder=ph;i.value=val||'';
+    i.style.cssText=st+';flex:'+flex;return i;};
+  const iName=mk('名称 *',it.name,'2');
+  const inputs=fields.map(f=>mk(f.l,it[f.k]||'',(f.k==='addr'?'3':'2')));
+  const bSave=document.createElement('button');bSave.className='btn-sm';bSave.textContent='保存';
+  bSave.style.cssText='padding:4px 12px;font-size:11.5px';
+  const bCancel=document.createElement('button');bCancel.className='btn-sm';bCancel.textContent='取消';
+  bCancel.style.cssText='padding:4px 12px;font-size:11.5px';
+  const restore=()=>{row.dataset.editing='';row.style.flexWrap='';row.innerHTML=prev;renderBASE();};
+  bCancel.onclick=restore;
+  bSave.onclick=async()=>{
+    const nn=(iName.value||'').trim();
+    if(!nn){toast('名称不能为空');iName.focus();return;}
+    /* 重名校验：避免产生两条同名档案，导致下拉与统计口径混乱 */
+    const dup=(meta[key]||[]).find(x=>x.id!==it.id&&normName(x.name)===normName(nn));
+    if(dup){toast('已存在同名记录，请换一个名称');iName.focus();return;}
+    const updates={name:nn};
+    fields.forEach((f,i)=>{updates[f.k]=(inputs[i].value||'').trim();});
+    let changed=(nn!==it.name)||fields.some((f,i)=>(inputs[i].value||'').trim()!==(it[f.k]||''));
+    if(!changed){restore();return;}
+    bSave.disabled=true;bSave.textContent='保存中…';
+    const backup=JSON.parse(JSON.stringify(it));
+    Object.assign(it,updates,{at:Date.now(),_up:Date.now()});
+    try{await metaSave();toast('已更新');renderBASE();}
+    catch(e){Object.assign(it,backup);bSave.disabled=false;bSave.textContent='保存';toast('保存失败：'+(e.message||''));}
+  };
+  iName.onkeydown=e=>{if(e.key==='Enter')bSave.click();if(e.key==='Escape')restore();};
+  inputs.forEach(i=>{i.onkeydown=e=>{if(e.key==='Enter')bSave.click();if(e.key==='Escape')restore();};});
+  row.append(iName,...inputs,bSave,bCancel);
+  setTimeout(()=>{try{iName.focus();iName.select();}catch(e){}},30);
+}
 function baseCard(title,key,fields){
   const card=document.createElement('div');card.className='base-card';
   card.innerHTML='<h3 style="display:flex;align-items:center;gap:10px">'+title+'（'+(meta[key]||[]).length+'）'+
     '<button class="btn-ghost base-exp" type="button" style="margin-left:auto;padding:3px 12px;font-size:12px">导出 Excel</button></h3>';
   card.querySelector('.base-exp').onclick=()=>baseExport(key,title.replace(/^[^\u4e00-\u9fff]*/,''),fields);
+  /* v22.1 卡内搜索：名称与全部字段一并匹配（忽略大小写与空格），实时过滤 */
+  const sBar=document.createElement('div');
+  sBar.style.cssText='display:flex;align-items:center;gap:8px;margin:2px 0 8px';
+  const sInp=document.createElement('input');
+  sInp.type='search';sInp.className='base-search';sInp.dataset.role='search';
+  sInp.placeholder='搜索 '+title.replace(/^[^\u4e00-\u9fff]*/,'')+'…（名称 / 联系人 / 邮箱 / VAT / 地址）';
+  sInp.style.cssText='flex:1;min-width:0;border:1.5px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12.5px';
+  sInp.value=(_baseQ[key]||'');
+  const sCnt=document.createElement('span');
+  sCnt.style.cssText='font-size:11.5px;color:var(--ink-soft);white-space:nowrap';
+  sBar.append(sInp,sCnt);
+  card.appendChild(sBar);
+  const q=svcNorm(_baseQ[key]||'');
+  const all=(meta[key]||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  const list=q?all.filter(function(x){
+    if(svcNorm(x.name).includes(q))return true;
+    for(const f of fields)if(svcNorm(x[f.k]||'').includes(q))return true;
+    return false;
+  }):all;
+  sCnt.textContent=q?(list.length+' / '+all.length):(all.length+' 条');
+  let _t=null;
+  sInp.oninput=function(){
+    clearTimeout(_t);
+    _t=setTimeout(function(){
+      _baseQ[key]=sInp.value;
+      renderBASE();
+      /* 重绘后把焦点与光标还给对应搜索框，保证连续输入不中断 */
+      setTimeout(function(){
+        const boxes=document.querySelectorAll('.base-card input[type=search]');
+        for(const b of boxes)if((b.placeholder||'').includes(title.replace(/^[^\u4e00-\u9fff]*/,''))){
+          try{b.focus();b.setSelectionRange(b.value.length,b.value.length);}catch(e){}break;}
+      },10);
+    },220);
+  };
   const listBox=document.createElement('div');
   listBox.style.cssText='max-height:300px;overflow:auto';
-  for(const it of (meta[key]||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''))){
+  if(!list.length){
+    const em=document.createElement('div');
+    em.style.cssText='color:var(--ink-soft);font-size:12.5px;padding:12px 4px;text-align:center';
+    em.textContent=q?'没有匹配「'+_baseQ[key]+'」的记录':'暂无记录';
+    listBox.appendChild(em);
+  }
+  for(const it of list){
     const row=document.createElement('div');row.className='base-row';
     row.innerHTML='<b style="flex:2;min-width:0" class="clamp2" title="'+esc(it.name)+'">'+esc(it.name)+'</b>'+
       fields.map(f=>'<span style="flex:'+(f.k==='addr'?3:2)+';min-width:0;color:var(--ink-soft)" class="clamp2" title="'+esc(it[f.k]||'')+'">'+esc(it[f.k]||'')+'</span>').join('');
     const ed=document.createElement('button');ed.className='btn-sm';ed.style.cssText='padding:1px 8px;font-size:11px';ed.textContent='✎';
-    ed.onclick=async()=>{
-      const updates={};let changed=false;
-      const nn=(window.prompt('名称：',it.name)||'').trim();
-      if(nn&&nn!==it.name){updates.name=nn;changed=true;}
-      for(const f of fields){
-        const v=(window.prompt(f.l+'：',it[f.k]||'')??'').trim();
-        if(v!==(it[f.k]||'')){updates[f.k]=v;changed=true;}
-      }
-      if(!changed)return;
-      Object.assign(it,updates,{at:Date.now()});
-      try{await metaSave();toast('已更新');renderBASE();}catch(e){toast('保存失败：'+(e.message||''));}
-    };
+    /* v22.1 改为整行内联编辑：原先用连续 window.prompt 逐字段确认，
+       客户档案要连点 5 次，且中途按「取消」会把该字段清空 —— 极易丢数据。
+       现改为一次性展开表单，可整体保存或取消，不改动未触碰的字段。 */
+    ed.onclick=()=>baseEditRow(row,it,key,fields);
     const del=document.createElement('button');del.className='btn-sm danger';del.style.cssText='padding:1px 8px;font-size:11px';del.textContent='✕';
     del.onclick=async()=>{
       if(!confirmDelete(title.replace(/[^\u4e00-\u9fa5]/g,'')+'「'+it.name+'」'))return;
@@ -6896,9 +6968,9 @@ function baseCard(title,key,fields){
   card.appendChild(listBox);
   const addRow=document.createElement('div');
   addRow.style.cssText='display:flex;gap:6px;margin-top:10px;flex-wrap:wrap';
-  const iN=document.createElement('input');iN.placeholder='名称 *';iN.style.cssText='flex:2;min-width:120px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px';
+  const iN=document.createElement('input');iN.placeholder='名称 *';iN.className='base-add';iN.dataset.role='add';iN.style.cssText='flex:2;min-width:120px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px';
   const extras=fields.map(f=>{
-    const i=document.createElement('input');i.placeholder=f.l;
+    const i=document.createElement('input');i.placeholder=f.l;i.className='base-add';i.dataset.role='add';
     i.style.cssText='flex:2;min-width:110px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px';
     if(f.k==='cat'){
       let cd=document.getElementById('catDL');
@@ -6916,7 +6988,8 @@ function baseCard(title,key,fields){
     const obj={id:key.slice(0,2)+Date.now()+Math.random().toString(36).slice(2,5),name:nm,at:Date.now()};
     fields.forEach((f,i)=>{obj[f.k]=extras[i].value.trim();});
     (meta[key]=meta[key]||[]).push(obj);
-    try{await metaSave();toast('已添加');renderBASE();}catch(e){toast('保存失败：'+(e.message||''));}
+    try{await metaSave();toast('已添加');_baseQ[key]='';renderBASE();}   /* v22.1 清空搜索，保证新记录立即可见 */
+    catch(e){toast('保存失败：'+(e.message||''));}
   };
   addRow.appendChild(iN);extras.forEach(x=>addRow.appendChild(x));addRow.appendChild(bAdd);
   card.appendChild(addRow);
@@ -7089,6 +7162,7 @@ let _ariSeeding=false,_ariPendingRemote=null;
 
 async function ariLoad(){
   try{const r=await store.get(ARI_KEY);ariItems=r&&r.value?JSON.parse(r.value):[];}catch(e){ariItems=[];}
+  try{ariLinesHeal();}catch(e){}   /* v22.0 本地载入同样自愈，避免首屏/离线仍显示 NaN */
 }
 function ariMerge(remote){
   if(!Array.isArray(remote))return;
@@ -7160,6 +7234,7 @@ function ariApplyRemote(s){
   if(editingNow()){_ariPendingRemote=s;return;}
   try{ariItems=JSON.parse(s.json||'[]');store.set(ARI_KEY,s.json||'[]');}catch(e){}
   try{alcInvalidate();}catch(e){} /* v17.8 */
+  try{ariLinesHeal();}catch(e){}   /* v22.0 */
   if(session){renderARI();ariAlertUpdate();try{render();}catch(e){} /* v17.8 B10：到账页的核销徽章依赖应收数据，须同步重绘，否则误报「⚠ 未核销」 */}
   if(s._by&&s._by!==(session&&session.name))toast('☁ 应收发票已同步 '+s._by+' 的更新');
 }
@@ -7786,23 +7861,60 @@ $('stornoOk').onclick=async function(){
   }catch(e){err.textContent='保存失败：'+(e.message||'');err.style.display='block';}
   btn.disabled=false;
 };
+/* v22.0 存量自愈：Steven 已录入的行只有 unit/tot，缺 price/amount。
+   载入时补齐缺失字段，使导出、分析、PDF 等所有读取点都能正确取数（不改动金额，仅补字段）。 */
+function ariLinesHeal(){
+  let fixed=0;
+  for(const x of ariItems){
+    if(x.deleted)continue;
+    for(const key of ['lines','linesLocked']){
+      const ls=x[key];
+      if(!Array.isArray(ls))continue;
+      for(const l of ls){
+        if(!l)continue;
+        const pri=(typeof l.unit==='number')?l.unit:(Number(l.price)||0);
+        const q=(l.qty==null?1:Number(l.qty))||0;
+        const amt=(l.tot!=null&&isFinite(Number(l.tot)))?Number(l.tot)
+                 :((l.amount!=null&&isFinite(Number(l.amount)))?Number(l.amount)
+                 :Math.round(q*pri*(1-(Number(l.disc)||0)/100)*100)/100);
+        if(l.price==null&&typeof l.unit==='number'){l.price=pri;fixed++;}
+        if(l.amount==null){l.amount=amt;fixed++;}
+        if(l.tot==null){l.tot=amt;fixed++;}
+        if(typeof l.unit==='string'&&l.unitN==null)l.unitN=l.unit;
+      }
+    }
+  }
+  return fixed;
+}
 function ariLinesHTML(x,compact){
   const ls=(x.linesLocked&&x.linesLocked.length)?x.linesLocked:(x.lines||[]);  /* v21.4 已锁定优先读快照 */
   if(!ls.length)return '';
   let net=0,vat=0;
+  /* v22.0 修复 NaN：lines 存在两套字段格式，显示端必须统一取数，否则手动录入的行全显示 NaN。
+       A) ordSvcLines（从订单带出）：{price:单价, amount:金额, unit:'unit'(单位字符串)}
+       B) 财务手动录入：{unit:单价(数字), tot:金额, unitN:'unit'}
+     取数规则：单价 = unit 为数字则取之，否则取 price；金额 = tot ?? amount ?? 现算。 */
+  const _pri=function(l){return (typeof l.unit==='number')?l.unit:(Number(l.price)||0);};
+  const _amt=function(l){
+    if(l.tot!=null&&isFinite(Number(l.tot)))return Number(l.tot);
+    if(l.amount!=null&&isFinite(Number(l.amount)))return Number(l.amount);
+    const q=(l.qty==null?1:Number(l.qty))||0;
+    return Math.round(q*_pri(l)*(1-(Number(l.disc)||0)/100)*100)/100;
+  };
+  const _unitLbl=function(l){return (typeof l.unit==='string')?l.unit:(l.unitN||'');};
   let h='<div style="font-size:12px;color:var(--brass);font-weight:700;margin-bottom:6px">📋 订单报价明细（请按此逐行在 sevdesk 开票）</div>';
   h+='<table style="width:100%;border-collapse:collapse;font-size:'+(compact?'11.5':'12')+'px"><tr>';
   for(const th of ['服务项 / Line item','数量','单价(净)','VAT','折扣','金额'])h+='<th style="text-align:left;padding:3px 6px;border-bottom:1.5px solid var(--line);color:var(--ink-soft);font-weight:600">'+th+'</th>';
   h+='</tr>';
   for(const l of ls){
-    net+=l.amount;vat+=l.amount*(l.vat||0)/100;
+    const _a=_amt(l);net+=_a;vat+=_a*(Number(l.vat)||0)/100;
     h+='<tr>'+
       '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft)"><b>'+esc(l.name)+'</b>'+(l.en?' <span style="color:var(--ink-soft)">'+esc(l.en)+'</span>':'')+'</td>'+
-      '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft);font-family:var(--font-num);white-space:nowrap">'+l.qty+' '+esc(l.unit)+'</td>'+
-      '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft);text-align:right;font-family:var(--font-num)">'+fmt(l.price)+'</td>'+
-      '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft);font-family:var(--font-num)">'+l.vat+'%</td>'+
+      '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft);font-family:var(--font-num);white-space:nowrap">'+(l.qty==null?1:l.qty)+' '+esc(_unitLbl(l))+'</td>'+
+      '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft);text-align:right;font-family:var(--font-num)">'+fmt(_pri(l))+'</td>'+
+      '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft);font-family:var(--font-num)">'+(l.vat==null?0:l.vat)+'%</td>'+
       '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft);font-family:var(--font-num)">'+(l.disc?((l.disc>0?'-':'+')+Math.abs(l.disc)+'%'):'—')+'</td>'+
-      '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft);text-align:right;font-family:var(--font-num)"><b>'+fmt(l.amount)+'</b>'+((l.cur&&l.cur!=='EUR')?' <span style="font-size:10px;color:var(--ink-soft)">'+esc(l.cur)+'</span>':'')+'</td></tr>';
+      '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft);text-align:right;font-family:var(--font-num)"><b>'+fmt(_a)+'</b>'+((l.cur&&l.cur!=='EUR')?' <span style="font-size:10px;color:var(--ink-soft)">'+esc(l.cur)+'</span>':'')+'</td></tr>';
   }
   net=Math.round(net*100)/100;vat=Math.round(vat*100)/100;
   const curSums={};
@@ -7980,8 +8092,14 @@ async function ariSaveEdit(){
     const revLines=_aiRevLines.filter(function(l){return (l.name||'').trim()&&(Number(l.price)||0)!==0;})
       .map(function(l){
         const c=aiRevCalc(l);
-        return {name:(l.name||'').trim(),en:l.en||'',qty:(l.qty==null||l.qty===''?1:Number(l.qty)),
-                unitN:'unit',unit:Number(l.price)||0,tot:c.net,vat:c.vr,disc:Number(l.disc)||0,cur:$('aiCur').value};
+        /* v22.0 双字段并写：unit/tot（本模块）与 price/amount（ordSvcLines 口径）同时给出，
+           使所有既有读取点（显示、导出、分析、PDF）无需各自适配。 */
+        const _q=(l.qty==null||l.qty===''?1:Number(l.qty));
+        const _p=Number(l.price)||0;
+        return {name:(l.name||'').trim(),en:l.en||'',qty:_q,
+                unitN:'unit',unit:_p,price:_p,
+                tot:c.net,amount:c.net,
+                vat:c.vr,disc:Number(l.disc)||0,cur:$('aiCur').value};
       });
     const data={customer:cust,invNo:no,invDate:d,orderNo:$('aiOrderNo').value.trim(),
       net:Math.round(net*100)/100,vatRate:parseFloat($('aiVatRate').value)||0,vat:c.vat,gross:c.gross,
