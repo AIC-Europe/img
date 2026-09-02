@@ -898,7 +898,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v22.5</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v22.7</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -3373,8 +3373,15 @@ async function apHandleUpload(file,attachTo,extra){
         }
       }
       if(!ok){
-        apUploadFail(lastErr||new Error('上传失败'));
-        return false;
+        /* v22.7 弱网兜底（Teri 换机后仍超时）：附件传不上不应阻断整条录入。
+           询问是否「先录入、附件稍后补传」，选是则标记 pendingFile 继续保存发票信息。 */
+        const msg=(lastErr&&lastErr.message)||'网络异常';
+        const goOn=confirm('附件上传失败（'+msg+'）。\n\n是否先保存发票信息，附件稍后再补传？\n\n' +
+                           '选「确定」：立即录入，该单标记「附件待补」，网络好转后可再次上传。\n' +
+                           '选「取消」：放弃本次录入。');
+        if(!goOn){apUploadFail(lastErr||new Error('上传失败'));return false;}
+        meta.pending=true;meta.pendingReason=msg;
+        toast('已跳过附件，发票信息将正常保存');
       }
     }
   }
@@ -3819,6 +3826,14 @@ function rcOpen(){
   rcRender();
   $('rcOverlay').classList.add('open');
 }
+/* v22.7 附件待补提示：弱网下跳过上传的发票需醒目标记，避免被遗忘 */
+function apPendingFileHTML(it){
+  const p=(it.files||[]).filter(f=>f&&f.pending);
+  if(!p.length)return '';
+  return '<div style="margin-top:8px;padding:7px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:12px;font-weight:600">'+
+    ic('warn','ic-sm')+' 附件待补传：'+p.map(f=>esc(f.name||'')).join('、')+
+    '<span style="font-weight:400"> —— 上传时网络异常已跳过，请在网络好转后重新上传。</span></div>';
+}
 function apCostHTML(it){
   const ls=(it&&it.costLines)||[];
   if(!ls.length)return '';
@@ -3872,6 +3887,7 @@ function apDetail(it){
     (it.note?'<dt>备注</dt><dd>'+esc(it.note)+'</dd>':'')+
     payHtml+
     '</dl>'+
+    apPendingFileHTML(it)+   /* v22.7 */
     apCostHTML(it);   /* v21.5 阶段2：成本明细 */
 
   /* 付款记录删除（财务，双确认，墓碑防复活） */
@@ -5444,7 +5460,23 @@ function metaCloudStart(){
     _metaApplying=false;
     if(healed)metaSave().catch(function(){}); /* 云端旧库自动补齐并回写 */
     supplierDLRefresh();
-    if(session&&$('baseView').style.display!=='none')renderBASE();
+    /* v22.6 治本：用户正在基础资料里输入（新增行/编辑行/搜索框）时不整卡重绘，
+       改为标记待刷新，等失焦后再落地 —— 避免同步回调把输入打断。 */
+    if(session&&$('baseView').style.display!=='none'){
+      const ae=document.activeElement;
+      const busy=ae&&ae.closest&&ae.closest('.base-card')&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA');
+      if(busy){
+        if(!window._basePendingRender){
+          window._basePendingRender=true;
+          const onBlur=function(){
+            window._basePendingRender=false;
+            document.removeEventListener('focusout',onBlur,true);
+            setTimeout(function(){try{if($('baseView').style.display!=='none')renderBASE();}catch(e){}},250);
+          };
+          document.addEventListener('focusout',onBlur,true);
+        }
+      }else renderBASE();
+    }
   },function(){});
 }
 
@@ -6948,6 +6980,10 @@ function baseExport(key,title,fields){
 }
 /* v22.1 基础资料整行内联编辑：一次性表单，保存/取消一次决定，杜绝逐字段 prompt 丢数据 */
 const _baseQ={};   /* v22.1 各卡片搜索关键词（客户/供应商/服务项独立） */
+/* v22.6 新增行草稿（Steven 反馈「一输入名称就闪没了」）：
+   基础资料在元数据同步回调里会整卡重绘，中国端同步频繁时正好撞上输入，新增行被清空。
+   现把未提交的输入暂存于此，重绘后自动回填并归还焦点/光标。 */
+const _baseDraft={};
 function baseEditRow(row,it,key,fields){
   if(row.dataset.editing==='1')return;
   row.dataset.editing='1';
@@ -7056,9 +7092,9 @@ function baseCard(title,key,fields){
   card.appendChild(listBox);
   const addRow=document.createElement('div');
   addRow.style.cssText='display:flex;gap:6px;margin-top:10px;flex-wrap:wrap';
-  const iN=document.createElement('input');iN.placeholder='名称 *';iN.className='base-add';iN.dataset.role='add';iN.style.cssText='flex:2;min-width:120px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px';
+  const iN=document.createElement('input');iN.placeholder='名称 *';iN.className='base-add';iN.dataset.role='add';iN.dataset.k='name';iN.style.cssText='flex:2;min-width:120px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px';
   const extras=fields.map(f=>{
-    const i=document.createElement('input');i.placeholder=f.l;i.className='base-add';i.dataset.role='add';
+    const i=document.createElement('input');i.placeholder=f.l;i.className='base-add';i.dataset.role='add';i.dataset.k=f.k;
     i.style.cssText='flex:2;min-width:110px;border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px';
     if(f.k==='cat'){
       let cd=document.getElementById('catDL');
@@ -7076,10 +7112,32 @@ function baseCard(title,key,fields){
     const obj={id:key.slice(0,2)+Date.now()+Math.random().toString(36).slice(2,5),name:nm,at:Date.now()};
     fields.forEach((f,i)=>{obj[f.k]=extras[i].value.trim();});
     (meta[key]=meta[key]||[]).push(obj);
-    try{await metaSave();toast('已添加');_baseQ[key]='';renderBASE();}   /* v22.1 清空搜索，保证新记录立即可见 */
+    try{await metaSave();toast('已添加');_baseQ[key]='';delete _baseDraft[key];renderBASE();}   /* v22.1 清空搜索；v22.6 清草稿 */
     catch(e){toast('保存失败：'+(e.message||''));}
   };
   addRow.appendChild(iN);extras.forEach(x=>addRow.appendChild(x));addRow.appendChild(bAdd);
+  /* v22.6 草稿回填 + 输入暂存：任何重绘都不会再丢失正在输入的新增内容 */
+  {
+    const d=_baseDraft[key]||{};
+    for(const el of [iN,...extras]){
+      const k=el.dataset.k;
+      if(k&&d[k]!=null)el.value=d[k];
+      el.addEventListener('input',function(){
+        _baseDraft[key]=_baseDraft[key]||{};
+        _baseDraft[key][el.dataset.k]=el.value;
+      });
+    }
+    if(d.__focus){
+      setTimeout(function(){
+        const t=[iN,...extras].find(x=>x.dataset.k===d.__focus);
+        if(t){try{t.focus();t.setSelectionRange(d.__pos!=null?d.__pos:t.value.length,d.__pos!=null?d.__pos:t.value.length);}catch(e){}}
+      },10);
+    }
+    for(const el of [iN,...extras]){
+      el.addEventListener('focus',function(){_baseDraft[key]=_baseDraft[key]||{};_baseDraft[key].__focus=el.dataset.k;});
+      el.addEventListener('keyup',function(){if(_baseDraft[key])_baseDraft[key].__pos=el.selectionStart;});
+    }
+  }
   card.appendChild(addRow);
   return card;
 }
