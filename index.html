@@ -262,16 +262,17 @@ body.theme-dark .p360-lnk:hover{color:var(--ok)}
 #ordTable{table-layout:fixed;width:100%}
 #ordTable th:nth-child(1),#ordTable td:nth-child(1){width:86px}
 #ordTable th:nth-child(2),#ordTable td:nth-child(2){width:104px}
-#ordTable th:nth-child(3),#ordTable td:nth-child(3){width:196px}
-#ordTable th:nth-child(4),#ordTable td:nth-child(4){width:76px}
+#ordTable th:nth-child(3),#ordTable td:nth-child(3){width:172px}
+#ordTable th:nth-child(4),#ordTable td:nth-child(4){width:66px}
 #ordTable th:nth-child(5),#ordTable td:nth-child(5){width:106px}
 #ordTable th:nth-child(6),#ordTable td:nth-child(6){width:112px}
 #ordTable th:nth-child(7),#ordTable td:nth-child(7){width:100px}
 #ordTable th:nth-child(8),#ordTable td:nth-child(8){width:80px}
-#ordTable th:nth-child(9),#ordTable td:nth-child(9){width:118px}
+#ordTable th:nth-child(9),#ordTable td:nth-child(9){width:152px}  /* v22.3 拉宽：两个徽章「收:xx 付:xx」并排完整显示 */
 #ordTable th:nth-child(10),#ordTable td:nth-child(10){width:94px}
 #ordTable th:nth-child(11),#ordTable td:nth-child(11){width:56px}
 #ordTable tbody tr.row>td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ordTable tbody tr.row>td:nth-child(9){overflow:visible;text-overflow:clip;white-space:normal;line-height:1.5}  /* v22.3 收/付列徽章不裁剪 */
 #ordTable tbody tr.detail>td{overflow:visible;white-space:normal;width:auto}
 #ordTable .cur-suffix{font-size:10px;color:var(--ink-soft);margin-left:2px}
 #ariTable{table-layout:fixed;width:100%}
@@ -897,7 +898,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v22.2</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v22.3</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
