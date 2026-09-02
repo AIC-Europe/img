@@ -898,7 +898,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v22.4</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v22.5</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -3351,12 +3351,32 @@ async function apHandleUpload(file,attachTo,extra){
         rd.readAsDataURL(file);
       });
     }catch(e){apUploadFail(e);return false;}
-    try{
-      await Promise.race([
-        apStoreFile(fid,{name:file.name,type:meta.type,data:data,size:file.size,at:Date.now(),by:session.name}),
-        new Promise(function(_,rej){setTimeout(function(){rej(new Error('上传超时（network timeout），请检查网络后重试'));},25000);})
-      ]);
-    }catch(e){apUploadFail(e);return false;}
+    /* v22.5 跨境上传加固（Teri 反馈 101KB 附件超时）：
+       中国→欧洲数据库写入受网络抖动影响明显，原 25 秒一刀切过于激进。
+       改为：超时按文件大小动态计算（基础 45 秒 + 每 100KB 加 15 秒，上限 180 秒），
+       并自动重试 2 次（间隔 2 秒），每次重试提示进度，全部失败才报错。 */
+    {
+      const payload={name:file.name,type:meta.type,data:data,size:file.size,at:Date.now(),by:session.name};
+      const tmo=Math.min(180000,45000+Math.ceil(file.size/102400)*15000);
+      let ok=false,lastErr=null;
+      for(let attempt=1;attempt<=3;attempt++){
+        if(attempt>1)toast('网络较慢，正在重试（'+attempt+'/3）…');
+        try{
+          await Promise.race([
+            apStoreFile(fid,payload),
+            new Promise(function(_,rej){setTimeout(function(){rej(new Error('上传超时（network timeout）'));},tmo);})
+          ]);
+          ok=true;break;
+        }catch(e){
+          lastErr=e;
+          if(attempt<3)await new Promise(function(r){setTimeout(r,2000);});
+        }
+      }
+      if(!ok){
+        apUploadFail(lastErr||new Error('上传失败'));
+        return false;
+      }
+    }
   }
   try{
     if(attachTo){
