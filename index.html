@@ -898,7 +898,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v22.3</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v22.4</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1644,7 +1644,15 @@ function cloudStart(){
   });
 }
 /* 暂存的远端更新：待用户停止填写后补应用 */
-setInterval(function(){if(_pendingRemote&&!editingNow()){const s=_pendingRemote;_pendingRemote=null;applyRemote(s);}},2000);
+let _pendingRemoteAt=0;
+setInterval(function(){
+  if(!_pendingRemote)return;
+  if(!_pendingRemoteAt)_pendingRemoteAt=Date.now();
+  /* v22.4 挂起上限 20 秒：编辑态误判或长时间编辑不得让远端数据无限累积 */
+  if(!editingNow()||Date.now()-_pendingRemoteAt>20000){
+    const s=_pendingRemote;_pendingRemote=null;_pendingRemoteAt=0;applyRemote(s);
+  }
+},2000);
 
 let session=null;          // {name, role}
 let payments=[];           // 全部记录
@@ -2098,17 +2106,33 @@ function updateBadge(){
 
 /* 自动同步：每 8 秒从共享存储拉取；用户正在填写时暂停，避免打断输入 */
 let lastJson=null,syncTimer=null;
+/* v22.4 性能与卡顿修复（Teri 反馈「更新后很卡、最后完全输入不了」）：
+   ① 本函数每 2 秒被四个同步定时器各调用一次，原实现每次遍历详情内全部输入框做值比对；
+      订单详情的服务项行较多时开销明显，且**只要有任一输入框有值就判定「编辑中」**，
+      导致远端数据被无限挂起、越积越多，最终渲染批量涌入而卡死。
+   ② 现改为：只认「焦点确实在详情内」或「用户已真正修改过某个字段」（由 input 事件打标记），
+      并对结果做 400ms 微缓存，避免高频重复遍历。
+   ③ 配套：挂起超过 20 秒强制落地一次，杜绝无限累积。 */
+let _editDirty=false,_editSeenAt=0,_editCache=false,_editCacheAt=0;
+document.addEventListener('input',function(e){
+  const t=e&&e.target;
+  if(t&&t.closest&&t.closest('tr.detail')&&t.type!=='hidden'){_editDirty=true;_editSeenAt=Date.now();}
+},true);
 function editingNow(){
-  if($('payOverlay').classList.contains('open'))return true;
-  const ae=document.activeElement;
-  if(ae&&ae.closest&&ae.closest('tr.detail'))return true;
-  for(const el of document.querySelectorAll('tr.detail textarea, tr.detail input')){
-    if(el.type==='hidden')continue;   /* v21.4 隐藏字段（如服务项 unit 常量）不代表用户在编辑，否则会永久挂起远端同步 */
-    if(el.type==='checkbox'){if(el.checked)return true;continue;}
-    if((el.value||'')!==(el.dataset.init||''))return true;
+  const now=Date.now();
+  if(now-_editCacheAt<400)return _editCache;   /* 微缓存：同一秒内多个定时器不重复计算 */
+  let r=false;
+  if($('payOverlay')&&$('payOverlay').classList.contains('open'))r=true;
+  else{
+    const ae=document.activeElement;
+    if(ae&&ae.closest&&ae.closest('tr.detail')&&ae.type!=='hidden')r=true;
+    /* 用户确实改过内容且仍在 90 秒内，视为编辑中；详情关闭时 _editDirty 会被清除 */
+    else if(_editDirty&&(now-_editSeenAt)<90000&&document.querySelector('tr.detail'))r=true;
   }
-  return false;
+  _editCache=r;_editCacheAt=now;
+  return r;
 }
+function editClearDirty(){_editDirty=false;_editCache=false;_editCacheAt=0;}
 async function pullLatest(showToast){
   if(USE_CLOUD)return; /* 云端为实时推送，无需轮询 */
   if(!hasStore()&&!hasLS)return;
@@ -3128,7 +3152,15 @@ function apCloudStart(){
     apApplyRemote(s);
   },function(err){cloudFail(err);});
 }
-setInterval(function(){if(_apPendingRemote&&!editingNow()){const s=_apPendingRemote;_apPendingRemote=null;apApplyRemote(s);}},2000);
+let _apPendingRemoteAt=0;
+setInterval(function(){
+  if(!_apPendingRemote)return;
+  if(!_apPendingRemoteAt)_apPendingRemoteAt=Date.now();
+  /* v22.4 挂起上限 20 秒：编辑态误判或长时间编辑不得让远端数据无限累积 */
+  if(!editingNow()||Date.now()-_apPendingRemoteAt>20000){
+    const s=_apPendingRemote;_apPendingRemote=null;_apPendingRemoteAt=0;apApplyRemote(s);
+  }
+},2000);
 
 /* ---- 状态计算 ---- */
 function apPaid(it){return apPaidSum(it);} /* 统一走 apPayList 单一真源 */
@@ -3618,7 +3650,7 @@ function renderAP(){
       const qp=tr.querySelector('.qa-pay');if(qp)qp.onclick=e=>{e.stopPropagation();apOpenPay(it);};
       const qd=tr.querySelector('.qa-dl');if(qd)qd.onclick=e=>{e.stopPropagation();apDownload((it.files||[])[0]);};
     }
-    tr.onclick=()=>{if(hasSel())return;apOpenId=apOpenId===it.id?null:it.id;if(apOpenId)seenMark(apOpenId);renderAP();};
+    tr.onclick=()=>{if(hasSel())return;apOpenId=apOpenId===it.id?null:it.id;editClearDirty();if(apOpenId)seenMark(apOpenId);renderAP();};
     tb.appendChild(tr);
     if(apOpenId===it.id){
       seenMark(it.id);
@@ -5202,7 +5234,15 @@ function ordCloudStart(){
     ordApplyRemote(s);
   },function(err){cloudFail(err);});
 }
-setInterval(function(){if(_ordPendingRemote&&!editingNow()){const s=_ordPendingRemote;_ordPendingRemote=null;ordApplyRemote(s);}},2000);
+let _ordPendingRemoteAt=0;
+setInterval(function(){
+  if(!_ordPendingRemote)return;
+  if(!_ordPendingRemoteAt)_ordPendingRemoteAt=Date.now();
+  /* v22.4 挂起上限 20 秒：编辑态误判或长时间编辑不得让远端数据无限累积 */
+  if(!editingNow()||Date.now()-_ordPendingRemoteAt>20000){
+    const s=_ordPendingRemote;_ordPendingRemote=null;_ordPendingRemoteAt=0;ordApplyRemote(s);
+  }
+},2000);
 
 /* ---- 主数据（客户/供应商/服务项目库）---- */
 function normName(n){return String(n||'').replace(/\s+/g,' ').trim().toLowerCase();}
@@ -5803,7 +5843,7 @@ function renderORD(){
       '<td>'+(un?'<span class="cmt-new">'+un+' 条新消息</span>':'<span class="cmt-count'+((o.comments||[]).length?' has':'')+'">'+ic('chat','ic-sm')+' '+(o.comments||[]).length+'</span>')+'</td>';
     tr.querySelectorAll('.lk2-ari').forEach(el=>{el.onclick=e=>{e.stopPropagation();switchMod('tabAR');arSub('ari');setTimeout(()=>{$('ariFSearch').value=o.orderNo;$('ariFSearch').dispatchEvent(new Event('input'));const fm=$('ariFMonth');fm.value='';fm.dispatchEvent(new Event('change'));},120);};});
     tr.querySelectorAll('.lk2-ap').forEach(el=>{el.onclick=e=>{e.stopPropagation();switchMod('tabAP');setTimeout(()=>{$('apFSearch').value=o.orderNo;$('apFSearch').dispatchEvent(new Event('input'));const fm=$('apFMonth');fm.value='';fm.dispatchEvent(new Event('change'));},120);};});
-    tr.onclick=()=>{if(hasSel())return;ordOpenId=ordOpenId===o.id?null:o.id;if(ordOpenId)seenMark(ordOpenId);renderORD();};
+    tr.onclick=()=>{if(hasSel())return;ordOpenId=ordOpenId===o.id?null:o.id;editClearDirty();if(ordOpenId)seenMark(ordOpenId);renderORD();};
     tb.appendChild(tr);
     if(ordOpenId===o.id){
       seenMark(o.id);
@@ -5971,6 +6011,10 @@ function ordDetail(o){
         row.appendChild(mk('<span class="badge" style="background:var(--info-bg);color:var(--info);font-size:10px;padding:1px 5px">代垫</span>',40));
       }else row.appendChild(mk('',40));
       row.appendChild(mk('<span style="color:var(--ink-soft)">VAT '+(s.vat!=null?s.vat:19)+'%</span>',56));
+      /* v22.4 费率项显式标注，避免与折扣混淆 */
+      if(s.pm==='rate')row.appendChild(mk('<span style="color:var(--brass);font-size:11px">费率 '+(s.rate||0)+'%</span>',62));
+      else if(s.disc)row.appendChild(mk('<span style="color:var(--ink-soft);font-size:11px">折扣 '+s.disc+'%</span>',62));
+      else row.appendChild(mk('',62));
       row.appendChild(mk(s.disc?(s.disc>0?'<span style="color:var(--warn)">-'+s.disc+'%</span>':'<span style="color:var(--ok)">+'+Math.abs(s.disc)+'%</span>'):'',44));
       row.appendChild(mk(s.price!=null?'<b>'+fmt(amt)+'</b>'+((s.cur&&s.cur!=='EUR')?' <span style="font-size:10.5px;color:var(--ink-soft)">'+esc(s.cur)+'</span>':''):'',84));
       const spx=document.createElement('span');spx.style.flex='1';row.appendChild(spx);
@@ -5979,7 +6023,12 @@ function ordDetail(o){
         ed.title='载入下方编辑行修改';
         ed.onclick=e=>{e.stopPropagation();
           iName.value=s.name;iQty.value=s.qty||1;iUnit.value=s.unit||'unit';
-          iPrice.value=s.price!=null?s.price:'';iVat.value=String(s.vat!=null?s.vat:19);iDisc.value=s.disc||0;iCur.value=s.cur||'EUR';
+          iPrice.value=s.price!=null?s.price:'';iVat.value=String(s.vat!=null?s.vat:19);iCur.value=s.cur||'EUR';
+          /* v22.4 按模式回填百分比 */
+          {const pm=(s.pm==='rate')?'rate':'disc';
+           const el=document.querySelector('#ordBody tr.detail select[title^="折扣："]');
+           if(el)el.value=pm;
+           iDisc.value=(pm==='rate')?(s.rate||0):(s.disc||0);}
           _svcEditSid=s.sid;bAdd.textContent='💾 保存修改';iName.focus();};
         row.appendChild(ed);
         const del=document.createElement('button');del.className='btn-sm danger';del.style.cssText='padding:1px 8px;font-size:11px';del.textContent='✕';
@@ -6056,11 +6105,20 @@ function ordDetail(o){
       iCur=document.createElement('select');iCur.style.cssText=st+';width:64px';
       for(const c of ['EUR','USD','GBP','CNY']){const op=document.createElement('option');op.value=c;op.textContent=c;iCur.appendChild(op);}
       iCur.title='币种 Currency';
-      iDisc=document.createElement('input');iDisc.type='number';iDisc.step='1';iDisc.min='-100';iDisc.max='100';iDisc.value='0';iDisc.placeholder='0';iDisc.title='折扣填正数（如 5=-5%）· 附加费填负数（如燃油附加 21% 填 -21 → 金额×1.21）';iDisc.style.cssText=st+';width:52px';
+      /* v22.4 百分比双模式：折扣 / 费率（燃油附加等按基数取百分比） */
+      const iPm=document.createElement('select');
+      for(const o of [['disc','折扣'],['rate','费率']]){const op=document.createElement('option');op.value=o[0];op.textContent=o[1];iPm.appendChild(op);}
+      iPm.title='折扣：按此比例减价　费率：按基数取此比例（如燃油附加 6%）';
+      iPm.style.cssText='border:1.5px solid var(--line);border-radius:8px;padding:5px 4px;font-size:12px;width:60px';
+      iDisc=document.createElement('input');iDisc.type='number';iDisc.step='0.01';iDisc.min='-100';iDisc.max='100';iDisc.value='0';iDisc.placeholder='0';iDisc.title='折扣填正数（如 5=-5%）· 附加费填负数（如燃油附加 21% 填 -21 → 金额×1.21）';iDisc.style.cssText=st+';width:52px';
       const discL=document.createElement('span');discL.textContent='%';discL.style.cssText='font-size:12px;color:var(--ink-soft)';
       const amtL=document.createElement('span');amtL.style.cssText='font-family:var(--font-num);font-weight:700;min-width:76px;text-align:right';amtL.textContent='0,00';
-      const recalc=()=>{const a=Math.round((parseFloat(iQty.value)||1)*(parseFloat(iPrice.value)||0)*(1-(parseFloat(iDisc.value)||0)/100)*100)/100;amtL.textContent=fmt(a);};
+      const recalc=()=>{const _p=parseFloat(iDisc.value)||0;
+        const a=(iPm.value==='rate')
+          ? Math.round((parseFloat(iQty.value)||1)*(parseFloat(iPrice.value)||0)*(_p/100)*100)/100
+          : Math.round((parseFloat(iQty.value)||1)*(parseFloat(iPrice.value)||0)*(1-_p/100)*100)/100;amtL.textContent=fmt(a);};
       for(const el of [iQty,iPrice,iDisc])el.addEventListener('input',recalc);
+      iPm.addEventListener('change',recalc);
       bAdd=document.createElement('button');bAdd.className='btn-sm';
       bAdd.style.cssText='border-color:var(--pine);color:var(--pine);font-weight:700';
       bAdd.textContent='＋ 添加';
@@ -6071,8 +6129,12 @@ function ordDetail(o){
         const item={
           name:lib?lib.name:nm2,en:lib?(lib.en||''):'',qty:Math.max(0.01,parseFloat(iQty.value)||1),unit:iUnit.value,
           price:iPrice.value===''?null:Math.round((parseFloat(iPrice.value)||0)*100)/100,
-          vat:parseFloat(iVat.value)||0,disc:Math.min(100,Math.max(-100,parseFloat(iDisc.value)||0)),cur:iCur.value
+          vat:parseFloat(iVat.value)||0,cur:iCur.value
         };
+        /* v22.4 按模式写入：费率存 rate+pm，折扣存 disc */
+        {const _p=Math.min(100,Math.max(-100,parseFloat(iDisc.value)||0));
+         if(iPm.value==='rate'){item.pm='rate';item.rate=_p;item.disc=0;}
+         else{item.disc=_p;}}
         ordDo(()=>{
           if(_svcEditSid){
             const ex=(o.svc||[]).find(x=>x.sid===_svcEditSid);
@@ -6089,7 +6151,7 @@ function ordDetail(o){
           ordFinStubSyncLines(o);});};
       for(const el of [iName,iQty,iPrice,iDisc]){el.dataset.init=el.value||'';el.onclick=e=>e.stopPropagation();}
       iUnit.onclick=e=>e.stopPropagation();iVat.onclick=e=>e.stopPropagation();
-      addRow.append(iName,iQty,iUnit,iPrice,iCur,iVat,iDisc,discL,amtL,bAdd);
+      addRow.append(iName,iQty,iUnit,iPrice,iCur,iVat,iPm,iDisc,discL,amtL,bAdd);
       addRow.onclick=e=>e.stopPropagation();
       svcBox.appendChild(addRow);
     }
@@ -7263,7 +7325,15 @@ function ariCloudStart(){
     ariApplyRemote(s);
   },function(err){cloudFail(err);});
 }
-setInterval(function(){if(_ariPendingRemote&&!editingNow()){const s=_ariPendingRemote;_ariPendingRemote=null;ariApplyRemote(s);}},2000);
+let _ariPendingRemoteAt=0;
+setInterval(function(){
+  if(!_ariPendingRemote)return;
+  if(!_ariPendingRemoteAt)_ariPendingRemoteAt=Date.now();
+  /* v22.4 挂起上限 20 秒：编辑态误判或长时间编辑不得让远端数据无限累积 */
+  if(!editingNow()||Date.now()-_ariPendingRemoteAt>20000){
+    const s=_ariPendingRemote;_ariPendingRemote=null;_ariPendingRemoteAt=0;ariApplyRemote(s);
+  }
+},2000);
 
 /* ---- 到账匹配 ---- */
 function ariReceipts(inv){
@@ -7495,7 +7565,7 @@ function renderARI(){
       '<td style="font-family:var(--font-num);white-space:nowrap;font-size:12px">'+((x.settledManual&&!ariPayInfo(x).last)?'<span style="color:var(--ink-soft)">手动结清</span>':(esc(ariPayInfo(x).last)||'—'))+'</td>'+
       '<td><span class="badge '+ARI_CLASS[st]+'">'+ARI_LABEL[st]+'</span>'+((x.reopenReq&&!x.cancelledBy)?' <span class="badge cancelled" title="业务申请冲销重开">🔁</span>':'')+'</td>'+
       '<td>'+(un?'<span class="cmt-new">'+un+' 条新消息</span>':'<span class="cmt-count'+((x.comments||[]).length?' has':'')+'">'+ic('chat','ic-sm')+' '+(x.comments||[]).length+'</span>')+'</td>';
-    tr.onclick=()=>{if(hasSel())return;ariOpenId=ariOpenId===x.id?null:x.id;if(ariOpenId)seenMark(ariOpenId);renderARI();};
+    tr.onclick=()=>{if(hasSel())return;ariOpenId=ariOpenId===x.id?null:x.id;editClearDirty();if(ariOpenId)seenMark(ariOpenId);renderARI();};
     tb.appendChild(tr);
     if(ariOpenId===x.id){
       seenMark(x.id);
