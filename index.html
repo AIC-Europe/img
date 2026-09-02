@@ -260,10 +260,10 @@ body.theme-dark .p360-lnk:hover{color:var(--ok)}
 /* v21.0 订单表固定列宽：11 列原先无宽度约束，长客户名换行撑高、金额列反复带 EUR，导致必须横拉。
    固定宽度 + 超长省略（悬停 title 看全），合计约 1120px 一屏放下。 */
 #ordTable{table-layout:fixed;width:100%}
-#ordTable th:nth-child(1),#ordTable td:nth-child(1){width:86px}
+#ordTable th:nth-child(1),#ordTable td:nth-child(1){width:104px}  /* v22.8 完整显示 2026-09-02 */
 #ordTable th:nth-child(2),#ordTable td:nth-child(2){width:104px}
-#ordTable th:nth-child(3),#ordTable td:nth-child(3){width:172px}
-#ordTable th:nth-child(4),#ordTable td:nth-child(4){width:66px}
+#ordTable th:nth-child(3),#ordTable td:nth-child(3){width:158px}
+#ordTable th:nth-child(4),#ordTable td:nth-child(4){width:62px}
 #ordTable th:nth-child(5),#ordTable td:nth-child(5){width:106px}
 #ordTable th:nth-child(6),#ordTable td:nth-child(6){width:112px}
 #ordTable th:nth-child(7),#ordTable td:nth-child(7){width:100px}
@@ -887,7 +887,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <table id="apTable" style="display:none">
         <thead>
           <tr>
-            <th style="width:26px"></th><th class="th-sort" id="apThDate"><span>发票日期</span><span class="sort-ind" id="apSortInd">▼</span></th><th>供应商</th><th>发票号</th><th>IMG 成单号</th><th class="amount th-sort" id="apThAmt"><span>金额</span><span class="sort-ind" id="apIndAmt"></span></th>
+            <th style="width:26px"></th><th class="th-sort" id="apThEntry"><span>录入日期</span><span class="sort-ind" id="apIndEntry"></span></th><th class="th-sort" id="apThDate"><span>发票日期</span><span class="sort-ind" id="apSortInd">▼</span></th><th>供应商</th><th>发票号</th><th>IMG 成单号</th><th class="amount th-sort" id="apThAmt"><span>金额</span><span class="sort-ind" id="apIndAmt"></span></th>
             <th class="th-sort" id="apThDue"><span>到期日</span><span class="sort-ind" id="apIndDue"></span></th><th class="amount th-sort" id="apThPaid"><span>已付</span><span class="sort-ind" id="apIndPaid"></span></th><th>付款日期</th><th>状态</th>
           </tr>
         </thead>
@@ -898,7 +898,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v22.7</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v22.8</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -3369,6 +3369,10 @@ async function apHandleUpload(file,attachTo,extra){
           ok=true;break;
         }catch(e){
           lastErr=e;
+          /* v22.7.1 仅网络类失败才值得重试；权限拒绝/配额/文件过大属确定性错误，
+             重试无意义且会让用户白等 6 秒才看到提示。 */
+          const em=(e&&e.message)||'';
+          if(!/network|timeout|offline|超时|网络/i.test(em))break;
           if(attempt<3)await new Promise(function(r){setTimeout(r,2000);});
         }
       }
@@ -3376,6 +3380,18 @@ async function apHandleUpload(file,attachTo,extra){
         /* v22.7 弱网兜底（Teri 换机后仍超时）：附件传不上不应阻断整条录入。
            询问是否「先录入、附件稍后补传」，选是则标记 pendingFile 继续保存发票信息。 */
         const msg=(lastErr&&lastErr.message)||'网络异常';
+        /* v22.7.1 仅网络类失败才提供「稍后补传」；权限/配额/文件过大等属配置问题，
+           必须直接报错让管理员处理，不能被兜底流程掩盖。 */
+        if(!/network|timeout|offline|超时|网络/i.test(msg)){
+          apUploadFail(lastErr||new Error('上传失败'));return false;
+        }
+        /* v22.7.1 先恢复按钮与提示区，避免用户在对话框前后看到「上传中…」的假死状态
+           （Teri 反馈的「卡住」正源于此：超时后界面无任何变化） */
+        try{
+          const b=$('apUpSave'); if(b){b.disabled=false;b.textContent='上传';}
+          if(typeof apUpStatus==='function')apUpStatus('⚠ 附件上传失败：'+msg);
+        }catch(_){}
+        toast('附件上传失败：'+msg);
         const goOn=confirm('附件上传失败（'+msg+'）。\n\n是否先保存发票信息，附件稍后再补传？\n\n' +
                            '选「确定」：立即录入，该单标记「附件待补」，网络好转后可再次上传。\n' +
                            '选「取消」：放弃本次录入。');
@@ -3444,6 +3460,7 @@ function apFiltered(){
       const dir=apSortDir==='desc'?1:-1; /* v17.3 C2 多列排序 */
       if(apSortKey==='amount'){const va=Number(a.amount)||0,vb=Number(b.amount)||0;if(va!==vb)return (vb-va)*dir;}
       else if(apSortKey==='paid'){const va=apPaid(a),vb=apPaid(b);if(va!==vb)return (vb-va)*dir;}
+      else if(apSortKey==='entry'){const va=apEntryDate(a)||'',vb=apEntryDate(b)||'';if(va!==vb)return (va&&vb?(vb<va?1:-1):(va?-1:1))*(dir===1?1:-1);}   /* v22.8 按录入日期排序 */
       else if(apSortKey==='due'){const va=a.due||'',vb=b.due||'';if(va!==vb)return (va&&vb?(vb<va?1:-1):(va?-1:1))*(dir===1?1:-1)*-1;}
       const da=a.invDate||'',db=b.invDate||'';
       if(da!==db)return (db<da?-1:1)*dir;
@@ -3642,7 +3659,7 @@ function renderAP(){
   $('apTable').style.display=list.length?'':'none';
   $('apEmpty').style.display=list.length?'none':'';
   tb.innerHTML='';
-  for(const it of renderCap(list,tb,10)){
+  for(const it of renderCap(list,tb,11)){   /* v22.8 */
     const s=apState(it), paid=apPaid(it), amt=Number(it.amount)||0;
     const dl=apDaysLeft(it), un=unreadCount(it);
     const tr=document.createElement('tr');
@@ -3658,7 +3675,9 @@ function renderAP(){
     }
     tr.innerHTML=
       (session.role==='finance'?'<td style="text-align:center">'+((it.amount&&apState(it)!=='paid')?'<input type="checkbox" class="ap-bulk-chk" data-id="'+it.id+'"'+(_bulkSel.has(it.id)?' checked':'')+' style="accent-color:var(--pine);width:15px;height:15px">':'')+'</td>':'<td></td>')+
-      '<td style="font-family:var(--font-num);white-space:nowrap" title="'+esc('录入日期 '+(apEntryDate(it)||'—'))+'">'+esc(it.invDate||'—')+(apEntryDate(it)?'<div style="font-size:10.5px;color:var(--ink-soft);font-weight:400">录 '+esc(apEntryDate(it))+'</div>':'')+'</td>'+
+      /* v22.8 拆列：录入日期与发票日期各占一列，均可排序（原先挤在同一格、小字难读） */
+      '<td style="font-family:var(--font-num);white-space:nowrap">'+esc(apEntryDate(it)||'—')+'</td>'+
+      '<td style="font-family:var(--font-num);white-space:nowrap">'+esc(it.invDate||'—')+'</td>'+
       '<td><b class="p360-lnk" data-kind="sup" data-name="'+esc(it.supplier||'')+'">'+esc(it.supplier||'（待录入）')+'</b></td>'+
       '<td style="font-family:var(--font-num);white-space:nowrap">'+esc(it.invNo||'—')+((it.files||[]).length?' <span title="'+((it.files||[]).length)+' 个附件" style="font-size:11px;color:var(--ink-soft)">'+ic('clip','ic-sm')+((it.files||[]).length>1?' '+(it.files||[]).length:'')+'</span>':'')+'</td>'+
       '<td style="font-family:var(--font-num)">'+esc(it.orderNo||'—')+'</td>'+
@@ -3682,7 +3701,7 @@ function renderAP(){
     if(apOpenId===it.id){
       seenMark(it.id);
       const dtr=document.createElement('tr');dtr.className='detail';
-      const td=document.createElement('td');td.colSpan=10;
+      const td=document.createElement('td');td.colSpan=11;   /* v22.8 拆出录入日期列 */
       td.appendChild(apDetail(it));
       dtr.appendChild(td);tb.appendChild(dtr);
     }
@@ -8649,10 +8668,11 @@ document.addEventListener('keydown',function(e){
 function sortInd(prefix,key,dir,map){ /* v17.3 C2 指示符归一 */
   for(const k in map){const el=$(map[k]);if(el)el.textContent=(k===key)?(dir==='desc'?'▼':'▲'):'';}
 }
-const AP_IND={date:'apSortInd',amount:'apIndAmt',due:'apIndDue',paid:'apIndPaid'};
+const AP_IND={entry:'apIndEntry',date:'apSortInd',amount:'apIndAmt',due:'apIndDue',paid:'apIndPaid'};   /* v22.8 录入日期可排序 */
 const ARI_IND={date:'ariSortInd',gross:'ariIndGross',due:'ariIndDue',rest:'ariIndRest'};
 function apSortBy(key){apSortDir=(apSortKey===key&&apSortDir==='desc')?'asc':'desc';apSortKey=key;sortInd('ap',key,apSortDir,AP_IND);renderAP();}
 function ariSortBy(key){ariSortDir=(ariSortKey===key&&ariSortDir==='desc')?'asc':'desc';ariSortKey=key;sortInd('ari',key,ariSortDir,ARI_IND);renderARI();}
+$('apThEntry').onclick=()=>apSortBy('entry');   /* v22.8 */
 $('apThDate').onclick=()=>apSortBy('date');
 $('apThAmt').onclick=()=>apSortBy('amount');
 $('apThDue').onclick=()=>apSortBy('due');
