@@ -898,7 +898,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v22.8</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v23.0</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1589,10 +1589,16 @@ function cloudPush(){
   if(_cloudPushT)clearTimeout(_cloudPushT);
   _cloudPushT=setTimeout(function(){
     try{
-      const payload={json:JSON.stringify(payments),_at:Date.now(),_by:(session&&session.name)||'unknown',_client:CLOUD_CLIENT_ID};
-      CLOUD_LAST_AT=payload._at;
-      rtdb.ref(CLOUD_PATH).set(payload)
-        .then(function(){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();})
+      /* v23.0 到账台账原本直接 set() 整体覆写、且保存前不合并远端 —— 四个台账里风险最高。
+         改为与其余三个一致：优先事务（原子读改写），失败才回退覆写。 */
+      CLOUD_LAST_AT=Date.now();
+      cloudTxWrite(CLOUD_PATH,mergeRemote,function(){return JSON.stringify(payments);})
+        .then(function(okTx){
+          if(okTx===true){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();return;}
+          const payload={json:JSON.stringify(payments),_at:Date.now(),_by:(session&&session.name)||'unknown',_client:CLOUD_CLIENT_ID};
+          return rtdb.ref(CLOUD_PATH).set(payload)
+            .then(function(){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();});
+        })
         .catch(function(e){console.warn('cloud push:',e.message);cloudFail(e);});
     }catch(e){console.error('cloudPush:',e);cloudFail(e);}
   },400);
@@ -3058,19 +3064,14 @@ async function apSave(){
   if(roGuard())return false; /* v18.4 #3 */
   try{
     /* 保存前合并远端，避免覆盖他人操作 */
-    try{
-      const r=await store.get(AP_KEY);
-      if(r&&r.value)apMergeRemote(JSON.parse(r.value));
-    }catch(e){}
-    if(USE_CLOUD&&rtdb){
-      try{const s=await rtdb.ref(AP_PATH).once('value');const v=s.val();if(v&&v.json)apMergeRemote(JSON.parse(v.json));}catch(e){}
-    }
+    const _merged=await cloudReadMerge(AP_PATH,AP_KEY,apMergeRemote);   /* v23.0 */
     const j=JSON.stringify(apItems);
     await store.set(AP_KEY,j);
     _apLastJson=j;
     /* 云端立即写入一次（不走防抖），确保保存结果可靠 */
     if(USE_CLOUD&&rtdb){
       const okTx=await cloudTxWrite(AP_PATH,apMergeRemote,()=>JSON.stringify(apItems)); /* v18.9 */
+      cloudWriteGuard(okTx,_merged,'应付');   /* v23.0 */
       if(okTx!==true)await rtdb.ref(AP_PATH).set({json:JSON.stringify(apItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});
       _apLastJson=JSON.stringify(apItems);
       await store.set(AP_KEY,_apLastJson);
@@ -5242,18 +5243,50 @@ function ordMergeRemote(remote){
     }
   }
 }
+/* ── v23.0 数据丢失根治（IMG260917 事故）──
+   事故机制：保存流程为「① 读云端并合并 → ② 事务写入 → ③ 事务失败则 set() 整体覆写」。
+   ① 的异常被空 catch 吞掉后仍继续执行，一旦网络抖动读取失败，本地内存里就缺少
+   他人刚创建的记录；③ 的整体覆写随即把那些记录从云端抹掉，且全程不报错。
+   2026-09-03 IMG260917 即因此消失（09:08 尚在，09:18 已无）。
+   修复原则：**读不到云端就绝不允许整体覆写** —— 宁可保存失败让用户重试，也不静默丢数据。
+   事务写入本身是原子读改写，安全，保留。 */
+function cloudReadMerge(path,key,mergeFn){
+  /* 返回 {ok:合并是否可信} —— 本地与云端任一读取失败都视为不可信 */
+  return (async function(){
+    let ok=true;
+    try{const r=await store.get(key);if(r&&r.value)mergeFn(JSON.parse(r.value));}
+    catch(e){ok=false;console.error('preSave local read:',e&&e.message);}
+    if(USE_CLOUD&&rtdb){
+      try{
+        const s=await Promise.race([
+          rtdb.ref(path).once('value'),
+          new Promise(function(_,rej){setTimeout(function(){rej(new Error('read-timeout'));},12000);})
+        ]);
+        const v=s.val();
+        if(v&&v.json)mergeFn(JSON.parse(v.json));
+      }catch(e){ok=false;console.error('preSave cloud read:',e&&e.message);}
+    }
+    return ok;
+  })();
+}
+function cloudWriteGuard(okTx,merged,label){
+  /* 事务成功即可；事务失败时，只有在合并可信的前提下才允许整体覆写 */
+  if(okTx===true)return true;
+  if(!merged){
+    throw new Error('网络不稳定，未能读取云端最新数据；为避免覆盖他人记录已中止保存，请稍后重试。');
+  }
+  return false;   /* 允许调用方走 set() 覆写 */
+}
 async function ordSave(){
   if(roGuard())return false; /* v18.4 #3 */
   try{
-    try{const r=await store.get(ORD_KEY);if(r&&r.value)ordMergeRemote(JSON.parse(r.value));}catch(e){}
-    if(USE_CLOUD&&rtdb){
-      try{const s=await rtdb.ref(ORD_PATH).once('value');const v=s.val();if(v&&v.json)ordMergeRemote(JSON.parse(v.json));}catch(e){}
-    }
+    const _merged=await cloudReadMerge(ORD_PATH,ORD_KEY,ordMergeRemote);   /* v23.0 */
     const j=JSON.stringify(ordItems);
     await store.set(ORD_KEY,j);
     _ordLastJson=j;
     if(USE_CLOUD&&rtdb){
       const okTx=await cloudTxWrite(ORD_PATH,ordMergeRemote,()=>JSON.stringify(ordItems)); /* v18.9 */
+      cloudWriteGuard(okTx,_merged,'订单');   /* v23.0 读取不可信时抛错中止，绝不覆写 */
       if(okTx!==true)await rtdb.ref(ORD_PATH).set({json:JSON.stringify(ordItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});
       _ordLastJson=JSON.stringify(ordItems);
       await store.set(ORD_KEY,_ordLastJson);
@@ -5438,14 +5471,26 @@ function metaMerge(remote){
 }
 async function metaSave(){
   try{
+    /* v23.0 基础资料同样加固：原先读取失败被空 catch 吞掉、且无条件 set() 整体覆写、
+       连事务都没有 —— 四个台账里保护最弱。客户/供应商档案被覆盖丢失的风险与订单同源。 */
+    let _merged=true;
     if(USE_CLOUD&&rtdb){
-      try{const s=await rtdb.ref(META_PATH).once('value');const v=s.val();if(v&&v.json)metaMerge(JSON.parse(v.json));}catch(e){}
+      try{
+        const s=await Promise.race([
+          rtdb.ref(META_PATH).once('value'),
+          new Promise(function(_,rej){setTimeout(function(){rej(new Error('read-timeout'));},12000);})
+        ]);
+        const v=s.val();
+        if(v&&v.json)metaMerge(JSON.parse(v.json));
+      }catch(e){_merged=false;console.error('metaSave preRead:',e&&e.message);}
     }
     svcLibEnsure(meta);
     const j=JSON.stringify(meta);
     await store.set(META_KEY,j);
     if(USE_CLOUD&&rtdb){
-      await rtdb.ref(META_PATH).set({json:j,_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});
+      const okTx=await cloudTxWrite(META_PATH,metaMerge,function(){return JSON.stringify(meta);});
+      cloudWriteGuard(okTx,_merged,'基础资料');
+      if(okTx!==true)await rtdb.ref(META_PATH).set({json:JSON.stringify(meta),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});
     }
     return true;
   }catch(e){throw e;}
@@ -7380,13 +7425,11 @@ async function ariSaveAll(){
   if(roGuard())return false; /* v18.4 #3 */
   try{alcInvalidate();}catch(e){} /* v17.8 */
   try{
-    try{const r=await store.get(ARI_KEY);if(r&&r.value)ariMerge(JSON.parse(r.value));}catch(e){}
-    if(USE_CLOUD&&rtdb){
-      try{const s=await rtdb.ref(ARI_PATH).once('value');const v=s.val();if(v&&v.json)ariMerge(JSON.parse(v.json));}catch(e){}
-    }
+    const _merged=await cloudReadMerge(ARI_PATH,ARI_KEY,ariMerge);   /* v23.0 */
     await store.set(ARI_KEY,JSON.stringify(ariItems));
     if(USE_CLOUD&&rtdb){
       const okTx=await cloudTxWrite(ARI_PATH,ariMerge,()=>JSON.stringify(ariItems)); /* v18.9 */
+      cloudWriteGuard(okTx,_merged,'应收');   /* v23.0 */
       if(okTx!==true)await rtdb.ref(ARI_PATH).set({json:JSON.stringify(ariItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});
       await store.set(ARI_KEY,JSON.stringify(ariItems));
     }
