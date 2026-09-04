@@ -898,7 +898,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v23.0</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v23.2</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1536,7 +1536,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=14.8; /* 与页脚版本号保持一致 */
+const APP_VERSION=23.2; /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -5556,7 +5556,7 @@ function ordCost(o){
     return {v:null,cur:'混合',src:'ap'};
   }
   const q=ordSelQuote(o);
-  if(q)return {v:Number(q.price)||0,cur:q.cur||'EUR',src:'quote'};
+  if(q)return {v:(q.price===null||q.price===undefined)?null:(Number(q.price)||0),cur:q.cur||'EUR',src:'quote'}; /* v23.1 待报价成本记null */
   return {v:null,cur:'',src:''};
 }
 function ordProfit(o){
@@ -5982,6 +5982,8 @@ function ordCmt(o,text,author){
 }
 function bizName(){return session.role==='business'?(myNameGet()||session.name):session.name;}
 
+/* v23.2 派送费识别：正式成单强制收发货地址（Emma 需求） */
+function svcIsDelivery(name,en){return String(name||'').includes('派送费')||String(en||'').trim().toLowerCase()==='delivery';}
 function ordDetail(o){
   const wrap=document.createElement('div');wrap.className='detail-grid';
   const left=document.createElement('div');left.className='d-info';
@@ -6145,7 +6147,9 @@ function ordDetail(o){
            const el=document.querySelector('#ordBody tr.detail select[title^="折扣："]');
            if(el)el.value=pm;
            iDisc.value=(pm==='rate')?(s.rate||0):(s.disc||0);}
-          _svcEditSid=s.sid;bAdd.textContent='💾 保存修改';iName.focus();};
+          _svcEditSid=s.sid;bAdd.textContent='💾 保存修改';
+          if(iAF){iAF.value=s.addrFrom||'';iAT.value=s.addrTo||'';addrRowSync();}
+          iName.focus();};
         row.appendChild(ed);
         const del=document.createElement('button');del.className='btn-sm danger';del.style.cssText='padding:1px 8px;font-size:11px';del.textContent='✕';
         del.onclick=e=>{e.stopPropagation();
@@ -6158,6 +6162,17 @@ function ordDetail(o){
         row.appendChild(del);
       }
       svcBox.appendChild(row);
+      /* v23.2 派送费收发货地址子行；正式成单缺地址红色警示（询价转成单等历史线补填口） */
+      if(svcIsDelivery(s.name,s.en)){
+        const sub=document.createElement('div');
+        sub.style.cssText='margin:-2px 0 6px 26px;font-size:11.5px;color:var(--ink-soft)';
+        if(s.addrFrom||s.addrTo){
+          sub.innerHTML='📍 发 '+esc(s.addrFrom||'—')+' → 收 '+esc(s.addrTo||'—')+((o.type!=='inq'&&(!s.addrFrom||!s.addrTo))?' <span style="color:var(--bad);font-weight:700">⚠ 缺收发货地址</span>':'');
+        }else if(o.type!=='inq'){
+          sub.innerHTML='<span style="color:var(--bad);font-weight:700" title="点右侧✏载入编辑行补填">⚠ 缺收发货地址</span>';
+        }
+        if(sub.innerHTML)svcBox.appendChild(sub);
+      }
     }
     if(netSum||true){
       const sums={},ptSums={};
@@ -6196,7 +6211,7 @@ function ordDetail(o){
     }
     /* sevdesk 式添加/编辑行 */
     var _svcEditSid=null;
-    var iName,iQty,iUnit,iPrice,iVat,iDisc,iCur,bAdd;
+    var iName,iQty,iUnit,iPrice,iVat,iDisc,iCur,bAdd,iAF,iAT,addrRowSync=function(){};
     if(canOp){
       metaGuard();
       let dl=document.getElementById('svcLibDL');
@@ -6242,6 +6257,9 @@ function ordDetail(o){
         const nm2=iName.value.trim();
         if(!nm2){toast('请填写服务项名称');return;}
         const lib=meta.svcLib.find(x=>x.name===nm2||(x.en&&x.en.toLowerCase()===nm2.toLowerCase()));
+        /* v23.2 正式成单派送费强制收发货地址（询价单不强制，转成单后补填口在✏） */
+        const _isDel=svcIsDelivery(lib?lib.name:nm2,lib?(lib.en||''):'');
+        if(_isDel&&o.type!=='inq'&&(!iAF.value.trim()||!iAT.value.trim())){addrRowSync();toast('派送费须填写收发货地址（发货与收货地址均必填）');return;}
         const item={
           name:lib?lib.name:nm2,en:lib?(lib.en||''):'',qty:Math.max(0.01,parseFloat(iQty.value)||1),unit:iUnit.value,
           price:iPrice.value===''?null:Math.round((parseFloat(iPrice.value)||0)*100)/100,
@@ -6251,6 +6269,8 @@ function ordDetail(o){
         {const _p=Math.min(100,Math.max(-100,parseFloat(iDisc.value)||0));
          if(iPm.value==='rate'){item.pm='rate';item.rate=_p;item.disc=0;}
          else{item.disc=_p;}}
+        item.addrFrom=_isDel?(iAF.value.trim()||undefined):undefined;
+        item.addrTo=_isDel?(iAT.value.trim()||undefined):undefined;
         ordDo(()=>{
           if(_svcEditSid){
             const ex=(o.svc||[]).find(x=>x.sid===_svcEditSid);
@@ -6270,6 +6290,22 @@ function ordDetail(o){
       addRow.append(iName,iQty,iUnit,iPrice,iCur,iVat,iPm,iDisc,discL,amtL,bAdd);
       addRow.onclick=e=>e.stopPropagation();
       svcBox.appendChild(addRow);
+      /* v23.2 派送费地址行：正式成单必填，询价单不强制 */
+      const addrRow=document.createElement('div');
+      addrRow.style.cssText='display:none;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center';
+      iAF=document.createElement('input');iAF.placeholder='发货地址 / Pickup address';iAF.style.cssText=st+';flex:1;min-width:180px';
+      iAT=document.createElement('input');iAT.placeholder='收货地址 / Delivery address';iAT.style.cssText=st+';flex:1;min-width:180px';
+      const addrHint=document.createElement('span');addrHint.textContent='📍 派送费须填写收发货地址';addrHint.style.cssText='font-size:11px;color:var(--brass);width:100%';
+      for(const el of [iAF,iAT]){el.dataset.init='';el.onclick=e=>e.stopPropagation();}
+      addrRow.append(addrHint,iAF,iAT);
+      addrRow.onclick=e=>e.stopPropagation();
+      addrRowSync=function(){
+        const nmX=iName.value.trim();
+        const libX=meta.svcLib.find(x=>x.name===nmX||(x.en&&x.en.toLowerCase()===nmX.toLowerCase()));
+        addrRow.style.display=(svcIsDelivery(libX?libX.name:nmX,libX?(libX.en||''):'')&&o.type!=='inq')?'flex':'none';
+      };
+      iName.addEventListener('input',addrRowSync);
+      svcBox.appendChild(addrRow);
     }
     svcBox.onclick=e=>e.stopPropagation();
     left.appendChild(svcBox);
@@ -6279,16 +6315,17 @@ function ordDetail(o){
   if(o.flag!=='cancelled'){
     const qBox=document.createElement('div');
     qBox.style.cssText='margin-top:10px;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--card)';
-    qBox.innerHTML='<div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px">供应商询价比价（'+(o.quotes||[]).length+'）· 选定自动推进「③供应商已确认」</div>';
+    qBox.innerHTML='<div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px">供应商询价比价（'+(o.quotes||[]).length+'）· 金额可留空=待报价 · 选定自动推进「③供应商已确认」</div>';
     for(const qt of (o.quotes||[])){
       const row=document.createElement('div');
+      const qPend=qt.price===null||qt.price===undefined; /* v23.1 待报价（询价已发、金额未回） */
       row.className='q-row'+(o.selectedQuoteId===qt.qid?' sel':'');
-      row.innerHTML='<b>'+esc(qt.supplier)+'</b><span style="font-family:var(--font-num)">'+fmt(qt.price)+' '+esc(qt.cur||'EUR')+'</span>'+
+      row.innerHTML='<b>'+esc(qt.supplier)+'</b>'+(qPend?'<span style="color:var(--ink-soft);font-size:12px;font-style:italic">待报价</span>':'<span style="font-family:var(--font-num)">'+fmt(qt.price)+' '+esc(qt.cur||'EUR')+'</span>')+
         (qt.note?'<span style="color:var(--ink-soft)">'+esc(qt.note)+'</span>':'')+
         (o.selectedQuoteId===qt.qid?'<span style="color:var(--ok);font-weight:700">✓ 已选定</span>':'')+
         '<span style="flex:1"></span>';
       if(canOp&&(o.step||1)<6){
-        if(o.selectedQuoteId!==qt.qid){
+        if(o.selectedQuoteId!==qt.qid&&!qPend){ /* v23.1 待报价不可选定 */
           const sel=document.createElement('button');sel.className='btn-sm';
           sel.style.cssText='border-color:var(--ok);color:var(--ok);padding:2px 10px;font-size:11.5px';
           sel.textContent='✅ 选定';
@@ -6298,15 +6335,42 @@ function ordDetail(o){
               ordCmt(o,'比价后选定供应商：'+qt.supplier+'（'+fmt(qt.price)+' '+(qt.cur||'EUR')+'）。');},'已选定 '+qt.supplier);};
           row.appendChild(sel);
         }
+        /* v23.1 内联编辑：金额/币种/备注（供应商名不可改，防串统计与主数据） */
+        const ed=document.createElement('button');ed.className='btn-sm';
+        ed.style.cssText='padding:2px 8px;font-size:11px';ed.textContent='✎';ed.title='编辑报价金额/币种/备注';
+        ed.onclick=e=>{e.stopPropagation();
+          row.innerHTML='<b>'+esc(qt.supplier)+'</b>';
+          const eP=document.createElement('input');eP.type='number';eP.step='0.01';eP.placeholder='报价';eP.value=qPend?'':qt.price;
+          const eC=document.createElement('select');for(const cc of ['EUR','USD','GBP','CNY']){const op=document.createElement('option');op.textContent=cc;if((qt.cur||'EUR')===cc)op.selected=true;eC.appendChild(op);}
+          const eN=document.createElement('input');eN.placeholder='备注(可选)';eN.value=qt.note||'';
+          for(const el of [eP,eN]){el.style.cssText='border:1.5px solid var(--line);border-radius:8px;padding:4px 8px;font-size:12.5px;width:110px';el.dataset.init=el.value||'';el.onclick=ev=>ev.stopPropagation();}
+          eN.style.width='140px';
+          eC.style.cssText='border:1.5px solid var(--line);border-radius:8px;padding:4px;font-size:12.5px';eC.dataset.init='';eC.onclick=ev=>ev.stopPropagation();
+          const bSv=document.createElement('button');bSv.className='btn-sm';bSv.textContent='保存修改';
+          bSv.onclick=ev=>{ev.stopPropagation();
+            const raw=String(eP.value).trim(), np=raw===''?null:parseFloat(raw);
+            if(raw!==''&&isNaN(np)){toast('报价金额格式不正确');return;}
+            if(np===null&&o.selectedQuoteId===qt.qid){toast('已选定的报价不能改回待报价，请先另选或删除');return;}
+            ordDo(()=>{
+              const oldD=(qt.price===null||qt.price===undefined)?'待报价':fmt(qt.price)+' '+(qt.cur||'EUR');
+              qt.price=np===null?null:Math.round(np*100)/100;qt.cur=eC.value;qt.note=eN.value.trim();
+              const newD=(qt.price===null||qt.price===undefined)?'待报价':fmt(qt.price)+' '+qt.cur;
+              logAdd(o,'修改报价：'+qt.supplier+' '+oldD+' → '+newD);
+            },'报价已更新');};
+          const bCc=document.createElement('button');bCc.className='btn-sm';bCc.textContent='取消';
+          bCc.onclick=ev=>{ev.stopPropagation();renderORD();};
+          row.append(eP,eC,eN,bSv,bCc);
+        };
+        row.appendChild(ed);
         const del=document.createElement('button');del.className='btn-sm danger';
         del.style.cssText='padding:2px 8px;font-size:11px';del.textContent='✕';
         del.onclick=e=>{e.stopPropagation();
-          if(!confirmDelete('报价「'+qt.supplier+' '+fmt(qt.price)+'」'))return;
+          if(!confirmDelete('报价「'+qt.supplier+' '+(qPend?'待报价':fmt(qt.price))+'」'))return;
           ordDo(()=>{
             (o.quoteDeleted=o.quoteDeleted||[]).push(qt.qid);
             o.quotes=o.quotes.filter(x=>x.qid!==qt.qid);
             if(o.selectedQuoteId===qt.qid)o.selectedQuoteId=null;
-            logAdd(o,'删除报价：'+qt.supplier+' '+fmt(qt.price));},'报价已删除');};
+            logAdd(o,'删除报价：'+qt.supplier+' '+(qPend?'待报价':fmt(qt.price)));},'报价已删除');};
         row.appendChild(del);
       }
       qBox.appendChild(row);
@@ -6322,11 +6386,12 @@ function ordDetail(o){
       iC.style.cssText='border:1.5px solid var(--line);border-radius:8px;padding:6px;font-size:12.5px';
       const bAdd=document.createElement('button');bAdd.className='btn-sm';bAdd.textContent='＋ 添加报价';
       bAdd.onclick=e=>{e.stopPropagation();
-        const sup=iS.value.trim(), pr=parseFloat(iP.value);
-        if(!sup||isNaN(pr)){toast('请填写供应商与报价金额');return;}
+        const sup=iS.value.trim(), prRaw=String(iP.value).trim(), pr=prRaw===''?null:parseFloat(prRaw); /* v23.1 金额可留空=待报价 */
+        if(!sup){toast('请填写供应商名称');return;}
+        if(pr!==null&&isNaN(pr)){toast('报价金额格式不正确');return;}
         ordDo(()=>{
-          (o.quotes=o.quotes||[]).push({qid:'q'+Date.now()+Math.random().toString(36).slice(2,5),supplier:sup,price:Math.round(pr*100)/100,cur:iC.value,note:iN.value.trim(),by:bizName(),time:Date.now()});
-          logAdd(o,'添加报价：'+sup+' '+fmt(pr)+' '+iC.value);
+          (o.quotes=o.quotes||[]).push({qid:'q'+Date.now()+Math.random().toString(36).slice(2,5),supplier:sup,price:pr===null?null:Math.round(pr*100)/100,cur:iC.value,note:iN.value.trim(),by:bizName(),time:Date.now()});
+          logAdd(o,'添加报价：'+sup+' '+(pr===null?'待报价':fmt(pr)+' '+iC.value));
           /* 供应商主数据自动收录 */
           if(!meta.suppliers.some(s=>s.name===sup)){
             meta.suppliers.push({id:'su'+Date.now()+Math.random().toString(36).slice(2,5),name:sup,at:Date.now()});
