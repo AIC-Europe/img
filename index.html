@@ -900,7 +900,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v23.8</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v23.9</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1538,7 +1538,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=23.8; /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=23.9; /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2297,6 +2297,17 @@ function buildDetail(p){
     '<dt>付款方式</dt><dd>'+esc(p.method||'—')+'</dd>'+
     '<dt>单号 / 参考</dt><dd style="font-family:var(--font-num)">'+esc(p.ref||'—')+'</dd>'+
     (p.orderNo?'<dt>IMG 成单号</dt><dd style="font-family:var(--font-num)">'+esc(p.orderNo)+'</dd>':'')+
+    (function(){ /* v23.9 匹配诊断显形：有拦截/落空/回退时逐条给原因 */
+      try{ariAllocMap();}catch(e){}
+      const dg=(_alcDiag&&_alcDiag[p.id])||[];
+      if(!dg.length||!dg.some(function(d){return d.st!=='ok';}))return '';
+      const L={nf:'未找到该发票号',cur:'币种不一致',cust:'客户名不一致',stale:'勾选的关联发票已失效，已回退按单号匹配',ok:'已命中'};
+      return '<dt>匹配诊断</dt><dd style="font-size:12px;line-height:1.7">'+dg.map(function(d){
+        var extra=d.st==='cust'?('（发票客户：'+esc(d.v||'')+'）'):d.st==='cur'?('（发票币种 '+esc(d.v||'')+'）'):'';
+        var col=d.st==='ok'?'var(--ok)':'var(--bad)';
+        return '<span style="color:'+col+'">'+(d.st==='ok'?'✓ ':'✗ ')+esc(d.t)+'：'+L[d.st]+extra+'</span>';
+      }).join('<br>')+'</dd>';
+    })()+
     '<dt>业务负责人</dt><dd>'+esc(p.owner||'尚未认领')+'</dd>'+
     '<dt>财务备注</dt><dd>'+esc(p.note||'—')+'</dd>'+
     vHtml+
@@ -4502,12 +4513,13 @@ function apCostRender(){
         const hit=(typeof svcResolve==='function')?svcResolve(iSvc.value):null;
         _apCostLines[idx].svc=hit?hit.name:iSvc.value;
         if(hit&&hit.name!==iSvc.value)iSvc.value=hit.name;
+        apCostAlignHint(idx,row);
         apCostSum();
       };
       const iOrd=document.createElement('input');
       iOrd.setAttribute('list','apCostOrdDL'); iOrd.value=l.ord||''; iOrd.placeholder='IMG 成单号';
       iOrd.style.cssText=st+';flex:1.4;min-width:0';
-      iOrd.oninput=()=>{_apCostLines[idx].ord=iOrd.value.trim();};
+      iOrd.oninput=()=>{_apCostLines[idx].ord=iOrd.value.trim();apCostAlignHint(idx,row);};
       const mkNum=(v,ph,w,on)=>{const i=document.createElement('input');i.type='number';i.step='0.01';i.value=(v==null?'':v);i.placeholder=ph;
         i.style.cssText=st+';width:'+w+'px;text-align:right';i.oninput=()=>on(i.value);return i;};
       const iNet=mkNum(l.net,'0.00',96,v=>{_apCostLines[idx].net=v;apCostRenderGross(idx);apCostSum();});
@@ -4520,6 +4532,7 @@ function apCostRender(){
       bDel.style.cssText='padding:2px 7px;font-size:11px';bDel.textContent='✕';
       bDel.onclick=()=>{_apCostLines.splice(idx,1);apCostRender();apCostSum();};
       row.append(iSvc,iOrd,iNet,iVat,sGross,bDel);
+      apCostAlignHint(idx,row);
       if(pt){
         const tag=document.createElement('span');
         tag.className='badge';tag.style.cssText='background:var(--info-bg);color:var(--info);font-size:10px;padding:1px 5px';
@@ -4536,6 +4549,25 @@ function apCostRender(){
 function apCostRenderGross(idx){
   const rows=$('apCostRows').querySelectorAll('.ap-cost-gross');
   if(rows[idx])rows[idx].textContent=fmt(apCostCalc(_apCostLines[idx]).gross);
+}
+/* v23.9 成本录入防呆：服务项与该 IMG 单收入侧不一致时黄条提示（大表逐行配对依赖同名；Emma 确认"修数+录入防呆"方案） */
+function apCostAlignHint(idx,row){
+  try{
+    const l=_apCostLines[idx];if(!row||!l)return;
+    let tip=row.querySelector('.cost-align-tip');
+    const ord=String(l.ord||'').trim(), svc=String(l.svc||'').trim();
+    let msg='';
+    if(ord&&svc){
+      const o=(typeof ordItems!=='undefined'?ordItems:[]).find(function(x){return !x.deleted&&x.orderNo===ord;});
+      if(o&&(o.svc||[]).length&&!o.svc.some(function(sl){return sl.name===svc;})){
+        msg='⚠ 该单收入侧无「'+svc+'」（收入侧有：'+o.svc.map(function(sl){return sl.name;}).slice(0,4).join('、')+(o.svc.length>4?'…':'')+'），收入成本大表将无法逐行配对';
+      }
+    }
+    if(msg){
+      if(!tip){tip=document.createElement('div');tip.className='cost-align-tip';tip.style.cssText='width:100%;font-size:11px;color:var(--brass)';row.appendChild(tip);}
+      tip.textContent=msg;
+    }else if(tip)tip.remove();
+  }catch(e){}
 }
 function apCostSum(){
   let net=0,vat=0,ptNet=0;
@@ -6485,7 +6517,11 @@ function ordDetail(o){
            if(el)el.value=pm;
            iDisc.value=(pm==='rate')?(s.rate||0):(s.disc||0);}
           _svcEditSid=s.sid;bAdd.textContent='💾 保存修改';
-          if(iAF){iAF.value=s.addrFrom||'';iAT.value=s.addrTo||'';addrRowSync();}
+          if(iAF){iAF.value=s.addrFrom||'';
+            const _t=(s.addrTos&&s.addrTos.length?s.addrTos:(s.addrTo?[s.addrTo]:[]));
+            iAT.value=_t[0]||'';iAT2.value=_t[1]||'';iAT3.value=_t[2]||'';
+            iAT2.style.display=_t.length>1?'':'none';iAT3.style.display=_t.length>2?'':'none';
+            addrRowSync();}
           iName.focus();};
         row.appendChild(ed);
         const del=document.createElement('button');del.className='btn-sm danger';del.style.cssText='padding:1px 8px;font-size:11px';del.textContent='✕';
@@ -6503,8 +6539,10 @@ function ordDetail(o){
       if(svcIsDelivery(s.name,s.en)){
         const sub=document.createElement('div');
         sub.style.cssText='margin:-2px 0 6px 26px;font-size:11.5px;color:var(--ink-soft)';
-        if(s.addrFrom||s.addrTo){
-          sub.innerHTML='📍 发 '+esc(s.addrFrom||'—')+' → 收 '+esc(s.addrTo||'—')+((o.type!=='inq'&&(!s.addrFrom||!s.addrTo))?' <span style="color:var(--bad);font-weight:700">⚠ 缺收发货地址</span>':'');
+        const _tos=(s.addrTos&&s.addrTos.length?s.addrTos:(s.addrTo?[s.addrTo]:[]));
+        if(s.addrFrom||_tos.length){
+          const tosTxt=_tos.length>1?_tos.map(function(a,ix){return '收'+'①②③'[ix]+' '+esc(a);}).join(' ／ '):('收 '+esc(_tos[0]||'—'));
+          sub.innerHTML='📍 发 '+esc(s.addrFrom||'—')+' → '+tosTxt+((o.type!=='inq'&&(!s.addrFrom||!_tos.length))?' <span style="color:var(--bad);font-weight:700">⚠ 缺收发货地址</span>':'');
         }else if(o.type!=='inq'){
           sub.innerHTML='<span style="color:var(--bad);font-weight:700" title="点右侧✏载入编辑行补填">⚠ 缺收发货地址</span>';
         }
@@ -6548,7 +6586,7 @@ function ordDetail(o){
     }
     /* sevdesk 式添加/编辑行 */
     var _svcEditSid=null;
-    var iName,iQty,iUnit,iPrice,iVat,iDisc,iCur,bAdd,iAF,iAT,addrRowSync=function(){};
+    var iName,iQty,iUnit,iPrice,iVat,iDisc,iCur,bAdd,iAF,iAT,iAT2,iAT3,addrRowSync=function(){},addrTosGet=function(){return [];};
     if(canOp){
       metaGuard();
       let dl=document.getElementById('svcLibDL');
@@ -6596,7 +6634,7 @@ function ordDetail(o){
         const lib=meta.svcLib.find(x=>x.name===nm2||(x.en&&x.en.toLowerCase()===nm2.toLowerCase()));
         /* v23.2 正式成单派送费强制收发货地址（询价单不强制，转成单后补填口在✏） */
         const _isDel=svcIsDelivery(lib?lib.name:nm2,lib?(lib.en||''):'');
-        if(_isDel&&o.type!=='inq'&&(!iAF.value.trim()||!iAT.value.trim())){addrRowSync();toast('派送费须填写收发货地址（发货与收货地址均必填）');return;}
+        if(_isDel&&o.type!=='inq'&&(!iAF.value.trim()||addrTosGet().length===0)){addrRowSync();toast('派送费须填写收发货地址（发货地址与至少一个收货地址必填）');return;}
         const item={
           name:lib?lib.name:nm2,en:lib?(lib.en||''):'',qty:Math.max(0.01,parseFloat(iQty.value)||1),unit:iUnit.value,
           price:iPrice.value===''?null:Math.round((parseFloat(iPrice.value)||0)*100)/100,
@@ -6606,8 +6644,10 @@ function ordDetail(o){
         {const _p=Math.min(100,Math.max(-100,parseFloat(iDisc.value)||0));
          if(iPm.value==='rate'){item.pm='rate';item.rate=_p;item.disc=0;}
          else{item.disc=_p;}}
+        const _tos=_isDel?addrTosGet():[];
         item.addrFrom=_isDel?(iAF.value.trim()||undefined):undefined;
-        item.addrTo=_isDel?(iAT.value.trim()||undefined):undefined;
+        item.addrTo=_tos.length?_tos[0]:undefined;
+        item.addrTos=_tos.length>1?_tos:undefined; /* v23.9 多收货地址（最多3；单地址保持旧结构） */
         ordDo(()=>{
           if(_svcEditSid){
             const ex=(o.svc||[]).find(x=>x.sid===_svcEditSid);
@@ -6632,9 +6672,17 @@ function ordDetail(o){
       addrRow.style.cssText='display:none;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center';
       iAF=document.createElement('input');iAF.placeholder='发货地址 / Pickup address';iAF.style.cssText=st+';flex:1;min-width:180px';
       iAT=document.createElement('input');iAT.placeholder='收货地址 / Delivery address';iAT.style.cssText=st+';flex:1;min-width:180px';
-      const addrHint=document.createElement('span');addrHint.textContent='📍 派送费须填写收发货地址';addrHint.style.cssText='font-size:11px;color:var(--brass);width:100%';
-      for(const el of [iAF,iAT]){el.dataset.init='';el.onclick=e=>e.stopPropagation();}
-      addrRow.append(addrHint,iAF,iAT);
+      const addrHint=document.createElement('span');addrHint.textContent='📍 派送费须填写收发货地址（收货地址最多3个）';addrHint.style.cssText='font-size:11px;color:var(--brass);width:100%';
+      iAT2=document.createElement('input');iAT2.placeholder='收货地址②(可选)';iAT2.style.cssText=st+';flex:1;min-width:180px;display:none';
+      iAT3=document.createElement('input');iAT3.placeholder='收货地址③(可选)';iAT3.style.cssText=st+';flex:1;min-width:180px;display:none';
+      const bAddrPlus=document.createElement('button');bAddrPlus.className='btn-sm';bAddrPlus.type='button';bAddrPlus.textContent='＋';bAddrPlus.title='再加一个收货地址（最多3个）';
+      bAddrPlus.onclick=e=>{e.stopPropagation();
+        if(iAT2.style.display==='none')iAT2.style.display='';
+        else if(iAT3.style.display==='none'){iAT3.style.display='';bAddrPlus.style.display='none';}
+      };
+      addrTosGet=function(){return [iAT,iAT2,iAT3].map(function(x){return String(x.value||'').trim();}).filter(Boolean);};
+      for(const el of [iAF,iAT,iAT2,iAT3]){el.dataset.init='';el.onclick=e=>e.stopPropagation();}
+      addrRow.append(addrHint,iAF,iAT,iAT2,iAT3,bAddrPlus);
       addrRow.onclick=e=>e.stopPropagation();
       addrRowSync=function(){
         const nmX=iName.value.trim();
@@ -7890,16 +7938,17 @@ function ariReceipts(inv){
     return false;
   });
 }
-let _alcMap=null,_alcAt=0,_alcBal=null,_alcDetail=null,_alcXref=null;
+let _alcMap=null,_alcAt=0,_alcBal=null,_alcDetail=null,_alcXref=null,_alcDiag=null;
 /* v17.8 B10 根因：微缓存只靠 50ms 自然过期，保存后立刻重绘会读到旧表（发票已核销、到账却显示⚠未核销）→ 任何数据变更显式失效 */
-function alcInvalidate(){_alcMap=null;_alcAt=0;_alcBal=null;_alcDetail=null;_alcXref=null;}
+function alcInvalidate(){_alcMap=null;_alcAt=0;_alcBal=null;_alcDetail=null;_alcXref=null;_alcDiag=null;}
 window.alcInvalidate=alcInvalidate;
 function ariAllocMap(){
   /* v15.7 B6 根治：一笔到账引用多张发票时按瀑布分摊（老票优先、余款挂末张、现金总额守恒），
      单票匹配保持旧语义（全额计入该票，含超额）。50ms 微缓存：同一渲染批次内复用，编辑后自然失效。 */
   const now=Date.now();
   if(_alcMap&&now-_alcAt<50)return _alcMap;
-  const map={},bal={},det={},xref=new Set(); /* v16.9 bal 键=客户@币种；det=回款明细；v17.5 xref=跨客户单号提示 */
+  const map={},bal={},det={},xref=new Set(),diagAll={}; /* v16.9 bal 键=客户@币种；det=回款明细；v17.5 xref=跨客户单号提示；v23.9 diagAll=逐token匹配诊断 */
+  const custNorm=function(x){return String(x||'').replace(/（/g,'(').replace(/）/g,')').replace(/\s+/g,' ').replace(/\s*\(\s*/g,'(').replace(/\s*\)\s*/g,')').trim().toLowerCase();}; /* v23.9 客户名归一化：空格/大小写/全半角括号/括号前后空格差异不再误拦，归一后仍须完全相等（B9防串户保持） */
   const bk=(c,cur)=>c+'@'+(cur||'EUR');
   const rec=(id,amt,date,pid)=>{map[id]=(map[id]||0)+amt;(det[id]=det[id]||[]).push({date:date||'',amount:amt,payId:pid||''});};
   const live=x=>!(x.settledManual||x.storno||x.cancelledBy); /* 这三类 paid 恒等于 gross，不消耗现金 */
@@ -7915,12 +7964,20 @@ function ariAllocMap(){
     const hit=new Map();
     const tokens=String(p.ref||'').split(/[^0-9A-Za-z_-]+/).filter(Boolean);
     /* v17.5 B9 防串户：单号匹配限定同客户；匹到他客户的单号只记提示不核销 */
-    const sameCust=x=>!p.customer||!x.customer||x.customer===p.customer;
-    for(const t of tokens){const x=byNo.get(t);if(!x||x.currency!==p.currency)continue;if(sameCust(x))hit.set(x.id,x);else xref.add(p.id);}
-    if(p.orderNo&&byOrd.has(p.orderNo))for(const x of byOrd.get(p.orderNo)){if(x.currency!==p.currency||!x.invNo)continue;if(sameCust(x))hit.set(x.id,x);else xref.add(p.id);}
+    const sameCust=x=>!p.customer||!x.customer||custNorm(x.customer)===custNorm(p.customer);
+    const diag=[]; /* v23.9 匹配诊断 */
+    for(const t of tokens){
+      const x=byNo.get(t);
+      if(!x){diag.push({t:t,st:'nf'});continue;}
+      if(x.currency!==p.currency){diag.push({t:t,st:'cur',v:x.currency});continue;}
+      if(sameCust(x)){hit.set(x.id,x);diag.push({t:t,st:'ok',v:x.invNo});}
+      else{xref.add(p.id);diag.push({t:t,st:'cust',v:x.customer});}
+    }
+    const ordToks=String(p.orderNo||'').split(/[^0-9A-Za-z_-]+/).filter(Boolean); /* v23.9 成单号字段支持逗号/分号多值 */
+    for(const ot of ordToks){if(!byOrd.has(ot))continue;for(const x of byOrd.get(ot)){if(x.currency!==p.currency||!x.invNo)continue;if(sameCust(x)){hit.set(x.id,x);}else{xref.add(p.id);diag.push({t:ot,st:'cust',v:x.customer});}}}
     /* v16.6 结构化关联优先：勾选过的到账不再走token猜 */
     if(Array.isArray(p.linkIds)&&p.linkIds.length){
-      hit.clear();
+      var _hitTok=new Map(hit);hit.clear();
       /* v17.8 引擎侧校验：B9(v16.6–v17.4) 期间可能写入过他客户的发票 id，历史污染在此自动失效并计入 xref 显形 */
       for(const id of p.linkIds){
         const x=ariItems.find(i=>i.id===id&&!i.deleted);
@@ -7929,6 +7986,10 @@ function ariAllocMap(){
         else xref.add(p.id);
       }
     }
+    if(Array.isArray(p.linkIds)&&p.linkIds.length&&!hit.size&&typeof _hitTok!=='undefined'&&_hitTok&&_hitTok.size){
+      for(const kv of _hitTok)hit.set(kv[0],kv[1]);xref.add(p.id);diag.push({t:'(勾选关联)',st:'stale'}); /* v23.9 勾选发票全部失效→回退单号匹配并显形 */
+    }
+    diagAll[p.id]=diag;
     const M=[...hit.values()];
     /* v16.9 预充值/续抵扣候选池：该客户同币种未清票（老票在前） */
     const custOpen=()=>ariItems.filter(x=>!x.deleted&&x.invNo&&x.customer===p.customer&&x.currency===p.currency&&live(x)&&!hit.has(x.id))
@@ -7976,7 +8037,7 @@ function ariAllocMap(){
       if(cst)bal[bk(cst,p.currency)]=(bal[bk(cst,p.currency)]||0)+rem;else rec(pool[pool.length-1].id,rem,p.date,p.id);
     }
   }
-  _alcMap=map;_alcBal=bal;_alcDetail=det;_alcXref=xref;_alcAt=now;
+  _alcMap=map;_alcBal=bal;_alcDetail=det;_alcDiag=diagAll;_alcXref=xref;_alcAt=now;
   return map;
 }
 function payAllocSum(p){ariAllocMap();let t=0;for(const k in (_alcDetail||{}))for(const e of _alcDetail[k])if(e.payId===p.id)t+=e.amount;return Math.round(t*100)/100;}
