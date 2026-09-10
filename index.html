@@ -879,7 +879,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <button class="btn-ghost" id="apHealBtn" type="button" style="display:none"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg> 生成大陆副本</button>
       <button class="btn-add" id="apBulkBtn" type="button" style="display:none">💶 批量登记付款（<span id="apBulkN">0</span>）</button><button class="btn-ghost" id="apStmtBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-receipt"/></svg> 供应商对账单</button>
       <button class="btn-ghost" id="apZipBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg> 批量下载发票</button>
-      <button class="dens-btn" id="apDensBtn" type="button" title="切换行高：紧凑 / 舒适"><svg class="ic" aria-hidden="true"><use href="#i-rows"/></svg> 紧凑</button><button class="btn-ghost" id="apExportBtn" type="button">导出 Excel</button>
+      <button class="dens-btn" id="apDensBtn" type="button" title="切换行高：紧凑 / 舒适"><svg class="ic" aria-hidden="true"><use href="#i-rows"/></svg> 紧凑</button><button class="btn-ghost" id="apExportBtn" type="button">导出 Excel</button><button class="btn-ghost" id="apDupScanBtn" type="button" style="display:none" title="只读扫描：列出供应商+发票号重复的登记记录，不改任何数据">🔍 重复发票号体检</button>
       <button class="btn-add" id="apUploadBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-upload"/></svg> 上传发票</button>
       <input type="file" id="apFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;z-index:-1">
     </div>
@@ -900,7 +900,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v23.9</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v24.0</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1538,7 +1538,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH='img-ar/state';
-const APP_VERSION=23.9; /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=24.0; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2061,6 +2061,7 @@ function enterApp(){
   const _ana=(session.role==='finance'||session.name==='Peter');
   for(const id of ['ordMrBtn','ordCaBtn','ordSupBtn','ordStatsBtn'])$(id).style.display=_ana?'':'none';
   if($('ariRcBigBtn'))$('ariRcBigBtn').style.display=_ana?'':'none'; /* v23.3 收入成本大表：财务+Peter */
+  if($('apDupScanBtn'))$('apDupScanBtn').style.display=(session.role==='finance')?'':'none'; /* v23.10 重复发票号体检：财务 */
   if($('ordInqSaBtn'))$('ordInqSaBtn').style.display='none'; /* 默认在正式成单子页 */
   $('ariDunBtn').style.display=session.role==='finance'?'':'none';
   $('ariArchBtn').style.display=session.role==='finance'?'':'none';
@@ -4616,7 +4617,73 @@ function apCostPull(){
   apCostRender();
   toast(add?('已带出 '+add+' 项，请填写成本金额'):'服务项均已带出');
 }
-async function apSaveEntry(){
+/* ── v23.10 应付发票号查重（Emma 需求）：键=供应商+发票号（归一化），阻断 + 财务填原因可覆盖；已删除记录不算重复仅提示 ── */
+function apInvNorm(x){return String(x||'').replace(/\s+/g,'').toLowerCase();}
+function apSupNorm(x){return String(x||'').replace(/\s+/g,' ').trim().toLowerCase();}
+function apDupFind(sup,no,excludeId){
+  const ks=apSupNorm(sup), kn=apInvNorm(no);
+  let dup=null, deletedDup=null;
+  if(!ks||!kn)return {dup:null,deletedDup:null};
+  for(const x of apItems){
+    if(x.id===excludeId)continue;
+    if(apSupNorm(x.supplier)!==ks||apInvNorm(x.invNo)!==kn)continue;
+    if(x.deleted){deletedDup=deletedDup||x;continue;}
+    dup=dup||x;
+  }
+  return {dup:dup,deletedDup:deletedDup};
+}
+function apDupOverlay(dup,onConfirm){
+  const old=document.getElementById('apDupOvl');if(old)old.remove();
+  const L={new:'待录入',entered:'待付款',partial:'部分付款',paid:'已付清',overdue:'逾期'};
+  const st=apState(dup);
+  const ovl=document.createElement('div');ovl.id='apDupOvl';
+  ovl.style.cssText='position:fixed;inset:0;background:rgba(20,28,26,.5);z-index:2600;display:flex;align-items:center;justify-content:center';
+  const card=document.createElement('div');
+  card.style.cssText='background:var(--card,#fff);border-radius:14px;padding:20px 22px;width:min(560px,92vw);box-shadow:0 12px 40px rgba(0,0,0,.28)';
+  card.innerHTML='<div style="font-weight:700;font-size:15px;color:var(--bad);margin-bottom:8px">⚠ 发票号重复：该供应商已有同号登记</div>'+
+    '<div style="font-size:12.5px;line-height:1.8;background:var(--n-wash);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px">'+
+    '<b>'+esc(dup.supplier||'')+'</b> · 发票号 <b style="font-family:var(--font-num)">'+esc(dup.invNo||'')+'</b><br>'+
+    '发票日期 '+esc(dup.invDate||'—')+' · 金额 <span style="font-family:var(--font-num)">'+fmt(dup.amount||0)+' '+esc(dup.currency||'EUR')+'</span> · 状态 '+esc(L[st]||st)+
+    ' · 登记人 '+esc(dup.enteredBy||dup.by||'—')+' · 附件 '+((dup.files||[]).length)+' 个'+
+    (dup.costLines&&dup.costLines.length?' · 成本明细 '+dup.costLines.length+' 项':'')+'</div>'+
+    '<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">如果这是<b>同一张发票的补充文件</b>，请关闭本窗口，到上面那条记录点「追加附件」，不要重复登记。<br>只有确认是<b>不同的发票</b>（如供应商重开同号）才可继续，并须填写原因（写入沟通备注与日志）。</div>'+
+    '<input id="apDupReason" placeholder="覆盖原因（必填）" style="width:100%;border:1.5px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12.5px;box-sizing:border-box">'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn-ghost" id="apDupCancel" type="button">取消，不保存</button><button class="btn" id="apDupGo" type="button" style="background:var(--bad)">确认为不同发票并继续</button></div>';
+  ovl.appendChild(card);document.body.appendChild(ovl);
+  document.getElementById('apDupCancel').onclick=function(){ovl.remove();};
+  document.getElementById('apDupGo').onclick=function(){
+    const r=document.getElementById('apDupReason').value.trim();
+    if(!r){toast('请填写覆盖原因');return;}
+    ovl.remove();onConfirm(r);
+  };
+  setTimeout(function(){const i=document.getElementById('apDupReason');if(i)i.focus();},30);
+}
+/* v23.10 存量体检：只读扫描并导出重复清单，不改任何数据 */
+async function apDupScanExport(){
+  const g={};
+  for(const x of apItems){
+    if(x.deleted||!x.invNo||!x.supplier)continue;
+    const k=apSupNorm(x.supplier)+'|'+apInvNorm(x.invNo);
+    (g[k]=g[k]||[]).push(x);
+  }
+  const groups=Object.keys(g).filter(function(k){return g[k].length>1;});
+  if(!groups.length){toast('未发现重复发票号（供应商+发票号）');return 'none';}
+  const L={new:'待录入',entered:'待付款',partial:'部分付款',paid:'已付清',overdue:'逾期'};
+  const aoa=[['应付重复发票号体检 · 生成 '+todayStr()+' · 共 '+groups.length+' 组（只读扫描，未改任何数据；请人工判断合并/删除，注意已挂付款的记录）'],[],
+    ['组','供应商','发票号','发票日期','金额','币种','付款状态','已付','登记人','附件数','成本明细项','IMG成单号','备注','记录ID']];
+  groups.forEach(function(k,gi){
+    g[k].sort(function(a,b){return String(a.invDate||'').localeCompare(String(b.invDate||''));});
+    for(const x of g[k]){
+      aoa.push([gi+1,x.supplier||'',x.invNo||'',x.invDate||'',Number(x.amount)||0,x.currency||'EUR',L[apState(x)]||apState(x),apPaid(x),
+        x.enteredBy||x.by||'',(x.files||[]).length,(x.costLines||[]).length,x.orderNo||'',x.note||'',x.id]);
+    }
+  });
+  await exportSheet(aoa,'重复发票号',fnT('应付重复发票号体检')+'-'+todayStr(),
+    [{wch:5},{wch:24},{wch:16},{wch:11},{wch:12},{wch:6},{wch:9},{wch:10},{wch:10},{wch:7},{wch:9},{wch:13},{wch:20},{wch:22}],true);
+  return 'xlsx';
+}
+async function apSaveEntry(dupReasonArg){
+  const dupReason=(typeof dupReasonArg==='string')?dupReasonArg.trim():''; /* v23.10 onclick 会传入事件对象，只认字符串原因 */
   const err=$('apEntryErr');err.style.display='none';
   const sup=$('apSupplier').value.trim(), no=$('apInvNo').value.trim();
   const amt=parseFloat($('apAmount').value), d=$('apInvDate').value, due=$('apDue').value;
@@ -4625,6 +4692,10 @@ async function apSaveEntry(){
   }
   const it=apItems.find(x=>x.id===apEditingId);
   if(!it)return;
+  /* v23.10 发票号查重：阻断 + 财务填原因可覆盖 */
+  const dupR=apDupFind(sup,no,it.id);
+  if(dupR.dup&&!dupReason){apDupOverlay(dupR.dup,function(reason){apSaveEntry(reason);});return;}
+  if(!dupR.dup&&dupR.deletedDup)toast('提示：曾有一条已删除的同号记录（'+(dupR.deletedDup.invDate||'')+' · '+fmt(dupR.deletedDup.amount||0)+'）');
   const was=apState(it);
   const changes=[];
   const cmp={supplier:['供应商',sup],invNo:['发票号',no],amount:['金额',Math.round(amt*100)/100],
@@ -4649,6 +4720,7 @@ async function apSaveEntry(){
   it.comments=it.comments||[];
   it.comments.push({author:session.name,role:'finance',
     text:(was==='new'?'已录入发票信息：':'✎ 修改发票信息：')+(changes.length?changes.join('；'):'（无变化）'),time:Date.now()});
+  if(dupReason&&dupR.dup)it.comments.push({author:session.name,role:'finance',text:'⚠ 发票号与已有记录重复（'+dupR.dup.supplier+' '+dupR.dup.invNo+'，'+(dupR.dup.invDate||'')+' · '+fmt(dupR.dup.amount||0)+'），财务确认为不同发票，原因：'+dupReason,time:Date.now()+1});
   $('apEntrySave').disabled=true;$('apEntrySave').textContent='保存中…';
   try{
     await apSave();
@@ -5467,6 +5539,7 @@ $('apFMonth').onchange=renderAP;
 $('apFStatus').onchange=renderAP;
 let _apQT=null;$('apFSearch').oninput=()=>{clearTimeout(_apQT);_apQT=setTimeout(renderAP,180);};
 $('apExportBtn').onclick=apExport;
+if($('apDupScanBtn'))$('apDupScanBtn').onclick=apDupScanExport; /* v23.10 */
 $('apCostAdd').onclick=()=>{_apCostLines.push({svc:'',ord:'',net:'',vat:''});apCostRender();};
 $('apCostPull').onclick=apCostPull;
 $('apAmount').addEventListener('input',()=>{try{apCostSum();}catch(e){}});
