@@ -948,7 +948,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v26.6</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v26.8</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1588,7 +1588,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=26.6; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=26.8; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1644,6 +1644,12 @@ function cloudPush(){
       /* v23.0 到账台账原本直接 set() 整体覆写、且保存前不合并远端 —— 四个台账里风险最高。
          改为与其余三个一致：优先事务（原子读改写），失败才回退覆写。 */
       CLOUD_LAST_AT=Date.now();
+      if(STORE_MODE==='v2'){ /* v26.7 逐条 */
+        v2ReadMerge(CLOUD_PATH,mergeRemote).then(function(ok){if(!ok)throw new Error('read');return v2Write(CLOUD_PATH,payments,'到账');})
+          .then(function(){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();try{render();}catch(e){}})
+          .catch(function(e){console.warn('cloud push v2:',e.message);cloudFail(e);});
+        return;
+      }
       cloudTxWrite(CLOUD_PATH,mergeRemote,function(){return JSON.stringify(payments);})
         .then(function(okTx){
           if(okTx===true){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();return;}
@@ -1673,6 +1679,9 @@ function applyRemote(s){
 function cloudStart(){
   if(!USE_CLOUD||!rtdb)return;
   try{rtdb.ref('.info/connected').on('value',function(snap){CLOUD_CONN=!!snap.val();updateBadge();});}catch(e){}
+  storeModeReady().then(function(m){if(m==='v2')v2Subscribe(CLOUD_PATH,function(s){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();CLOUD_LAST_AT=s._at||Date.now();applyRemote(s);updateBadge();});else cloudStartV1();});
+}
+function cloudStartV1(){
   rtdb.ref(CLOUD_PATH).on('value',function(snap){
     CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();
     const s=snap.val();
@@ -3167,6 +3176,11 @@ async function apSave(){
   if(roGuard())return false; /* v18.4 #3 */
   try{
     /* 保存前合并远端，避免覆盖他人操作 */
+    if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){ /* v26.7 逐条 */
+      const ok=await v2ReadMerge(AP_PATH,apMergeRemote);if(!ok)throw new Error('网络不稳定，未能读取云端最新数据；为避免覆盖他人记录已中止保存，请稍后重试。');
+      const j2=JSON.stringify(apItems);await store.set(AP_KEY,j2);
+      await v2Write(AP_PATH,apItems,'应付');return true;
+    }
     const _merged=await cloudReadMerge(AP_PATH,AP_KEY,apMergeRemote);   /* v23.0 */
     const j=JSON.stringify(apItems);
     await store.set(AP_KEY,j);
@@ -3239,6 +3253,9 @@ function apApplyRemote(s){
 }
 function apCloudStart(){
   if(!USE_CLOUD||!rtdb)return;
+  storeModeReady().then(function(m){if(m==='v2')v2Subscribe(AP_PATH,apApplyRemote);else apCloudStartV1();});
+}
+function apCloudStartV1(){
   rtdb.ref(AP_PATH).on('value',function(snap){
     const s=snap.val();
     if(!s){
@@ -6379,6 +6396,57 @@ function ordMergeRemote(remote){
    2026-09-03 IMG260917 即因此消失（09:08 尚在，09:18 已无）。
    修复原则：**读不到云端就绝不允许整体覆写** —— 宁可保存失败让用户重试，也不静默丢数据。
    事务写入本身是原子读改写，安全，保留。 */
+/* ══ v26.7 逐条记录存储层（Emma 采纳 #2·步骤①）══
+   模式由云端 img-ap/sys/storeMode 决定（'v1' 整表 JSON | 'v2' 逐条节点 <path>_v2/{id}），默认 v1，全员一致；
+   v2 写入 = 先读云端逐条合并（沿用各集合既有 mergeFn 的记录级规则）→ 只 update 有变化的记录 + _meta →
+            影子写回 v1 整表（best-effort），保证随时可无损回滚到 v1；
+   v2 读取 = 监听 <path>_v2 根，跳过本端回声，整体交给既有 applyFn（形状与 v1 一致）。
+   v2 下云端为空不种入（迁移工具负责），杜绝缓存误灌。 */
+var STORE_MODE='v1';var _smReady=null;var _smInit=false;
+function storeModePath(){return DB_PREFIX+'img-ap/sys/storeMode';}
+function storeModeReady(){
+  if(_smReady)return _smReady;
+  if(!USE_CLOUD||!rtdb)return (_smReady=Promise.resolve('v1'));
+  _smReady=new Promise(function(res){
+    let done=false;const fin=function(m){if(done)return;done=true;STORE_MODE=m;res(m);};
+    try{rtdb.ref(storeModePath()).once('value').then(function(s){fin(s.val()==='v2'?'v2':'v1');}).catch(function(){fin('v1');});}catch(e){fin('v1');}
+    setTimeout(function(){fin('v1');},6000);
+  });
+  try{rtdb.ref(storeModePath()).on('value',function(s){const m=s.val()==='v2'?'v2':'v1';
+    if(_smInit&&m!==STORE_MODE){STORE_MODE=m;try{toast('存储模式已切换为 '+(m==='v2'?'逐条记录':'整表')+'，3 秒后刷新页面');}catch(e){}setTimeout(function(){try{location.reload();}catch(e){}},3000);}
+    _smInit=true;});}catch(e){}
+  return _smReady;
+}
+function v2Path(p){return p+'_v2';}
+const _v2Last={};
+function v2ArrayOf(v){return Object.keys(v||{}).filter(function(k){return k!=='_meta';}).map(function(k){return v[k];}).filter(function(r){return r&&r.id;});}
+async function v2ReadMerge(path,mergeFn){
+  try{
+    const s=await Promise.race([rtdb.ref(v2Path(path)).once('value'),new Promise(function(_,rej){setTimeout(function(){rej(new Error('read-timeout'));},12000);})]);
+    const arr=v2ArrayOf(s.val());
+    const last=_v2Last[path]={};for(const r of arr)last[r.id]=JSON.stringify(r);
+    if(arr.length)mergeFn(arr);
+    return true;
+  }catch(e){console.error('v2 read:',e&&e.message);return false;}
+}
+async function v2Write(path,items,label){
+  const last=_v2Last[path]||(_v2Last[path]={});const upd={};let n=0;
+  for(const r of items){const id=r&&r.id;if(!id)continue;const j=JSON.stringify(r);if(last[id]!==j){upd[id]=JSON.parse(j);last[id]=j;n++;}}
+  const meta={_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID,n:n,label:label||''};
+  if(n){upd['_meta']=meta;await rtdb.ref(v2Path(path)).update(upd);}
+  try{await rtdb.ref(path).set({json:JSON.stringify(items),_at:meta._at,_by:meta._by,_client:CLOUD_CLIENT_ID,_shadow:true});}catch(e){console.warn('shadow v1:',e&&e.message);}
+  return n;
+}
+function v2Subscribe(path,applyFn){
+  rtdb.ref(v2Path(path)).on('value',function(snap){
+    const v=snap.val();if(!v)return;
+    const meta=v._meta||{};
+    const arr=v2ArrayOf(v);
+    const last=_v2Last[path]={};for(const r of arr)last[r.id]=JSON.stringify(r);
+    if(meta._client===CLOUD_CLIENT_ID)return;
+    applyFn({json:JSON.stringify(arr),_at:meta._at||Date.now(),_by:meta._by||'',_client:meta._client||''});
+  },function(err){cloudFail(err);});
+}
 function cloudReadMerge(path,key,mergeFn){
   /* 返回 {ok:合并是否可信} —— 本地与云端任一读取失败都视为不可信 */
   return (async function(){
@@ -6409,6 +6477,11 @@ function cloudWriteGuard(okTx,merged,label){
 async function ordSave(){
   if(roGuard())return false; /* v18.4 #3 */
   try{
+    if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){ /* v26.7 逐条 */
+      const ok=await v2ReadMerge(ORD_PATH,ordMergeRemote);if(!ok)throw new Error('网络不稳定，未能读取云端最新数据；为避免覆盖他人记录已中止保存，请稍后重试。');
+      const j2=JSON.stringify(ordItems);await store.set(ORD_KEY,j2);_ordLastJson=j2;
+      await v2Write(ORD_PATH,ordItems,'订单');return true;
+    }
     const _merged=await cloudReadMerge(ORD_PATH,ORD_KEY,ordMergeRemote);   /* v23.0 */
     const j=JSON.stringify(ordItems);
     await store.set(ORD_KEY,j);
@@ -6434,6 +6507,9 @@ function ordApplyRemote(s){
 }
 function ordCloudStart(){
   if(!USE_CLOUD||!rtdb)return;
+  storeModeReady().then(function(m){if(m==='v2')v2Subscribe(ORD_PATH,ordApplyRemote);else ordCloudStartV1();});
+}
+function ordCloudStartV1(){
   rtdb.ref(ORD_PATH).on('value',function(snap){
     const s=snap.val();
     if(!s){
@@ -8464,8 +8540,72 @@ function baseBackupHintUpdate(){
     el.innerHTML=base+' <b style="color:#FFCF7A">尚未做过手动导出，建议现在备份一份。</b>';
   }
 }
+/* ══ v26.8 存储迁移工具（Emma 采纳 #2·步骤②，仅 Emma）：干跑 → 快照 → 写入 v2 → 切换；一键回滚。所有写入只落 <path>_v2 / img-backup / sys 开关，绝不改写 v1 数据。 ══ */
+const MIG_COLS=[['到账',function(){return DB_PREFIX+'img-ar/state';}],['应付',function(){return DB_PREFIX+'img-ap/state';}],['订单',function(){return DB_PREFIX+'img-ap/orders';}],['应收发票',function(){return DB_PREFIX+'img-ar/invoices';}]];
+var _mig={dry:null,snap:null,written:null};
+async function migRead(path){const s=await rtdb.ref(path).once('value');const v=s.val();return v&&v.json?JSON.parse(v.json):[];}
+async function migDryRun(){
+  const rep={cols:[],ok:true,at:Date.now()};
+  for(const c of MIG_COLS){
+    const path=c[1]();const arr=await migRead(path);
+    const ids=new Set();let dup=0,noId=0;for(const r of arr){if(!r||!r.id){noId++;continue;}if(ids.has(r.id))dup++;ids.add(r.id);}
+    const v2s=await rtdb.ref(v2Path(path)).once('value');const v2n=v2ArrayOf(v2s.val()).length;
+    const del=arr.filter(function(r){return r&&r.deleted;}).length;
+    rep.cols.push({name:c[0],path:path,n:arr.length,del:del,dup:dup,noId:noId,v2n:v2n});
+    if(dup||noId)rep.ok=false;
+  }
+  _mig.dry=rep;return rep;
+}
+async function migSnapshot(){
+  const ts=new Date().toISOString().replace(/[:.]/g,'-');const root=DB_PREFIX+'img-backup/'+ts;
+  const payload={_at:Date.now(),_by:(session&&session.name)||'',_ver:APP_VERSION};
+  for(const c of MIG_COLS){const s=await rtdb.ref(c[1]()).once('value');payload[c[1]().replace(DB_PREFIX,'').replace(/\//g,'__')]=s.val()||null;}
+  const ms=await rtdb.ref(DB_PREFIX+'img-ap/meta').once('value');payload['img-ap__meta']=ms.val()||null;
+  await rtdb.ref(root).set(payload);
+  _mig.snap={root:root,at:Date.now()};return _mig.snap;
+}
+async function migWriteV2(){
+  if(!_mig.dry||!_mig.dry.ok)throw new Error('请先完成干跑且无 id 问题');
+  if(!_mig.snap)throw new Error('请先生成快照');
+  const out=[];
+  for(const c of MIG_COLS){
+    const path=c[1]();const arr=await migRead(path);
+    const upd={};for(const r of arr){if(r&&r.id)upd[r.id]=r;}
+    const keys=Object.keys(upd);
+    for(let i=0;i<keys.length;i+=200){const part={};for(const k of keys.slice(i,i+200))part[k]=upd[k];await rtdb.ref(v2Path(path)).update(part);}
+    await rtdb.ref(v2Path(path)+'/_meta').set({_at:Date.now(),_by:(session&&session.name)||'',_client:'migration',n:keys.length,label:'migration'});
+    const back=await rtdb.ref(v2Path(path)).once('value');const got=v2ArrayOf(back.val()).length;
+    out.push({name:c[0],n:keys.length,got:got,ok:got===keys.length});
+  }
+  _mig.written={cols:out,ok:out.every(function(x){return x.ok;}),at:Date.now()};return _mig.written;
+}
+async function migSwitch(mode){
+  await new Promise(function(res,rej){rtdb.ref(storeModePath()).transaction(function(){return mode;},function(err){err?rej(err):res();});});
+}
+function migRender(){
+  const box=$('migBox');if(!box)return;
+  const dry=_mig.dry,sn=_mig.snap,wr=_mig.written;
+  let h='<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">当前模式：<b style="color:var(--ink)">'+(STORE_MODE==='v2'?'逐条记录（v2）':'整表 JSON（v1）')+'</b>'+(DB_PREFIX?' · <span style="color:var(--brass)">预发布环境</span>':' · <span style="color:var(--bad)">生产环境</span>')+'。顺序：① 干跑 → ② 快照 → ③ 写入 v2 → ④ 切换；任何时候可 ⑤ 回滚到 v1（v2 下每次保存都影子写回 v1，回滚不丢数据）。<b>建议先在预发布环境完整演练。</b></div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button type="button" class="btn-ghost" id="migDry">① 干跑（只读）</button><button type="button" class="btn-ghost" id="migSnap">② 生成快照</button><button type="button" class="btn-ghost" id="migWrite"'+((dry&&dry.ok&&sn)?'':' disabled')+'>③ 写入 v2</button><button type="button" class="btn" id="migGo"'+((wr&&wr.ok&&STORE_MODE!=='v2')?'':' disabled')+'>④ 切换到逐条记录</button><button type="button" class="btn-ghost" id="migBack"'+(STORE_MODE==='v2'?'':' disabled')+' style="color:var(--bad)">⑤ 回滚到整表</button></div>';
+  if(dry){h+='<div style="font-size:12px;margin-bottom:6px"><b>干跑结果</b>（'+new Date(dry.at).toLocaleTimeString('zh-CN')+'）：'+(dry.ok?'<span style="color:var(--ok)">通过</span>':'<span style="color:var(--bad)">存在问题，不可继续</span>')+'<table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:4px"><tr style="background:var(--n-wash)"><th style="text-align:left;padding:3px 6px">台账</th><th>记录数</th><th>含已删除</th><th>重复id</th><th>缺id</th><th>v2 现有</th></tr>'+dry.cols.map(function(c){return '<tr><td style="padding:3px 6px">'+c.name+'</td><td style="text-align:center">'+c.n+'</td><td style="text-align:center">'+c.del+'</td><td style="text-align:center;color:'+(c.dup?'var(--bad)':'inherit')+'">'+c.dup+'</td><td style="text-align:center;color:'+(c.noId?'var(--bad)':'inherit')+'">'+c.noId+'</td><td style="text-align:center">'+c.v2n+'</td></tr>';}).join('')+'</table></div>';}
+  if(sn)h+='<div style="font-size:12px;margin-bottom:6px"><b>快照</b>：<span style="font-family:var(--font-num)">'+esc(sn.root)+'</span>（'+new Date(sn.at).toLocaleTimeString('zh-CN')+'）</div>';
+  if(wr)h+='<div style="font-size:12px;margin-bottom:6px"><b>写入 v2</b>：'+(wr.ok?'<span style="color:var(--ok)">全部核对一致</span>':'<span style="color:var(--bad)">数量不一致，请勿切换</span>')+' · '+wr.cols.map(function(c){return c.name+' '+c.got+'/'+c.n;}).join('，')+'</div>';
+  box.innerHTML=h;
+  $('migDry').onclick=async function(){this.disabled=true;this.textContent='干跑中…';try{await migDryRun();toast('干跑完成');}catch(e){toast('干跑失败：'+(e.message||''));}migRender();};
+  $('migSnap').onclick=async function(){this.disabled=true;this.textContent='快照中…';try{await migSnapshot();toast('快照已写入');}catch(e){toast('快照失败：'+(e.message||''));}migRender();};
+  $('migWrite').onclick=async function(){if(!confirm('确认把四个台账写入 v2 逐条节点？（不改动 v1 数据）'))return;this.disabled=true;this.textContent='写入中…';try{await migWriteV2();toast('v2 写入完成');}catch(e){toast('写入失败：'+(e.message||''));}migRender();};
+  $('migGo').onclick=async function(){if(!confirm('确认切换到逐条记录模式？所有在线页面将提示并刷新。'))return;try{await migSwitch('v2');toast('已切换到 v2');}catch(e){toast('切换失败：'+(e.message||''));}};
+  $('migBack').onclick=async function(){if(!confirm('确认回滚到整表模式？'))return;try{await migSwitch('v1');toast('已回滚到 v1');}catch(e){toast('回滚失败：'+(e.message||''));}};
+}
 function renderBASE(){
   baseBackupHintUpdate();
+  try{ /* v26.8 存储迁移卡（仅 Emma，且需云端） */
+    let card=$('migCard');
+    if(session&&session.name==='Emma'&&USE_CLOUD&&rtdb){
+      if(!card){card=document.createElement('div');card.className='base-card';card.id='migCard';card.innerHTML='<h3>🗄 存储迁移（逐条记录）</h3><div id="migBox"></div>';const host=$('baseCards');if(host&&host.parentNode)host.parentNode.insertBefore(card,host.nextSibling);} /* 放在卡片区之后：不抢占第一张 .base-card（ord_test I 段依赖） */
+      migRender();
+    }else if(card)card.remove();
+  }catch(e){}
   $('baseStCli').innerHTML=meta.clients.length+'<span class="s-unit"> 家</span>';
   $('baseStSup').innerHTML=meta.suppliers.length+'<span class="s-unit"> 家</span>';
   $('baseStSvc').innerHTML=meta.svcLib.length+'<span class="s-unit"> 项</span>';
@@ -8670,6 +8810,11 @@ async function ariSaveAll(){
   if(roGuard())return false; /* v18.4 #3 */
   try{alcInvalidate();}catch(e){} /* v17.8 */
   try{
+    if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){ /* v26.7 逐条 */
+      const ok=await v2ReadMerge(ARI_PATH,ariMerge);if(!ok)throw new Error('网络不稳定，未能读取云端最新数据；为避免覆盖他人记录已中止保存，请稍后重试。');
+      const j2=JSON.stringify(ariItems);await store.set(ARI_KEY,j2);
+      await v2Write(ARI_PATH,ariItems,'应收发票');return true;
+    }
     const _merged=await cloudReadMerge(ARI_PATH,ARI_KEY,ariMerge);   /* v23.0 */
     await store.set(ARI_KEY,JSON.stringify(ariItems));
     if(USE_CLOUD&&rtdb){
@@ -8693,6 +8838,9 @@ function ariApplyRemote(s){
 }
 function ariCloudStart(){
   if(!USE_CLOUD||!rtdb)return;
+  storeModeReady().then(function(m){if(m==='v2')v2Subscribe(ARI_PATH,ariApplyRemote);else ariCloudStartV1();});
+}
+function ariCloudStartV1(){
   rtdb.ref(ARI_PATH).on('value',function(snap){
     const s=snap.val();
     if(!s){
