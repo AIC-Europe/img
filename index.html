@@ -948,7 +948,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v26.5</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v26.6</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1571,13 +1571,15 @@ function unreadCount(p){
   const t=_seenMem[p.id]||0;
   return (p.comments||[]).filter(c=>(c.time||0)>t&&c.author!==(session?session.name:'')).length;
 }
+/* v26.6 本地缓存按环境隔离：staging 下所有 store 键加前缀，杜绝生产缓存漏进 staging、staging 编辑漏回生产（v26.5 演练时发现） */
+function storeKey(k){return (typeof DB_PREFIX!=='undefined'&&DB_PREFIX)?('staging:'+k):k;}
 const store={
-  async get(k){
+  async get(k){k=storeKey(k);
     if(hasStore())return await window.storage.get(k,true);
     if(hasLS){const v=localStorage.getItem(k);return v==null?null:{key:k,value:v};}
     return k in memStore?{key:k,value:memStore[k]}:null;
   },
-  async set(k,v){
+  async set(k,v){k=storeKey(k);
     if(hasStore())return await window.storage.set(k,v,true);
     if(hasLS){try{localStorage.setItem(k,v);return{key:k,value:v};}catch(e){return null;}}
     memStore[k]=v;return{key:k,value:v};
@@ -1586,7 +1588,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=26.5; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=26.6; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
