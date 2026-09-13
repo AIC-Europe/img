@@ -411,6 +411,7 @@ tbody tr.row.just-changed>td{animation:rowFlash 1.6s ease-out}
 .toolbar input[type=search]{flex:1;min-width:160px}
 .toolbar .spacer{flex:1}
 .btn-ghost{background:var(--card);border:1.5px solid var(--line);color:var(--ink);border-radius:8px;padding:8px 14px;font-weight:600}
+.btn-ghost:disabled,.btn-sm:disabled{opacity:.45;cursor:not-allowed;pointer-events:none} /* v26.9 禁用态灰化（迁移卡 ③⑤ 视觉误导） */
 .btn-ghost:hover{border-color:var(--pine);color:var(--pine)}
 .btn-add{background:var(--pine);color:#fff;border-radius:8px;padding:9px 16px;font-weight:600;border:none}
 .btn-add:hover{background:var(--pine-deep)}
@@ -948,7 +949,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v26.8</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v26.9</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1588,7 +1589,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=26.8; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=26.9; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
