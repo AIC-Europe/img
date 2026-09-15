@@ -199,6 +199,7 @@ header.topbar{background:var(--pine);color:#fff;padding:0 22px;display:flex;alig
 .base-row:hover{background:var(--n-hover)}
 .th-sort{cursor:pointer;user-select:none;white-space:nowrap}
 /* v17.3 C1 筛选条件 chip 条 */
+.filter-chips .fc-sum{margin-left:auto;font-size:12px;color:var(--ink-soft);white-space:nowrap} /* v27.1 当前筛选小计 */
 .filter-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:-6px 0 12px;min-height:0}
 .filter-chips:empty{display:none}
 .filter-chips .fc-lab{font-size:11.5px;color:var(--ink-soft);margin-right:2px}
@@ -949,7 +950,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v27.0</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v27.2</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1589,7 +1590,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=27.0; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=27.2; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -6321,6 +6322,8 @@ const SVC_ALIAS={"海运费":{"en":"Ocean Freight","cat":"运输"},"空运费":{
 
 /* ---- 兼容迁移：v8.0 旧 status → step ---- */
 function ordMigrate(o){
+  /* v27.2 阶段值卫生：step 必须是 1..7 的整数；字符串"2"/越界/小数一律归一（IMG260858 step 脏值曾让列表渲染中断、推进报"reading 's'"） */
+  if(o.step!==undefined&&o.step!==null&&o.step!==''){const n=Math.round(Number(o.step));if(isFinite(n)&&n>=1&&n<=7)o.step=n;else if(isFinite(n)&&n>7)o.step=7;else if(isFinite(n)&&n<1)o.step=1;else delete o.step;}
   if(o.step)return o;
   const map={inquiry:1,selected:3,done:6,invoiced:7};
   o.step=map[o.status]||1;
@@ -7133,7 +7136,8 @@ function ordStateBadge(o){
   if(o.flag==='closed')return '<span class="badge closed">✔ 已完结</span>';
   if(o.step===7&&(ordAriSettled(o)||ordArBooked(o)))return '<span class="badge closed">客户已回款</span>';
   const cls=o.step<=2?'inquiry':o.step<=4?'selected':o.step===5?'done':o.step===6?'done':'invoiced';
-  return '<span class="badge '+cls+'">'+SOP.find(s=>s.n===(o.step||1)).s+'</span>'+(ordStalled(o)?' <span style="color:var(--bad);font-size:11px;font-weight:700">⏱滞留</span>':'');
+  const stp=SOP.find(s=>s.n===(Number(o.step)||1))||SOP[0]; /* v27.2 防御：脏 step 不再抛错 */
+  return '<span class="badge '+cls+'">'+stp.s+'</span>'+(ordStalled(o)?' <span style="color:var(--bad);font-size:11px;font-weight:700">⏱滞留</span>':'');
 }
 function renderCap(list,tb,cols){
   if(list.length<=500)return list;
@@ -7156,6 +7160,7 @@ function renderORD(){
   $('ordEmpty').style.display=((typeof _kanOn!=='undefined'&&_kanOn)||list.length)?'none':'';
   const tb=$('ordBody');tb.innerHTML='';
   for(const o of renderCap(list,tb,11)){
+   try{ /* v27.2 单行渲染隔离：一条脏数据不得让整张表消失 */
     const un=unreadCount(o), c=ordCost(o), pf=ordProfit(o);
     const tr=document.createElement('tr');tr.className='row';tr.dataset.id=o.id;
     if(un)tr.classList.add('unread');
@@ -7192,6 +7197,7 @@ function renderORD(){
       td.appendChild(ordDetail(o));
       dtr.appendChild(td);tb.appendChild(dtr);
     }
+   }catch(e){console.error('订单行渲染失败',o&&o.orderNo,e);const tr=document.createElement('tr');tr.className='row';tr.innerHTML='<td colspan="11" style="color:var(--bad);font-size:12px">⚠ '+esc((o&&o.orderNo)||'?')+' 数据异常，未能渲染（'+esc(e&&e.message||'')+'），请联系管理员</td>';tb.appendChild(tr);}
   }
   ordAlertUpdate();
 }
@@ -10078,6 +10084,16 @@ function ordChipsRender(){
     {label:'负责人',val:ordFOwner||'',clear:()=>{ordFOwner='';renderORD();}},
     {label:'搜索',val:q.value.trim(),clear:()=>{q.value='';q.dispatchEvent(new Event('input'));}}
   ],()=>{m.value='';st.value='';q.value='';ordFOwner='';m.dispatchEvent(new Event('change'));});
+  try{ordChipsSum();}catch(e){}
+}
+/* v27.1 当前筛选小计（Emma 需求）：共 N 单 · 合计售价 X EUR（其他币种单独计数）；无筛选时也显示"全部" */
+function ordChipsSum(){
+  const el=$('ordChips');if(!el)return;
+  const list=ordFiltered();let n=list.length,eur=0,other=0;
+  for(const o of list){const v=Number(o.salePrice);if(!isFinite(v)||o.salePrice===null||o.salePrice===undefined||o.salePrice==='')continue;if((o.saleCur||'EUR')==='EUR')eur+=v;else other++;}
+  const hasChips=!!el.querySelector('.fc');
+  const txt=(hasChips?'':'<span class="fc-lab">全部</span>')+'<span class="fc-sum">共 <b style="font-family:var(--font-num)">'+n+'</b> 单 · 合计售价 <b style="font-family:var(--font-num)">'+fmt(Math.round(eur*100)/100)+'</b> EUR'+(other?' · 其他币种 '+other+' 单未计':'')+'</span>';
+  el.insertAdjacentHTML('beforeend',txt);
 }
 /* ── v17.6 B4 密度切换（记住选择，刷新后保持）── */
 /* v17.9 #5 主题切换 */
