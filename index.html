@@ -437,6 +437,14 @@ tbody tr.row.just-changed>td{animation:rowFlash 1.6s ease-out}
 #ledgerTable,#apTable{min-width:960px}
 #ordTable{min-width:1128px}
 /* v25.9 工具栏收纳（Emma 采纳 #12）：低频按钮收进「更多 ▾」，按钮保留 id/逻辑 */
+.modal h2{display:flex;align-items:center;justify-content:space-between;gap:8px} /* v27.3 */
+.mod-ctl{display:inline-flex;gap:6px;margin-left:auto}
+.mod-ctl button{border:1px solid var(--line);background:var(--card,#fff);color:var(--ink-soft);border-radius:8px;padding:3px 9px;font-size:12px;font-weight:600;cursor:pointer;line-height:1.4}
+.mod-ctl button:hover{background:var(--n-wash);color:var(--ink)}
+.mod-ctl .mod-x{font-size:13px;padding:3px 8px}
+.mod-dock-chip{border:0;background:var(--pine);color:#fff;border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:600;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer;text-align:left}
+.mod-dock-chip:hover{filter:brightness(1.1)}
+.hm-line{font-size:13px;color:var(--brass);margin:2px 0 2px 1px;font-weight:500} /* v27.5 问候寄语 */
 .more-wrap{position:relative;display:inline-block}
 .more-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--card,#fff);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.16);min-width:230px;padding:6px;z-index:1500;flex-direction:column;gap:2px}
 .more-menu.open{display:flex}
@@ -950,7 +958,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v27.2</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v27.8</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1590,7 +1598,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=27.2; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=27.8; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2133,6 +2141,7 @@ function enterApp(){
     moreMenuRefresh();
   }catch(e){}
   exportWarm(); /* v26.2 预热 ExcelJS，导出时若已就绪走样式版 */
+  try{modalGuardInit();}catch(e){} /* v27.3 录入弹窗防误触+缩小 */
   try{kbModal('apEntryOverlay','apEntrySave');kbModal('ordEditOverlay','ordEditSave');kbModal('payOverlay','paySave');kbModal('ariOverlay','ariSave');kbModal('ordInvOverlay','ordInvSave');}catch(e){} /* v25.5 Ctrl+Enter 保存 */
   if($('agingBtn'))$('agingBtn').style.display=_ana?'':'none'; /* v24.7 账龄分析：财务+Peter */
   if($('cashBtn'))$('cashBtn').style.display=_ana?'':'none'; /* v24.8 现金流预测：财务+Peter */
@@ -3628,7 +3637,17 @@ function apRenderStats(){
   $('apStUrg').innerHTML=nUrg+'<span class="s-unit"> 笔</span>'+(urgSum?'<span class="s-unit"> · € '+fmt(urgSum)+'</span>':'');
   $('apStUrgCard').style.display=nUrg>0?'':'none';
 }
-function apUrgent(it){return !!(it.urgent&&!it.deleted&&apState(it)!=='paid');} /* v16.5 付清自动熄灭 */
+function apUrgent(it){return !!(it.urgent&&!it.deleted&&apState(it)!=='paid');}
+/* v27.6 加急付款回执（Emma 需求②）：业务标记的加急被登记付款时，自动写一条 @上传人 的备注（其未读徽章亮起），并记 urgent.paidAt 供工作台"我的加急回执"读取 */
+function apUrgReceipt(it,amt,date){
+  try{
+    if(!it.urgent||it.urgent.paidAt)return;
+    it.urgent.paidAt=Date.now();it.urgent.paidBy=session.name;
+    const who=it.urgent.by||it.uploadedBy||'';
+    (it.comments=it.comments||[]).push({author:session.name,role:'finance',
+      text:'⚡ '+(who?('@'+who+' '):'')+'你标记的加急已付款：'+fmt(amt)+' '+(it.currency||'EUR')+'（'+date+'）'+(apState(it)==='paid'?'，本票已付清。':'。'),time:Date.now()});
+  }catch(e){}
+} /* v16.5 付清自动熄灭 */
 function apAlertUpdate(){
   const n=apItems.filter(x=>!x.deleted&&(apUrgent(x)||apState(x)==='overdue'||(session&&session.role==='finance'&&apState(x)==='new'))).length;
   const dot=$('apAlert');
@@ -5473,6 +5492,7 @@ async function apSavePay(){
   it.payments=it.payments||[];
   it.payments.push({date:d,amount:Math.round(amt*100)/100,by:session.name,note:$('apPayNote').value.trim(),time:Date.now()});
   it.comments=it.comments||[];
+  apUrgReceipt(it,amt,d); /* v27.6 加急回执：@上传人 + urgent.paidAt */
   const nowPaid=apPaid(it), invTotal=Number(it.amount)||0;
   it.comments.push({author:session.name,role:'finance',
     text:'已付款 '+fmt(amt)+' '+it.currency+'（'+d+'）'+(apState(it)==='paid'?'，本张发票已'+(invTotal<0?'冲抵完成':'付清')+'。':'，累计已付 '+fmt(nowPaid)+' / '+fmt(invTotal)+'。'),time:Date.now()});
@@ -7212,6 +7232,54 @@ function ordCmt(o,text,author){
 }
 function bizName(){return session.role==='business'?(myNameGet()||session.name):session.name;}
 
+/* ══ v27.3 录入弹窗防误触 + 缩小（Christina 需求，Emma 采纳 A+B）══
+   录入类弹窗：点遮罩不再关闭；✕/取消/Esc 在表单有改动时先确认；「▁ 缩小」把弹窗收到页面底部小条，内容原样保留，点小条恢复。
+   查看类弹窗（分析/日志等）不受影响。 */
+const ENTRY_MODALS=[['ordEditOverlay','ordEditCancel'],['apUpOverlay','apUpCancel'],['apEntryOverlay','apEntryCancel'],['payOverlay','payCancel'],['ariOverlay','ariCancel'],['ordInvOverlay','ordInvCancel'],['apPayOverlay','apPayCancel']];
+function modalSnapshot(ov){return [...ov.querySelectorAll('input,select,textarea')].filter(function(el){return el.type!=='file'&&el.type!=='button';}).map(function(el){return el.type==='checkbox'||el.type==='radio'?(el.checked?'1':'0'):String(el.value||'');}).join('\u0001');}
+function modalDirty(ov){const base=ov._snap;if(base==null)return false;return modalSnapshot(ov)!==base;}
+function modalTitle(ov){const h=ov.querySelector('.modal h2');return h?h.childNodes[0].textContent.trim():'弹窗';}
+function modalTryClose(ov){
+  if(modalDirty(ov)&&!confirm('「'+modalTitle(ov)+'」有未保存的内容，确定关闭并放弃？'))return false;
+  const cancelId=(ENTRY_MODALS.find(function(x){return x[0]===ov.id;})||[])[1];
+  const b=cancelId&&document.getElementById(cancelId);
+  modalDockRemove(ov);
+  if(b&&!b.disabled)b.click();else ov.classList.remove('open');
+  return true;
+}
+function modalMinimize(ov){
+  ov.classList.remove('open');ov.dataset.minimized='1';
+  let dock=document.getElementById('modDock');
+  if(!dock){dock=document.createElement('div');dock.id='modDock';dock.style.cssText='position:fixed;left:14px;bottom:14px;z-index:2350;display:flex;flex-direction:column;gap:6px';document.body.appendChild(dock);}
+  let chip=dock.querySelector('[data-ov="'+ov.id+'"]');
+  if(!chip){chip=document.createElement('button');chip.type='button';chip.className='mod-dock-chip';chip.dataset.ov=ov.id;dock.appendChild(chip);}
+  chip.innerHTML='📝 '+esc(modalTitle(ov))+(modalDirty(ov)?' <span style="opacity:.8">（未保存）</span>':'')+' <b>▲</b>';
+  chip.onclick=function(){modalDockRemove(ov);ov.classList.add('open');ov.dataset.minimized='';const f=ov.querySelector('input:not([type=hidden]),select,textarea');if(f)try{f.focus();}catch(e){}};
+}
+function modalDockRemove(ov){const dock=document.getElementById('modDock');if(!dock)return;const chip=dock.querySelector('[data-ov="'+ov.id+'"]');if(chip)chip.remove();ov.dataset.minimized='';if(!dock.children.length)dock.remove();}
+function modalCtlEnsure(ov){
+  const h=ov.querySelector('.modal h2');if(!h||h.querySelector('.mod-ctl'))return;
+  const ctl=document.createElement('span');ctl.className='mod-ctl';
+  const bMin=document.createElement('button');bMin.type='button';bMin.className='mod-min';bMin.title='缩小到底部，内容保留';bMin.textContent='▁ 缩小';
+  const bX=document.createElement('button');bX.type='button';bX.className='mod-x';bX.title='关闭';bX.textContent='✕';
+  bMin.onclick=function(e){e.stopPropagation();modalMinimize(ov);};
+  bX.onclick=function(e){e.stopPropagation();modalTryClose(ov);};
+  ctl.append(bMin,bX);h.appendChild(ctl);
+}
+function modalGuardInit(){
+  for(const [id] of ENTRY_MODALS){
+    const ov=document.getElementById(id);if(!ov||ov._guard)continue;ov._guard=true;ov.dataset.entry='1';
+    ov.addEventListener('click',function(e){if(e.target===ov){e.stopImmediatePropagation();e.preventDefault();}},true);
+    modalCtlEnsure(ov);
+    new MutationObserver(function(){
+      if(ov.classList.contains('open')){
+        setTimeout(function(){modalCtlEnsure(ov);},0); /* 打开时标题常被重写（新建/编辑），控件需重挂 */
+        if(ov.dataset.minimized!=='1'){setTimeout(function(){ov._snap=modalSnapshot(ov);},60);}
+        modalDockRemove(ov);
+      }
+    }).observe(ov,{attributes:true,attributeFilter:['class']});
+  }
+}
 /* ── v25.5 键盘流（Emma 采纳 #10）：录入行 Enter 逐格推进、末格提交；模态框 Ctrl/⌘+Enter 保存 ── */
 function kbFlow(seq,submit){ /* seq: 输入元素数组，Enter → 下一格；最后一格 Enter → submit()；带 datalist 的格 Enter 只推进不提交 */
   seq.forEach(function(el,i){if(!el)return;el.addEventListener('keydown',function(e){
@@ -9156,6 +9224,25 @@ function renderARI(){
   }
   ariAlertUpdate();
 }
+/* v27.8 开票驳回通道（Emma 需求③）：财务对"对接财务/待开票"的存根填原因退回 → 存根删除（留痕）、订单回⑤并清对接标记、订单写日志+备注（业务未读亮起）。业务补充后重新"对接财务"走原流程（不会产生重复存根：主存根查找条件 !deleted）。 */
+async function ariFinReject(x){
+  const reason=(prompt('退回原因（必填，业务会在订单备注中看到）：','')||'').trim();
+  if(!reason){toast('已取消：未填写原因');return;}
+  const o=ordItems.find(t=>!t.deleted&&t.orderNo===x.orderNo);
+  x.deleted=true;x.rejectedBack={by:session.name,at:Date.now(),reason:reason};
+  try{auditDel(x,'应收发票');}catch(e){}
+  if(o){
+    o.step=5;o.stepAt=Date.now();delete o.finTerm;
+    logAdd(o,'开票申请被财务退回：'+reason);
+    ordCmt(o,'❌ 开票申请已退回，请补充后重新「对接财务」。原因：'+reason);
+  }
+  ariOpenId=null;
+  try{
+    await ariSaveAll();if(o)await ordSave();
+    toast('已退回业务补充'+(o?('（'+o.orderNo+' 回到⑤）'):''));
+    renderARI();try{renderORD();}catch(e){}try{ariAlertUpdate();}catch(e){}
+  }catch(e){toast('保存失败：'+(e.message||''));}
+}
 function ariDetail(x){
   const wrap=document.createElement('div');wrap.className='detail-grid';
   const left=document.createElement('div');left.className='d-info';
@@ -9262,6 +9349,13 @@ function ariDetail(x){
     bInv.textContent='🧾 录入开票信息（sevdesk 开票后）';
     bInv.onclick=e=>{e.stopPropagation();ariOpenEdit(x);};
     act.appendChild(bInv);
+    if(x.fromOrder&&!x.extra){ /* v27.8 开票驳回：仅订单对接生成的主存根可退回 */
+      const bRj=document.createElement('button');bRj.className='btn-sm danger';
+      bRj.textContent='⛔ 退回补充';
+      bRj.title='信息不全无法开票时退回业务：订单回到⑤，业务补充后重新对接';
+      bRj.onclick=e=>{e.stopPropagation();ariFinReject(x);};
+      act.appendChild(bRj);
+    }
   }
   if(session.role==='finance'&&x.invNo&&ariState(x)!=='storno'&&!x.fromImport&&(Number(x.gross)||0)>0){
     const bSt=document.createElement('button');bSt.className='btn-sm danger';
@@ -9388,6 +9482,7 @@ $('bulkPayOk').onclick=async function(){
       if(rest<=0)continue;
       it.payments=it.payments||[];
       it.payments.push({date:d,amount:rest,by:session.name,note:note||'批量付款',time:Date.now()+n});
+      apUrgReceipt(it,rest,d); /* v27.6 加急回执 */
       it._up=Date.now();n++;
     }
     await apSave();
@@ -10158,7 +10253,7 @@ document.addEventListener('keydown',function(e){
   }
   if(e.key==='Escape'){
     const open=[...document.querySelectorAll('.overlay.open')];
-    if(open.length){e.preventDefault();open[open.length-1].classList.remove('open');}
+    if(open.length){e.preventDefault();const top=open[open.length-1];if(top.dataset.entry){modalTryClose(top);}else top.classList.remove('open');} /* v27.3 录入弹窗 Esc 经脏表单确认 */
     return;
   }
   if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){
@@ -10725,13 +10820,65 @@ function homeRefreshIfVisible(){
   }catch(e){}
   try{ntfBadge();}catch(e){} /* v19.3 数据到达同步通知徽章 */
 }
+/* v27.5 问候寄语（Emma 需求）：时段/周五/月末各配一组短句，按日期取同一条（当天不闪变）；三语跟随界面语言 */
+const HM_LINES={
+  morning:[
+    {zh:'新的一天，先喝口水再看逾期 ☕',en:'New day — coffee first, overdue list second ☕',de:'Neuer Tag – erst Kaffee, dann die Mahnliste ☕'},
+    {zh:'早起的单子有虫吃，先扫一眼滞留单',en:'Early bird gets the order — check stalled ones first',de:'Der frühe Vogel fängt den Auftrag – erst die Liegenbleiber prüfen'},
+    {zh:'今天也把数字对齐，把心情摆平',en:'Balance the numbers, balance the mood',de:'Zahlen im Lot, Laune im Lot'},
+    {zh:'一单一单来，不急',en:'One order at a time — no rush',de:'Ein Auftrag nach dem anderen – ganz ruhig'},
+    {zh:'先处理最难的那件，后面都是下坡路',en:'Do the hardest thing first — the rest is downhill',de:'Das Schwerste zuerst – der Rest läuft von allein'},
+    {zh:'记得吃早饭，现金流和你都需要能量',en:'Eat breakfast — you and the cash flow both need fuel',de:'Frühstück nicht vergessen – du und der Cashflow braucht Energie'}],
+  noon:[
+    {zh:'先吃饭，发票不会跑 🍚',en:'Lunch first — invoices won\'t run away 🍚',de:'Erst Mittagessen – die Rechnungen laufen nicht weg 🍚'},
+    {zh:'午后犯困？喝口茶再战',en:'Post-lunch dip? Tea helps',de:'Mittagstief? Ein Tee hilft'},
+    {zh:'上午的事翻篇，下午重新开始',en:'Morning is done — fresh start this afternoon',de:'Der Vormittag ist abgehakt – frischer Start am Nachmittag'},
+    {zh:'吃好喝好，账才对得好',en:'Well fed, well reconciled',de:'Gut gegessen, gut abgestimmt'},
+    {zh:'休息十分钟，效率翻一倍',en:'Ten minutes of rest, double the focus',de:'Zehn Minuten Pause, doppelte Konzentration'},
+    {zh:'别在饭点核对银行流水 😄',en:'No bank statements during lunch 😄',de:'Keine Kontoauszüge in der Mittagspause 😄'}],
+  afternoon:[
+    {zh:'下午茶时间到，顺手清两张待办',en:'Tea time — clear two to-dos on the side',de:'Teatime – nebenbei zwei Aufgaben abhaken'},
+    {zh:'离下班越来越近，把今天的单收个尾',en:'Almost done — wrap up today\'s orders',de:'Fast geschafft – die heutigen Aufträge abrunden'},
+    {zh:'再坚持一下，你比昨天的自己快',en:'Keep going — you\'re faster than yesterday',de:'Weiter so – du bist schneller als gestern'},
+    {zh:'阳光正好，别忘了看窗外一眼',en:'Nice light out there — look up once in a while',de:'Schönes Licht draußen – ruhig mal aufschauen'},
+    {zh:'难缠的邮件现在发，明早就有回复',en:'Send the tricky email now — reply lands tomorrow morning',de:'Die knifflige Mail jetzt senden – Antwort kommt morgen früh'},
+    {zh:'专注一小时，胜过忙乱一下午',en:'One focused hour beats a scattered afternoon',de:'Eine konzentrierte Stunde schlägt einen zerfahrenen Nachmittag'}],
+  evening:[
+    {zh:'辛苦了，别忘了下班 🌙',en:'Good work today — remember to log off 🌙',de:'Gute Arbeit – Feierabend nicht vergessen 🌙'},
+    {zh:'今天的你已经很棒了',en:'You did well today',de:'Du hast das heute gut gemacht'},
+    {zh:'晚上处理数字要多核对一遍哦',en:'Late-night numbers deserve a double check',de:'Zahlen am Abend lieber doppelt prüfen'},
+    {zh:'留点力气给明天',en:'Save some energy for tomorrow',de:'Heb dir Energie für morgen auf'},
+    {zh:'夜深了，重要操作明早再做也不迟',en:'It\'s late — big changes can wait till morning',de:'Es ist spät – Großes kann bis morgen warten'},
+    {zh:'关电脑前，喝口水 🌙',en:'One sip of water before shutting down 🌙',de:'Noch ein Schluck Wasser vorm Herunterfahren 🌙'}],
+  friday:[
+    {zh:'周五了，把加急清完好过周末 🎉',en:'Friday! Clear the urgent ones, enjoy the weekend 🎉',de:'Freitag! Dringendes erledigen, dann ab ins Wochenende 🎉'},
+    {zh:'周五加油，周末在向你招手',en:'Push through Friday — the weekend is waving',de:'Freitag durchziehen – das Wochenende winkt'},
+    {zh:'把这周的账收个漂亮的尾',en:'End the week with clean books',de:'Die Woche mit sauberen Büchern abschließen'}],
+  monthend:[
+    {zh:'月底冲刺，月结清单等你打勾 ✅',en:'Month-end sprint — the closing checklist awaits ✅',de:'Endspurt zum Monatsende – die Abschluss-Checkliste wartet ✅'},
+    {zh:'月末对账周，细心是最好的武器',en:'Reconciliation week — care is your best tool',de:'Abstimmungswoche – Sorgfalt ist dein bestes Werkzeug'},
+    {zh:'月底了，先归档再迎新月',en:'Month\'s end — archive first, fresh month next',de:'Monatsende – erst archivieren, dann frisch starten'}]
+};
+function hmGreetLine(){
+  const d=new Date();const h=d.getHours();
+  const eom=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+  let pool;
+  if(d.getDate()>=eom-2)pool=HM_LINES.monthend;
+  else if(d.getDay()===5)pool=HM_LINES.friday;
+  else pool=h<11?HM_LINES.morning:h<14?HM_LINES.noon:h<18?HM_LINES.afternoon:HM_LINES.evening;
+  const seed=d.getFullYear()*372+(d.getMonth()+1)*31+d.getDate();
+  const it=pool[seed%pool.length];
+  return it[LANG==='de'?'de':LANG==='en'?'en':'zh']||it.zh;
+}
 function homeRender(){
   const box=$('homeBody');if(!box||!session)return;
   const me=myNameGet()||session.name;
   const h=new Date().getHours();
   const greet=h<11?'早上好':h<14?'中午好':h<18?'下午好':'晚上好';
+  const line=hmGreetLine(); /* v27.5 问候寄语：按时段/星期/月末轮换，同一天稳定 */
   const fin=session.role==='finance';
   let out='<div class="hm-greet">'+greet+'，'+esc(session.name)+'</div>'+
+          '<div class="hm-line">'+esc(line)+'</div>'+ /* v27.5 */
           '<div class="hm-sub">'+(fin?'财务视角':isRO()?'管理层只读视角':'业务视角')+'　·　'+todayStr()+'</div>';
   const cards=[];
   if(fin){
@@ -10755,6 +10902,8 @@ function homeRender(){
     cards.push(hmCard(toinv.length?'warn':'ok','doc','待开票',toinv.length+' 单',toinv.length?'业务已完成待出票':'无积压','toinv'));
     const apNew=apItems.filter(x=>!x.deleted&&apState(x)==='new'); /* v19.1 业务已上传、财务未录金额 */
     cards.push(hmCard(apNew.length?'warn':'ok','upload','待财务录入',apNew.length+' 笔',apNew.length?'业务已上传待录金额':'全部已录入','apnew'));
+    const reop=ariItems.filter(x=>!x.deleted&&x.reopenReq&&!x.cancelledBy); /* v27.7 业务申请冲销重开待财务处理 */
+    if(reop.length)cards.push(hmCard('warn','refresh','待审批·冲销重开',reop.length+' 张','业务申请，点击处理','reop'));
       out+='<div class="hm-hero'+(cards.length===6?' hm-6':'')+'">'+cards.map(c=>c.html).join('')+'</div>';
     out+='<div class="hm-sec">'+ic('warn','ic-sm')+'逾期最久的应收（前 5）</div>';
     out+=hmRows(ovd.sort((a,b)=>(a.due||'')<(b.due||'')?-1:1).slice(0,5).map(x=>({
@@ -10783,6 +10932,15 @@ function homeRender(){
     cards.push(hmCard(stall.length?'warn':'ok','clock','滞留单',stall.length+' 单',stall.length?'超 7 天未推进':'流程顺畅','stall'));
     cards.push(hmCard(issue.length?'bad':'','truck','物流异常',issue.length+' 单',issue.length?'需跟进处理':'运输正常','kan'));
     cards.push(hmCard('','truck','在途货物',transit.length+' 单','订舱/运输/清关/派送','kan'));
+    /* v27.7 业务视角补齐（Emma 需求①）：应收侧三张卡 */
+    const myOvd=ariItems.filter(x=>!x.deleted&&ariState(x)==='overdue'&&ariOwnerOf(x)===me);
+    const myOvdSum=myOvd.filter(x=>(x.currency||'EUR')==='EUR').reduce((a,x)=>a+((Number(x.gross)||0)-ariPaid(x)),0);
+    const RECENT=14*86400000;
+    const mySend=ariItems.filter(x=>!x.deleted&&!x.fromImport&&ariState(x)!=='paid'&&ariOwnerOf(x)===me&&x.invDate&&(Date.now()-new Date(x.invDate).getTime())<=RECENT);
+    const myRcpt=apItems.filter(x=>!x.deleted&&x.urgent&&x.urgent.paidAt&&((x.urgent.by||x.uploadedBy)===me)&&(Date.now()-x.urgent.paidAt)<=7*86400000);
+    cards.push(hmCard(myOvd.length?'bad':'ok','warn','我的客户逾期',myOvd.length+' 张',myOvd.length?('€ '+fmt(Math.round(myOvdSum*100)/100)+' 待催收'):'无逾期','myovd'));
+    cards.push(hmCard(mySend.length?'warn':'ok','mail','近期开票·待发客户',mySend.length+' 张',mySend.length?'财务已开票，请转发客户':'暂无','mysend'));
+    cards.push(hmCard(myRcpt.length?'ok':'','check','我的加急回执',myRcpt.length+' 张',myRcpt.length?'近7天已付款':'暂无回执','myrcpt'));
     out+='<div class="hm-hero">'+cards.map(c=>c.html).join('')+'</div>';
     out+='<div class="hm-sec">'+ic('warn','ic-sm')+'我的超期未开票（前 5）</div>';
     out+=hmRows(noInv.slice(0,5).map(o=>({
@@ -10794,6 +10952,16 @@ function homeRender(){
       no:o.orderNo,who:o.customer||'',act:'kan',
       tag:'<span class="badge '+((o.logi==='issue')?'bad':'part')+'" style="font-size:10.5px">'+LOGI_L(o.logi)+'</span>',
       amt:null})),'暂无在途货物');
+    out+='<div class="hm-sec">'+ic('warn','ic-sm')+'我的客户逾期（前 5）</div>'; /* v27.7 */
+    out+=hmRows(myOvd.sort((a,b)=>(a.due||'')<(b.due||'')?-1:1).slice(0,5).map(x=>({
+      no:x.invNo||'—',who:cliShort(x.customer||''),act:'ari:'+(x.invNo||''),
+      tag:'<span class="badge bad" style="font-size:10.5px">逾期'+ovdDays(x)+'天</span>',
+      amt:Math.round(((Number(x.gross)||0)-ariPaid(x))*100)/100,tone:'var(--bad)'})),'你的客户没有逾期发票 👍');
+    out+='<div class="hm-sec">'+ic('mail','ic-sm')+'近期开票·待发客户（前 5）</div>';
+    out+=hmRows(mySend.sort((a,b)=>(b.invDate||'')<(a.invDate||'')?-1:1).slice(0,5).map(x=>({
+      no:x.invNo||'—',who:cliShort(x.customer||''),act:'ari:'+(x.invNo||''),
+      tag:'<span class="badge new" style="font-size:10.5px">'+esc(x.invDate||'')+'</span>',
+      amt:Number(x.gross)||null})),'近两周没有新开发票');
   }
   box.innerHTML=out;
   box.querySelectorAll('[data-act]').forEach(el=>{el.onclick=()=>homeAct(el.dataset.act);});
@@ -10817,6 +10985,10 @@ function homeAct(a){
   else if(k==='noari'){switchMod('tabORD');setTimeout(()=>{setF('ordFMonth','');setF('ordFStatus','noAri');},120);}
   else if(k==='stall'){switchMod('tabORD');setTimeout(()=>{setF('ordFMonth','');setF('ordFStatus','stall');},120);}
   else if(k==='kan'){switchMod('tabORD');setTimeout(()=>{setF('ordFMonth','');if(typeof kanShow==='function')kanShow(true);},150);}
+  else if(k==='myovd'){switchMod('tabAR');arSub('ari');setTimeout(()=>{setF('ariFMonth','');setF('ariFStatus','overdue');const b=document.querySelector('#ariOwnBar [data-aown="'+CSS.escape(myNameGet()||session.name)+'"]');if(b)b.click();},160);} /* v27.7 */
+  else if(k==='mysend'){switchMod('tabAR');arSub('ari');setTimeout(()=>{setF('ariFMonth','');const b=document.querySelector('#ariOwnBar [data-aown="'+CSS.escape(myNameGet()||session.name)+'"]');if(b)b.click();},160);}
+  else if(k==='myrcpt'){switchMod('tabAP');setTimeout(()=>{setF('apFMonth','');setF('apFSearch','');},140);}
+  else if(k==='reop'){switchMod('tabAR');arSub('ari');setTimeout(()=>{setF('ariFMonth','');},140);}
   else if(k==='ari'){switchMod('tabAR');arSub('ari');setTimeout(()=>{setF('ariFMonth','');setF('ariFSearch',v||'');},140);}
   else if(k==='ap'){switchMod('tabAP');setTimeout(()=>{setF('apFMonth','');setF('apFSearch',v||'');},140);}
   else if(k==='ord2'){switchMod('tabORD');setTimeout(()=>{setF('ordFMonth','');setF('ordFSearch',v||'');},140);}
@@ -11148,12 +11320,12 @@ $('drillExportBtn').onclick=async function(){
   if(!_drill.rows.length){toast('没有可导出的数据');return;}
   const btn=this;btn.disabled=true;btn.textContent='生成中…';
   try{
-    await ensureXLSX();
-    const ws=XLSX.utils.aoa_to_sheet(xlT([_drill.head,..._drill.rows]));
-    ws['!cols']=_drill.head.map(()=>({wch:14}));
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,ws,trStr('明细'));
-    XLSX.writeFile(wb,'IMG-'+trStr(_drill.title).replace(/[\/\\:*?"<>|]/g,'')+'-'+todayStr()+'.xlsx');
+    /* v27.4 导出前把德式金额文本（1.234,56 / -12,00）还原为数字；金额列里的「—」还原为 0，让 Excel 能求和 */
+    const isAmtCol=_drill.head.map(h=>/金额|已付|尚欠|含税|已到账|净额|毛利|售价|成本|余额|合计/.test(String(h||'')));
+    const deNum=v=>{if(typeof v!=='string')return v;const t=v.trim();if(/^-?\d{1,3}(\.\d{3})*(,\d{1,2})?$/.test(t)||/^-?\d+(,\d{1,2})?$/.test(t))return Number(t.replace(/\./g,'').replace(',','.'));return v;};
+    const rows=_drill.rows.map(r=>r.map((v,ci)=>{if(!isAmtCol[ci])return v; /* 非金额列（发票号/单号/日期）原样 */ const n=deNum(v);if(typeof n==='number')return n;return (v==='—'||v===''||v==null)?0:v;}));
+    const title='IMG-'+trStr(_drill.title).replace(/[\/\\:*?"<>|]/g,'')+'-'+todayStr();
+    await exportSheet([_drill.head,...rows],trStr('明细'),title, /* 表头在首行（无标题行）：AF6 依赖 */_drill.head.map(h=>({wch:isAmtCol[_drill.head.indexOf(h)]?13:16})),true);
   }catch(e){
     const line=r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',');
     const trA=xlT([_drill.head,..._drill.rows]);
@@ -11242,7 +11414,7 @@ function apGroupRows(list,extraFn){
     if(!groups.has(k))groups.set(k,[]);
     groups.get(k).push(it);
   }
-  const width=AP_HEAD.length+(extraFn?1:0);
+  const width=AP_HEAD.length+(extraFn?((extraFn.cols)||1):0); /* v27.4 extraFn 可返回数组（多列附加，需设 extraFn.cols） */
   const rows=[];
   const sorted=[...groups.entries()].map(([sup,items])=>{
     const rest=items.reduce((s,x)=>s+((Number(x.amount)||0)-apPaidSum(x))*(x.currency==='EUR'?1:0),0);/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
@@ -11257,7 +11429,7 @@ function apGroupRows(list,extraFn){
     g.items.sort((a,b)=>(a.due||'')<(b.due||'')?-1:1);
     for(const it of g.items){
       const r=apDrillRows([it])[0];
-      if(extraFn)r.push(extraFn(it));
+      if(extraFn){const ex=extraFn(it);if(Array.isArray(ex))r.push.apply(r,ex);else r.push(ex);}
       rows.push(r);
     }
   }
@@ -11275,10 +11447,8 @@ drillBind('apStSoon',()=>{
 drillBind('apStUrgCard',()=>{
   const list=apItems.filter(x=>!x.deleted&&apUrgent(x)).sort((a,b)=>((a.urgent.due||'')<(b.urgent.due||''))?-1:1);
   const sum=list.filter(x=>x.currency==='EUR').reduce((s,x)=>s+(Number(x.amount)||0)-apPaidSum(x),0);/* v16.4 净额口径：负数计入汇总，明细之和恒等于汇总 */
-  drillOpen('应付-⚡加急待付',[...AP_HEAD,'期望付款日','加急原因'],list.map(x=>{
-    const paid=apPaidSum(x),amt=Number(x.amount)||0;
-    return [x.supplier||'—',x.invNo||x.genNo||'—',x.invDate||'—',x.due||'—',amt?fmt(amt):'—',paid?fmt(paid):'—',amt?fmt(Math.round((amt-paid)*100)/100):'—',x.currency||'EUR',x.orderNo||'—',AP_LABEL[apState(x)],x.uploadedBy||'—',apPayList(x).slice(-1).map(p=>p.date).join('')||'—',x.urgent.due||'—',x.urgent.note||'—'];
-  }),'业务标记需立即付款 · EUR 净额合计 <b style="color:var(--bad)">€ '+fmt(sum)+'</b> · 按期望付款日排序');
+  const urgEx=x=>[x.urgent.due||'—',x.urgent.note||'—'];urgEx.cols=2; /* v27.4 改走分组：供应商小计行 + 数字金额（Emma 反馈：Excel 缺供应商汇总且金额为文本） */
+  drillOpen('应付-⚡加急待付',[...AP_HEAD,'期望付款日','加急原因'],apGroupRows(list,urgEx),'业务标记需立即付款 · 按供应商分组（■ 行为该供应商小计）· EUR 净额合计 <b style="color:var(--bad)">€ '+fmt(sum)+'</b>');
 });
 drillBind('apStOver',()=>{
   const list=apItems.filter(x=>!x.deleted&&apState(x)==='overdue');
