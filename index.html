@@ -980,7 +980,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v28.4</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v28.9</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1620,7 +1620,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=28.4; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=28.9; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -3993,14 +3993,23 @@ function rcBigRows(){
         rowsOf.push({name:p.name,en:p.en,qty:p.qty,amt:a});
       });
     }else if(net){rowsOf.push({name:'（未分服务项）',en:'',qty:1,amt:net});}
-    const invNoOut=(x.invNo||'')+((x.storno||x.cancelledBy)?'冲销发票':''); /* v28.4 对齐手动版 */
+    const isSt=!!x.storno||(!!x.cancelledBy&&(Number(x.gross)||0)<0); /* v28.8 只有负额冲销票本身；原票(cancelledBy=冲销票号,正额)照常 */
+    const invNoOut=(x.invNo||'')+(isSt?'冲销发票':''); /* v28.4 对齐手动版 */
+    let stOrig=''; /* v28.8 冲销票反查原票号：①原票 cancelledBy=本票号 ②本票备注"原发票 X" ③同单等额正票（兼容老式 cancelledBy=人名） */
+    if(isSt){
+      let og=ariItems.find(function(a){return !a.deleted&&a.cancelledBy===x.invNo;});
+      if(!og){const m=String(x.note||'').match(/原发票\s*([A-Za-z0-9\-\/]+)/);if(m)og=ariItems.find(function(a){return !a.deleted&&a.invNo===m[1];});}
+      if(!og){const g=Math.abs(Number(x.gross)||0);og=ariItems.find(function(a){return !a.deleted&&a!==x&&!a.storno&&(Number(a.gross)||0)>0&&a.orderNo===x.orderNo&&Math.abs((Number(a.gross)||0)-g)<=0.005;});}
+      stOrig=og?(og.invNo||''):'';
+    }
     for(const r of rowsOf)incAll.push({id:x.id,invNo:invNoOut,invDate:String(x.invDate||'').slice(0,10),
-      cust:x.customer||'',ord:x.orderNo||'',name:r.name,en:r.en,qty:r.qty,amt:r.amt,
+      cust:x.customer||'',ord:x.orderNo||'',name:r.name,en:r.en,qty:r.qty,amt:r.amt,st:isSt,stOrig:stOrig,
       cost:0,aps:'',sups:'',tier:'',refs:[],_aps:[],_apList:[],_sups:[],_tiers:{},_byAp:{},_byApTot:{}});
   }
   incAll.sort(function(a,b){return a.invDate<b.invDate?-1:a.invDate>b.invDate?1:String(a.invNo).localeCompare(String(b.invNo));});
   const byOrd={},byKey={},byInvKey={};
   for(const r of incAll){
+    if(r.st)continue; /* v28.8 冲销行不参与成本分摊（真实成本完整留在原票），成本走镜像 */
     if(r.ord){(byOrd[r.ord]=byOrd[r.ord]||[]).push(r);(byKey[r.ord+'|'+r.name]=byKey[r.ord+'|'+r.name]||[]).push(r);}
     if(r.invNo)(byInvKey[r.invNo+'|'+r.name]=byInvKey[r.invNo+'|'+r.name]||[]).push(r);
   }
@@ -4044,7 +4053,19 @@ function rcBigRows(){
       else orphans.push({it:it,l:l,net:net});
     }
   }
-  const TIER_ORDER=['手动','精确','同类','同单分摊'];
+  /* v28.8 冲销镜像：冲销行成本 = 原票同名行成本取负（跨期也成立，正负两期合计归零）；找不到原票记 0 并标注 */
+  for(const r of incAll){
+    if(!r.st)continue;
+    const src=r.stOrig?incAll.find(function(o){return !o.st&&o.invNo===r.stOrig&&o.name===r.name;}):null;
+    if(src){
+      r.cost=-src.cost;
+      r._apList=src._apList.slice();r.refs=src.refs.slice();
+      for(const a of src._apList){r._byAp[a.id]=-(src._byAp[a.id]||0);r._byApTot[a.id]=src._byApTot[a.id]||0;}
+      r._sups=src._sups.slice();
+      r._tiers={'冲销镜像':1};
+    }else{r.cost=0;r._tiers=r.stOrig?{'冲销镜像缺原票行':1}:{'冲销镜像缺原票':1};}
+  }
+  const TIER_ORDER=['手动','精确','同类','同单分摊','冲销镜像','冲销镜像缺原票行','冲销镜像缺原票'];
   for(const r of incAll){
     /* v28.4 总账口径：发票号列只留纯号码（多票逗号分隔），份额说明移独立列（份额=总额时不列） */
     r.aps=r._apList.map(function(a){return a.invNo;}).join(', ');
@@ -4182,6 +4203,8 @@ async function rcBigExportStyled(model,fileBase,asBlob){
     mr.cells.forEach(function(c,ci){
       const cell=row.getCell(ci+1);
       if(c.fmt)cell.numFmt=c.fmt;
+      else if(ci===0&&mr.kind==='line'&&typeof c.v==='number')cell.numFmt='0'; /* v28.5 序号整数（Emma 反馈②） */
+      else if(ci===6&&mr.kind==='line'&&typeof c.v==='number'&&Math.round(c.v)===c.v)cell.numFmt='0'; /* 数量为整数时同显整数，对齐7月版 */
       else if(typeof c.v==='number'||c.f!==undefined)cell.numFmt='#,##0.00';
     });
     if(mr.kind==='title'){row.font={bold:true,size:14};try{ws.mergeCells(rN,1,rN,19);}catch(e){}}
@@ -4209,6 +4232,16 @@ async function rcBigExportStyled(model,fileBase,asBlob){
       else if(mr.kind==='appxSum'){row.font={bold:true};}
     });
   }
+  /* v28.7 块级纵向合并（Emma 反馈①）：序号/日期/客户/分类/发票号/单号/国家 七列在数据行区间合并、垂直居中；汇总行独立 */
+  model.blocks.forEach(function(b){
+    const dEnd=b.e-1; /* e=汇总行 */
+    if(dEnd>b.s){
+      [1,2,3,4,10,11,12].forEach(function(col){
+        try{ws.mergeCells(b.s,col,dEnd,col);}catch(e){}
+        try{ws.getCell(b.s,col).alignment=Object.assign({},ws.getCell(b.s,col).alignment||{},{vertical:'middle'});}catch(e){}
+      });
+    }
+  });
   /* 每张发票块外框：四边围合，底边加重 */
   model.blocks.forEach(function(b){
     for(let r=b.s;r<=b.e;r++){
@@ -4649,6 +4682,12 @@ function healthCalc(){
   const arLive=ariItems.filter(function(x){return !x.deleted&&x.invNo&&!x.storno&&!x.cancelledBy;});
   add('arFile','应收发票无附件',arLive.filter(function(x){return !(x.files||[]).length;}).length,'warn','月度归档会缺凭证','arifiles');
   const apEnt=apItems.filter(function(x){return !x.deleted&&x.invNo&&x.amount!==null&&x.amount!==undefined&&x.amount!=='';});
+  /* v28.9 C：净额口径两道防线 */
+  let dirtyNet=0;
+  for(const x of apEnt)for(const l of (x.costLines||[]))if(!(Number(l.net)||0)&&(Number(l.gross)||0)>0)dirtyNet++;
+  add('apNet0','成本明细行净额为0但含税有值',dirtyNet,'bad','该行成本会在大表里静默丢失（不进附录），请补净额','ap');
+  const ordSet={};for(const o of ordItems)if(!o.deleted&&o.orderNo)ordSet[o.orderNo]=1;
+  add('apNoLines','订单关联应付缺成本明细',apEnt.filter(function(x){return x.orderNo&&ordSet[x.orderNo]&&!(x.costLines||[]).length&&apNetOf(x)===null;}).length,'warn','订单毛利对这些票按含税口径回退（列表有 ≈ 标注），录明细后自动转净额','ap');
   add('apFile','应付发票无附件',apEnt.filter(function(x){return !(x.files||[]).length;}).length,'warn','月度归档会缺凭证','apall');
   add('apOrd','应付成本明细缺单号/未拆分',apEnt.filter(function(x){return !(x.costLines||[]).length||x.costLines.some(function(l){return !l.ord;});}).length,'bad','大表无法匹配成本','apall');
   let mism=0;const byNo={};for(const o of ordItems){if(!o.deleted&&o.orderNo)byNo[o.orderNo]=o;}
@@ -5228,8 +5267,28 @@ function apOpenEntry(it){
     _apCostLines=(_it&&Array.isArray(_it.costLines))?JSON.parse(JSON.stringify(_it.costLines)):[];
     apCostRender();
   }catch(e){_apCostLines=[];}
+  apNetInfoRender(it); /* v28.9 头部不含税展示与手填净额 */
   $('apEntryOverlay').classList.add('open');
   $('apSupplier').focus();
+}
+/* v28.9 B：含税总额旁实时显示「不含税合计（按明细）」；无明细老票给可选净额输入 + 按19%反推 */
+function apNetInfoRender(it){
+  let box=$('apNetInfo');
+  if(!box){
+    box=document.createElement('div');box.id='apNetInfo';
+    box.style.cssText='font-size:12px;color:var(--ink-soft);margin:4px 0 2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+    const amtEl=$('apAmount');
+    if(amtEl&&amtEl.parentElement)amtEl.parentElement.insertBefore(box,amtEl.nextSibling);
+  }
+  const lineNet=(function(){let s2=0,has=false;for(const l of _apCostLines){const c=apCostCalc(l);if(l.net!==''&&l.net!==null&&l.net!==undefined){s2+=c.net;has=true;}}return has?Math.round(s2*100)/100:null;})();
+  if(lineNet!==null){
+    box.innerHTML='不含税合计（按明细）：<b style="color:var(--ink)">'+fmt(lineNet)+'</b>';
+  }else{
+    const nv=(it&&it.netAmount!==undefined&&it.netAmount!==null&&it.netAmount!=='')?it.netAmount:'';
+    box.innerHTML='不含税总额（无明细时选填）：<input id="apNetAmount" type="number" step="0.01" style="width:110px;text-align:right;font-size:12px" value="'+nv+'"> <button type="button" id="apNetCalc" class="btn-ghost" style="padding:2px 8px;font-size:11.5px" title="按德国 19% 增值税反推：含税÷1.19">按19%反推</button>';
+    const b=$('apNetCalc');
+    if(b)b.onclick=function(){const a=parseFloat($('apAmount').value);if(isFinite(a))$('apNetAmount').value=(Math.round(a/1.19*100)/100).toFixed(2);};
+  }
 }
 /* ── v21.5 阶段2：应付成本明细（按服务项 + 归属订单拆分）──
    与收入侧共用同一套服务项字典（含代垫标记与英文别名），实现收入成本一一对应。
@@ -5354,6 +5413,7 @@ function apCostAlignHint(idx,row){
   }catch(e){}
 }
 function apCostSum(){
+  try{apNetInfoRender(apItems.find(x=>x.id===apEditingId));}catch(e){}
   let net=0,vat=0,ptNet=0;
   for(const l of _apCostLines){
     const c=apCostCalc(l); net+=c.net; vat+=c.vat;
@@ -5481,8 +5541,11 @@ async function apSaveEntry(dupReasonArg){
   if(!dupR.dup&&dupR.deletedDup)toast('提示：曾有一条已删除的同号记录（'+(dupR.deletedDup.invDate||'')+' · '+fmt(dupR.deletedDup.amount||0)+'）');
   const was=apState(it);
   const changes=[];
+  const naEl=$('apNetAmount'); /* v28.9 无明细老票的手填净额（有明细时该输入不存在，净额=Σ行net） */
+  const naRaw=naEl?naEl.value.trim():null;
   const cmp={supplier:['供应商',sup],invNo:['发票号',no],amount:['金额',Math.round(amt*100)/100],
              currency:['币种',$('apCurrency').value],invDate:['发票日期',d],due:['到期日',due]};
+  if(naEl)cmp.netAmount=['不含税总额',naRaw===''?'':(Math.round((parseFloat(naRaw)||0)*100)/100)];
   for(const k in cmp){if(String(it[k]??'')!==String(cmp[k][1]))changes.push(cmp[k][0]+'：'+(it[k]||'—')+' → '+cmp[k][1]);}
   /* v21.5 阶段2：保存成本明细（过滤空行，金额规范化为两位小数） */
   const cl=_apCostLines.filter(l=>(l.svc||'').trim()&&(Number(l.net)||Number(l.vat)))
@@ -6844,17 +6907,31 @@ function metaCloudStart(){
 function ordSelQuote(o){return (o.quotes||[]).find(q=>q.qid===o.selectedQuoteId)||null;}
 function ordApLinked(o){return apItems.filter(x=>!x.deleted&&x.orderNo&&x.orderNo===o.orderNo);}
 function ordArLinked(o){return payments.filter(p=>!p.deleted&&p.orderNo&&p.orderNo===o.orderNo);}
+/* v28.9 净额口径（Emma 确认 A/B）：Σ成本行net > 手填 netAmount > null */
+function apNetOf(x){
+  let s=0,has=false;
+  for(const l of (x.costLines||[])){
+    if(l.net!==''&&l.net!==null&&l.net!==undefined&&isFinite(Number(l.net))){s+=Number(l.net);has=true;}
+  }
+  if(has)return Math.round(s*100)/100;
+  if(x.netAmount!==''&&x.netAmount!==null&&x.netAmount!==undefined&&isFinite(Number(x.netAmount)))return Math.round(Number(x.netAmount)*100)/100;
+  return null;
+}
 function ordCost(o){
   const ap=ordApLinked(o).filter(x=>x.amount);
   if(ap.length){
     const cur=ap[0].currency;
-    if(ap.every(x=>x.currency===cur))return {v:ap.reduce((s,x)=>s+Number(x.amount),0),cur:cur,src:'ap'};
-    return {v:null,cur:'混合',src:'ap'};
+    if(!ap.every(x=>x.currency===cur))return {v:null,cur:'混合',src:'ap'};
+    /* v28.9 成本=不含税：有明细/净额的票取净额；未录明细的票回退含税头并计数标注 */
+    let v=0,grossN=0;
+    for(const x of ap){const n=apNetOf(x);if(n===null){v+=Number(x.amount)||0;grossN++;}else v+=n;}
+    return {v:Math.round(v*100)/100,cur:cur,src:'ap',grossN:grossN,n:ap.length};
   }
   const q=ordSelQuote(o);
   if(q)return {v:(q.price===null||q.price===undefined)?null:(Number(q.price)||0),cur:q.cur||'EUR',src:'quote'}; /* v23.1 待报价成本记null */
   return {v:null,cur:'',src:''};
 }
+window.ordCost=ordCost;window.apNetOf=apNetOf; /* 测试可达 */
 function ordProfit(o){
   const sale=Number(o.salePrice);
   const c=ordCost(o);
@@ -7243,7 +7320,7 @@ function renderORD(){
       '<td title="'+esc(o.customer||'')+'"><span class="p360-lnk" data-kind="cli" data-name="'+esc(o.customer||'')+'">'+esc(o.customer?cliShort(o.customer):'—')+'</span></td>'+ /* v21.0 截断后悬停看全名 */
       '<td>'+esc(o.owner||'—')+'</td>'+
       '<td class="amount">'+(o.salePrice?fmt(o.salePrice)+'<span class="cur">'+esc(o.saleCur||'EUR')+'</span>':'—')+'</td>'+
-      '<td class="amount">'+(c.v!==null&&c.v!==undefined&&c.cur&&c.cur!=='混合'?fmt(c.v)+'<span class="cur">'+esc(c.cur)+'</span>'+(c.src==='quote'?'<span class="cur" title="按选定报价，应付发票录入后自动切换">报价</span>':''):(c.cur==='混合'?'多币种':'—'))+'</td>'+
+      '<td class="amount"'+(c.grossN?' title="含 '+c.grossN+' 张待录成本明细的发票（该部分按含税额计入，录入明细后自动转净额）"':'')+'>'+(c.v!==null&&c.v!==undefined&&c.cur&&c.cur!=='混合'?fmt(c.v)+'<span class="cur">'+esc(c.cur)+'</span>'+(c.src==='quote'?'<span class="cur" title="按选定报价，应付发票录入后自动切换">报价</span>':'')+(c.grossN?'<span class="cur" style="color:var(--warn)" title="含 '+c.grossN+' 张待录明细票（含税口径）">≈</span>':''):(c.cur==='混合'?'多币种':'—'))+'</td>'+
       '<td class="amount" style="'+(pf&&pf.v<0?'color:var(--bad);font-weight:700':'')+'">'+(pf?fmt(pf.v)+'<span class="cur">'+esc(pf.cur)+'</span>':'—')+'</td>'+
       '<td style="white-space:nowrap">'+(o.type==='inq'?'—':logiBadge(o))+'</td>'+
       '<td style="white-space:nowrap">'+(o.type==='inq'?'—':(function(){
@@ -8559,8 +8636,10 @@ function baseEditRow(row,it,key,fields){
 function baseCard(title,key,fields){
   const card=document.createElement('div');card.className='base-card';
   card.innerHTML='<h3 style="display:flex;align-items:center;gap:10px">'+title+'（'+(meta[key]||[]).length+'）'+
-    '<button class="btn-ghost base-exp" type="button" style="margin-left:auto;padding:3px 12px;font-size:12px">导出 Excel</button></h3>';
+    (key==='clients'&&session&&session.name==='Emma'?'<button class="btn-ghost base-ctry" type="button" style="margin-left:auto;padding:3px 12px;font-size:12px" title="从 sevdesk 联系人内置映射补空缺国家（不覆盖已有）">🌍 按 sevdesk 导入国家（'+CTRY_SEED.length+'）</button>':'')+
+    '<button class="btn-ghost base-exp" type="button" style="'+(key==='clients'&&session&&session.name==='Emma'?'':'margin-left:auto;')+'padding:3px 12px;font-size:12px">导出 Excel</button></h3>';
   card.querySelector('.base-exp').onclick=()=>baseExport(key,title.replace(/^[^\u4e00-\u9fff]*/,''),fields);
+  const bc=card.querySelector('.base-ctry');if(bc)bc.onclick=function(){ctryImport(this);}; /* v28.6 */
   /* v22.1 卡内搜索：名称与全部字段一并匹配（忽略大小写与空格），实时过滤 */
   const sBar=document.createElement('div');
   sBar.style.cssText='display:flex;align-items:center;gap:8px;margin:2px 0 8px';
@@ -8745,6 +8824,24 @@ function migRender(){
   $('migWrite').onclick=async function(){if(!confirm('确认把四个台账写入 v2 逐条节点？（不改动 v1 数据）'))return;this.disabled=true;this.textContent='写入中…';try{await migWriteV2();toast('v2 写入完成');}catch(e){toast('写入失败：'+(e.message||''));}migRender();};
   $('migGo').onclick=async function(){if(!confirm('确认切换到逐条记录模式？所有在线页面将提示并刷新。'))return;try{await migSwitch('v2');toast('已切换到 v2');}catch(e){toast('切换失败：'+(e.message||''));}};
   $('migBack').onclick=async function(){if(!confirm('确认回滚到整表模式？'))return;try{await migSwitch('v1');toast('已回滚到 v1');}catch(e){toast('回滚失败：'+(e.message||''));}};
+}
+/* v28.6 客户国家一键补录（Emma 采纳）：sevdesk 联系人导出内置映射，只填空值不覆盖已有；德文国名转中文（大表口径） */
+const CTRY_SEED=[["QC POLAND SP. Z O.O.", "波兰"], ["YANTAI GLOBAL INTERNATIONAL LOGISTICS CO.,LTD", "中国"], ["NEUXIII GmbH", "德国"], ["Schnelland Trade Service UG", "德国"], ["SHILIAN HUTONG SUPPLY CHAIN (HK) LIMITED", "香港"], ["HONG KONG JINCHENG SUPPLY CHAIN LTD", "香港"], ["Hong Kong JSW Tech Group Limited", "香港"], ["Hong Kong JSW Tech Group Limited", "香港"], ["SEAEVER SUPPLY CHAIN LIMITED.", "香港"], ["Shenzhenshiwanhangtongkejiyouxiangongsi", "中国"], ["YOKEE TRADING（HK）CO.，LIMITED", "香港"], ["H+W GmbH", "德国"], ["HONG KONG HONGHU CROSS BORDER TECHNOLOGY CO., LTD", "香港"], ["CONWEST LOGISTIC POLAND SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ", "波兰"], ["Worldwide Partner Logistics Company Limited -Shanghai branch", "中国"], ["Shenzhen Honghu Cross-border Supply Chain Management Co., Ltd.", "中国"], ["Zhang/Lu", "德国"], ["Vaptio GmbH", "德国"], ["Youngstar International Freight Forwarding Co., Limited", "香港"], ["Intropa Speditionsgesellschaft mbH", "德国"], ["TradeSphere GmbH", "德国"], ["Flexispot GmbH", "德国"], ["Shanghai Haona International Logistics Co., Ltd.", "中国"], ["SF SCM LIMITED", "香港"], ["Y2C Fulfillment", "德国"], ["GLOBAL FAST LOGISTIC SRL", "罗马尼亚"], ["Shuerci (Xuzhou) shangmao youxiangongsi", "中国"], ["HOLA GLOBAL SOURCING LOGISTICS CO., LIMITED", "香港"], ["SHENZHEN ONTIME LOGISTICS CO.,LTD", "中国"], ["BV JINYI TRADING INTERNATIONAL", "比利时"], ["Greatsell GmbH", "德国"], ["ZhongYunDa International Forwarding Wuhan Co.,Ltd.", "中国"], ["JCEX International Logistik Germany GmbH", "德国"], ["TYRENET NOOTEBOOM", "荷兰"], ["Moolar GmbH", "德国"], ["VALLEY BRIDGE ROUP LIMITED", "香港"], ["ALLEY BRIDGE ROUP LIMITED", "香港"], ["QIAN TANG (HONG KONG) INTERNATIONAL SUPPLY CHAIN CO., LIMITED", "中国"], ["Hangzhou Baosen International Logistics Co., Ltd.", "中国"], ["EUROPAMOVE LOGISTICS LIMITED", "香港"], ["SMART ASIA (GUANGZHOU) INTERNATIONAL TRANSPORTATION CO., LTD", "中国"], ["Dalian Auto Tech GmbH", "德国"], ["Forest Shipping Germany GmbH", "德国"], ["Shenzhen Zhongrui Supply Chain Management Co., Ltd", "中国"], ["Chengdu Euro Link Supply Chain Management Co., Ltd", "中国"], ["SHENZHEN BAOSEN SUNTOP LOGISTICS CO.,LTD", "中国"], ["MWH GmbH", "德国"], ["AISWEI GmbH", "德国"], ["AGRIVOLT RASOŠKY s.r.o.", "捷克"], ["DISTACT Energy GmbH & Co. KG", "德国"], ["AISWEI B.V.", "荷兰"], ["Shenzhen Yuanyou international Logistics Co.，Ltd.", "中国"], ["Shenzhen Wei Sa International logistics Co.. LTD", "中国"], ["Shenzhen Wei Sa International logistics Co.. LTD", "中国"], ["SHARP INT'L LOGISTICS CO.,LTD XIAMEN BRANCH", "中国"], ["Shenzhen IMG Supply Chain Management Co., LTD", "中国"], ["Mulan Transportation GmbH", "德国"], ["SINO-GLOBAL SUPPLY CHAIN CO., LIMITED", "香港"], ["Shenzhen Wei Sa International logistics Co.. LTD", "中国"], ["ALUFRONT, s.r.o.", "捷克"], ["GLOBAL ETON CO., LIMITED", "香港"], ["H & H GmbH", "德国"], ["WorldEx Logistics B.V.(NL)", "荷兰"], ["Domilar UG", "德国"], ["Timeline Logistics Consultant SRL", "比利时"], ["H & H GmbH", "德国"], ["ZXL B.V.", "荷兰"], ["Goldhof Logistik GmbH", "德国"], ["Falcon e-Fulfillment GmbH", "德国"], ["Mogan3 GmbH", "德国"], ["WEESS GmbH", "德国"], ["WORLD DEPOT B.V.", "荷兰"], ["Le Glamour Suisse GmbH", "瑞士"], ["GLOBAL ETON CO., LIMITED", "香港"], ["SAS M.G. Maintenance", "法国"], ["ALASCOM SRL", "意大利"], ["Rexville Solutions Limited", "英国"], ["CTG Trading GmbH", "德国"], ["Eeeza Home B.V", "荷兰"], ["BUY AND SELL STOCK SL", "西班牙"], ["FS.COM GmbH", "德国"], ["Shenzhen WKSP Power Technology Co., Ltd", "中国"], ["Bolita GmbH", "德国"], ["Euroway International Logistics GmbH", "德国"], ["HONGKONG IM GLOBAL CO.,LIMITED", "香港"], ["JG Supply Chain Management B.V.", "荷属加勒比"]];
+const ctryNorm=function(s){return String(s||'').toUpperCase().replace(/\s+/g,'').slice(0,38);};
+async function ctryImport(btn){
+  if(!session||session.name!=='Emma'){toast('仅 Emma 可执行');return;}
+  const map={};for(const p of CTRY_SEED)map[ctryNorm(p[0])]=p[1];
+  let fill=0,skip=0,miss=0;
+  for(const c of (meta.clients||[])){
+    if(c.country){skip++;continue;}
+    const v=map[ctryNorm(c.name)];
+    if(v){c.country=v;fill++;}else miss++;
+  }
+  if(!fill){toast('没有可补的客户（已有 '+skip+'，未匹配 '+miss+'）');return;}
+  btn.disabled=true;
+  try{await metaSave();toast('已补录国家 '+fill+' 家（跳过已有 '+skip+'，未匹配 '+miss+'）');try{renderBASE();}catch(e){}}
+  catch(e){toast('保存失败：'+(e.message||''));}
+  btn.disabled=false;
 }
 function renderBASE(){
   baseBackupHintUpdate();
