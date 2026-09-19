@@ -277,7 +277,7 @@ header.topbar{background:var(--pine);color:#fff;padding:0 22px;display:flex;alig
 .p360-lnk:hover{color:var(--pine);border-bottom-color:var(--pine)}
 body.theme-dark .p360-lnk:hover{color:var(--ok)}
 .cp-chip{cursor:pointer;opacity:.32;font-size:11px;margin-left:4px;user-select:none;display:inline-block}
-#ariTable th,#ariTable td,#apTable th,#apTable td{padding:7px 7px;font-size:12.3px}
+#ariTable th,#ariTable td,#apTable th,#apTable td{padding:var(--tbl-py) var(--tbl-px);font-size:var(--tbl-fs)} /* v29.6 修回归：ID 规则曾压住密度 token，两档无差别 */
 #apTable td:nth-child(3){max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #ariTable th{white-space:nowrap}
 /* v17.4 应收固定列宽：12 列合计 ~1176px，一屏放下不再横滑 */
@@ -1014,7 +1014,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v29.5</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v29.6</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1654,7 +1654,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=29.5; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=29.6; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
