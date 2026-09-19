@@ -453,6 +453,8 @@ tbody tr.row.just-changed>td{animation:rowFlash 1.6s ease-out}
 body.dark .hr-cal th.hr-wk,body.dark .hr-cal td.hr-wk-td{background:#2A302C}
 body.dark .hr-cal th.hr-hol,body.dark .hr-cal td.hr-hol-td{background:#5A4A1A;color:#E8D48A}
 body.dark .hr-lg-wk{background:#2A302C}body.dark .hr-lg-hol{background:#5A4A1A}
+.hr-holline{font-size:12px;color:#7A5E12;background:#F8F1DC;border-radius:8px;padding:6px 10px;margin:8px 0 4px;display:inline-block} /* v28.3 */
+body.dark .hr-holline{background:#4A3D14;color:#E8D48A}
 .hr-row{border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:8px;background:var(--card,#fff)} /* v27.9 人事 */
 .hr-main{font-size:13.5px}
 .hr-sub{font-size:12px;color:var(--ink-soft);margin-top:2px}
@@ -978,7 +980,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v28.2</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v28.3</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1618,7 +1620,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=28.2; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=28.3; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -10902,7 +10904,11 @@ function hrCalHtml(){
       h+='<td class="hr-cd'+(t?' abs':(hn?' hr-hol-td':wk?' hr-wk-td':''))+'" style="'+st+'" title="'+(t?(n+' · '+(canType(n)?HR_TYPES[t]:'不在')):(hn?esc(hn):''))+'"></td>';}
     h+='</tr>';
   }
-  return h+'</table></div>';
+  h+='</table></div>';
+  /* v28.3 本月假日清单：小格子写不下，名称落在月历下方一行 */
+  const mh=Object.entries(holNames).filter(([k])=>k.startsWith(y+'-'+String(m+1).padStart(2,'0')+'-')).sort();
+  h+='<div class="hr-holline">'+(mh.length?('本月 NRW 假日：'+mh.map(([k,n])=>'<b>'+Number(k.slice(8))+'日</b> '+esc(n)).join('　·　')):'本月无 NRW 法定假日')+'</div>';
+  return h;
 }
 /* ── 年度导出（Peter / Emma） ── */
 async function hrExportYear(Y,btn){
