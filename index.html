@@ -980,7 +980,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v28.3</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v28.4</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1620,7 +1620,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=28.3; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=28.4; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -3993,7 +3993,8 @@ function rcBigRows(){
         rowsOf.push({name:p.name,en:p.en,qty:p.qty,amt:a});
       });
     }else if(net){rowsOf.push({name:'（未分服务项）',en:'',qty:1,amt:net});}
-    for(const r of rowsOf)incAll.push({id:x.id,invNo:x.invNo||'',invDate:String(x.invDate||'').slice(0,10),
+    const invNoOut=(x.invNo||'')+((x.storno||x.cancelledBy)?'冲销发票':''); /* v28.4 对齐手动版 */
+    for(const r of rowsOf)incAll.push({id:x.id,invNo:invNoOut,invDate:String(x.invDate||'').slice(0,10),
       cust:x.customer||'',ord:x.orderNo||'',name:r.name,en:r.en,qty:r.qty,amt:r.amt,
       cost:0,aps:'',sups:'',tier:'',refs:[],_aps:[],_apList:[],_sups:[],_tiers:{},_byAp:{},_byApTot:{}});
   }
@@ -4045,13 +4046,26 @@ function rcBigRows(){
   }
   const TIER_ORDER=['手动','精确','同类','同单分摊'];
   for(const r of incAll){
-    /* v24.4 C：供应商发票号旁标注「本票份额 / 该票归本组总额」，份额=总额时不标注 */
-    r.aps=r._apList.map(function(a){const sh=r._byAp[a.id]||0, tt=r._byApTot[a.id]||0;return a.invNo+(Math.abs(sh-tt)>0.005?'（'+fmt(sh)+' / '+fmt(tt)+'）':'');}).join('; ');
+    /* v28.4 总账口径：发票号列只留纯号码（多票逗号分隔），份额说明移独立列（份额=总额时不列） */
+    r.aps=r._apList.map(function(a){return a.invNo;}).join(', ');
+    r.apsShare=r._apList.map(function(a){const sh=r._byAp[a.id]||0, tt=r._byApTot[a.id]||0;return Math.abs(sh-tt)>0.005?(a.invNo+'：'+fmt(sh)+' / '+fmt(tt)):'';}).filter(Boolean).join('; ');
     r.sups=r._sups.join('; ');
     r.tier=TIER_ORDER.filter(function(t){return r._tiers[t];}).join('+');
   }
   return {incAll:incAll,orphans:orphans};
 }
+/* v28.4 总账口径二分：块内含关务·仓储类服务→清提派；纯派送(派送/燃油/路桥/装卸)→卡车派送；订单 bizMode 手工优先 */
+function rcBigBiz(blk){
+  try{
+    const o=(typeof ordItems!=='undefined'?ordItems:[]).find(function(t){return !t.deleted&&t.orderNo===blk[0].ord;});
+    if(o&&o.bizMode==='qtp')return '清提派';
+    if(o&&o.bizMode==='kcp')return '卡车派送';
+  }catch(e){}
+  const D=/派送|送货|交货|delivery|燃油|fuel|路桥|道路|maut|toll|装卸|unload|loading|be- ?und entladung/i;
+  const pure=blk.every(function(r){const t=String(r.name||'')+' '+String(r.en||'');return !t.trim()||D.test(t);});
+  return pure?'卡车派送':'清提派';
+}
+window.rcBigBiz=rcBigBiz;
 function rcBigCat(rows){
   const m={};
   for(const r of rows){const c=rcSvcCat(r.name);m[c]=(m[c]||0)+Math.abs(r.amt);}
@@ -4080,11 +4094,11 @@ function rcBigModel(d1,d2,label){
   const addAp=function(id){if(M.apIds.indexOf(id)<0)M.apIds.push(id);};
   const C=function(v){return {v:v};};
   const push=function(cells,kind){M.rows.push({cells:cells,kind:kind||'line'});return M.rows.length;};
-  const pad=function(arr){while(arr.length<18)arr.push(C(''));return arr;};
+  const pad=function(arr){while(arr.length<19)arr.push(C(''));return arr;};
   push(pad([C('营业收入成本大表 · '+label+'　IMG Europe GmbH　生成日期：'+todayStr())]),'title');
   push(pad([C('口径：收入按应收发票日期归期（含冲销/红字）；成本跟单跟票——三层匹配：精确(单号+同名服务项)→同类(字典同类目)→同单分摊(按收入占比)，成本行可手动指定归属；成本不按成本发票日期归期')]),'note');
   push(pad([]),'blank');
-  push(['序号','发票日期','客户信息','服务分类','服务描述(英文)','服务描述(中文)','数量','收入单价（不含税）','收入总价（不含税）','发票号','操作单号','客户国家','成本总计（不含税）','供应商发票号（本票份额 / 该票归本组总额）','供应商名称','毛利（不含税）','毛利率','成本来源'].map(C),'head');
+  push(['序号','发票日期','客户信息','服务分类','服务描述(英文)','服务描述(中文)','数量','收入单价（不含税）','收入总价（不含税）','发票号','操作单号','客户国家','成本总计（不含税）','供应商发票号','本票份额说明','供应商名称','毛利（不含税）','毛利率','成本来源'].map(C),'head'); /* v28.4 前14列对齐手动版 */
   let seq=0,i=0,tRev=0,tCost=0;const sumRows=[];
   while(i<rowsIn.length){
     let j=i;while(j<rowsIn.length&&rowsIn[j].id===rowsIn[i].id)j++;
@@ -4092,7 +4106,7 @@ function rcBigModel(d1,d2,label){
     if(M.arIds.indexOf(blk[0].id)<0)M.arIds.push(blk[0].id);
     const blkAp=[]; /* v23.8 块级成本票引用（含共用票——一票对多单时复制进每个序号夹） */
     blk.forEach(function(r){(r.refs||[]).forEach(function(id){addAp(id);if(blkAp.indexOf(id)<0)blkAp.push(id);});});
-    const cat=rcBigCat(blk);
+    const cat=rcBigBiz(blk); /* v28.4 总账口径 清提派/卡车派送 */
     const sLine=M.rows.length+1;
     let bRev=0,bCost=0;
     blk.forEach(function(r,bi){
@@ -4101,17 +4115,18 @@ function rcBigModel(d1,d2,label){
       push([C(bi===0?seq:''),C(bi===0?r.invDate:''),C(bi===0?r.cust:''),C(bi===0?cat:''),
         C(r.en),C(r.name),C(r.qty),C(r.qty?Math.round(r.amt/r.qty*100)/100:r.amt),C(r.amt),
         C(bi===0?r.invNo:''),C(bi===0?r.ord:''),C(bi===0?cliCountry(r.cust):''),
-        C(r.cost),C(r.aps),C(r.sups),{v:Math.round((r.amt-r.cost)*100)/100,f:'I'+rn+'-M'+rn},C(''),C(r.tier||'')],'line');
+        C(r.cost),C(r.aps),C(r.apsShare||''),C(r.sups),{v:Math.round((r.amt-r.cost)*100)/100,f:'I'+rn+'-M'+rn},C(''),C(r.tier||'')],'line');
     });
     const eLine=M.rows.length;
     const sr=M.rows.length+1;
     tRev=Math.round((tRev+bRev)*100)/100;tCost=Math.round((tCost+bCost)*100)/100;
     const gp=Math.round((bRev-bCost)*100)/100;
+    const lineCostSum=Math.round(blk.reduce(function(a,r){return a+r.cost;},0)*100)/100; /* v28.4 校验列 */
     push([C(''),C(''),C(''),C(''),C(''),C(''),C(''),C(''),
       {v:bRev,f:'SUM(I'+sLine+':I'+eLine+')'},C(blk[0].invNo+' 汇总'),C(''),C(''),
-      {v:bCost,f:'SUM(M'+sLine+':M'+eLine+')'},C(''),C(''),
+      {v:bCost,f:'SUM(M'+sLine+':M'+eLine+')'},C(Math.abs(bCost-lineCostSum)<=0.005?'成本总计ok':('差异 '+fmt(Math.round((bCost-lineCostSum)*100)/100))),C(''),C(''),
       {v:gp,f:'I'+sr+'-M'+sr},
-      {v:bRev?(Math.round(gp/bRev*1000)/10)+'%':'',f:'IF(I'+sr+'=0,"",P'+sr+'/I'+sr+')',fmt:'0.0%'},C('')],'sum');
+      {v:bRev?(Math.round(gp/bRev*1000)/10)+'%':'',f:'IF(I'+sr+'=0,"",Q'+sr+'/I'+sr+')',fmt:'0.0%'},C('')],'sum');
     sumRows.push(sr);
     M.blocks.push({s:sLine,e:sr,seq:seq,invNo:blk[0].invNo,arId:blk[0].id,apIds:blkAp});
     i=j;
@@ -4127,9 +4142,9 @@ function rcBigModel(d1,d2,label){
   };
   push([C('总计'),C(''),C(''),C(''),C(''),C(''),C(''),C(''),
     (sumRows.length?{v:tRev,f:chunkSum('I')}:C(tRev)),C(''),C(''),C(''),
-    (sumRows.length?{v:tCost,f:chunkSum('M')}:C(tCost)),C(''),C(''),
+    (sumRows.length?{v:tCost,f:chunkSum('M')}:C(tCost)),C(''),C(''),C(''),
     {v:tGp,f:'I'+tr+'-M'+tr},
-    {v:tRev?(Math.round(tGp/tRev*1000)/10)+'%':'',f:'IF(I'+tr+'=0,"",P'+tr+'/I'+tr+')',fmt:'0.0%'},C('')],'total');
+    {v:tRev?(Math.round(tGp/tRev*1000)/10)+'%':'',f:'IF(I'+tr+'=0,"",Q'+tr+'/I'+tr+')',fmt:'0.0%'},C('')],'total');
   /* 附录：期间内未匹配成本（按成本发票日期归入本期间） */
   const orph=[];
   for(const o of R.orphans){
@@ -4140,14 +4155,14 @@ function rcBigModel(d1,d2,label){
     addAp(it.id);if(M.appxApIds.indexOf(it.id)<0)M.appxApIds.push(it.id);
   }
   if(orph.length){
-    push(pad([]),'blank');
+    push(pad([]),'appxGap'); /* v28.4 导出时附录整体移第二工作表 */
     push(pad([C('── 期间内未匹配成本（供核对：期间内成本发票中无对应收入行的成本明细）──')]),'appxTitle');
     push(pad(['成本发票日期','供应商','供应商发票号','操作单号','服务项','成本净额（不含税）'].map(C)),'appxHead');
     const as2=M.rows.length+1;
     let os=0;
     for(const r of orph){os=Math.round((os+r[5])*100)/100;push(pad(r.map(C)),'appx');}
     const ae2=M.rows.length;
-    push(pad([C('小计'),C(''),C(''),C(''),C(''),{v:os,f:'SUM(F'+as2+':F'+ae2+')'}]),'appxSum');
+    push(pad([C('小计'),C(''),C(''),C(''),C(''),C(os)]),'appxSum'); /* v28.4 移sheet2后行号不定，用纯值 */
   }
   return M;
 }
@@ -4156,9 +4171,12 @@ function rcBigAoa(model){return model.rows.map(function(r){return r.cells.map(fu
 async function rcBigExportStyled(model,fileBase,asBlob){
   const wb=new ExcelJS.Workbook();
   const ws=wb.addWorksheet('收入成本大表',{views:[{state:'frozen',ySplit:4}]});
-  ws.columns=[{width:6},{width:12},{width:26},{width:10},{width:24},{width:22},{width:7},{width:15},{width:15},{width:18},{width:14},{width:10},{width:15},{width:22},{width:20},{width:13},{width:9},{width:14}];
+  ws.columns=[{width:6},{width:12},{width:26},{width:10},{width:24},{width:22},{width:7},{width:15},{width:15},{width:18},{width:14},{width:10},{width:15},{width:22},{width:24},{width:20},{width:13},{width:9},{width:14}];
+  /* v28.4 附录拆到第二工作表：主表纯净到"总计"行止，中国端整表取数不串列 */
+  const mainRows=model.rows.filter(function(r){return !/^appx/.test(r.kind);});
+  const appxRows=model.rows.filter(function(r){return /^appx(Title|Head|Sum)?$/.test(r.kind)&&r.kind!=='appxGap';});
   const thin={style:'thin',color:{argb:'FFB9B1A3'}};
-  model.rows.forEach(function(mr,idx){
+  mainRows.forEach(function(mr,idx){
     const row=ws.addRow(mr.cells.map(function(c){return (c.f!==undefined)?{formula:c.f,result:c.v}:c.v;}));
     const rN=idx+1;
     mr.cells.forEach(function(c,ci){
@@ -4166,33 +4184,42 @@ async function rcBigExportStyled(model,fileBase,asBlob){
       if(c.fmt)cell.numFmt=c.fmt;
       else if(typeof c.v==='number'||c.f!==undefined)cell.numFmt='#,##0.00';
     });
-    if(mr.kind==='title'){row.font={bold:true,size:14};try{ws.mergeCells(rN,1,rN,18);}catch(e){}}
-    else if(mr.kind==='note'){row.font={italic:true,size:10,color:{argb:'FF8A8177'}};try{ws.mergeCells(rN,1,rN,18);}catch(e){}}
+    if(mr.kind==='title'){row.font={bold:true,size:14};try{ws.mergeCells(rN,1,rN,19);}catch(e){}}
+    else if(mr.kind==='note'){row.font={italic:true,size:10,color:{argb:'FF8A8177'}};try{ws.mergeCells(rN,1,rN,19);}catch(e){}}
     else if(mr.kind==='head'){row.font={bold:true,size:11};row.height=30;
-      for(let ci=1;ci<=18;ci++){const c=row.getCell(ci);
+      for(let ci=1;ci<=19;ci++){const c=row.getCell(ci);
         c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEFEAE0'}};
         c.border={bottom:{style:'medium',color:{argb:'FF8A8177'}}};
         c.alignment={vertical:'middle',wrapText:true};}}
     else if(mr.kind==='sum'){row.font={bold:true};
-      for(let ci=1;ci<=18;ci++)row.getCell(ci).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF3EEE5'}};}
+      for(let ci=1;ci<=19;ci++)row.getCell(ci).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF3EEE5'}};}
     else if(mr.kind==='total'){row.font={bold:true,size:12};
-      for(let ci=1;ci<=18;ci++)row.getCell(ci).border={top:{style:'double',color:{argb:'FF6B6257'}}};}
-    else if(mr.kind==='appxTitle'){row.font={bold:true,color:{argb:'FF9A4A3B'}};try{ws.mergeCells(rN,1,rN,18);}catch(e){}}
-    else if(mr.kind==='appxHead'){row.font={bold:true,size:10.5};
-      for(let ci=1;ci<=6;ci++)row.getCell(ci).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEFEAE0'}};}
-    else if(mr.kind==='appxSum'){row.font={bold:true};}
+      for(let ci=1;ci<=19;ci++)row.getCell(ci).border={top:{style:'double',color:{argb:'FF6B6257'}}};}
   });
+  /* v28.4 第二工作表：未匹配成本（核对用） */
+  if(appxRows.length){
+    const ws2=wb.addWorksheet('未匹配成本（核对）',{views:[{state:'frozen',ySplit:2}]});
+    ws2.columns=[{width:14},{width:26},{width:20},{width:14},{width:22},{width:16}];
+    appxRows.forEach(function(mr){
+      const cells=mr.cells.slice(0,6);
+      const row=ws2.addRow(cells.map(function(c){return (c.f!==undefined)?{formula:c.f,result:c.v}:c.v;}));
+      cells.forEach(function(c,ci){const cell=row.getCell(ci+1);if(typeof c.v==='number'||c.f!==undefined)cell.numFmt='#,##0.00';});
+      if(mr.kind==='appxTitle'){row.font={bold:true,color:{argb:'FF9A4A3B'}};try{ws2.mergeCells(row.number,1,row.number,6);}catch(e){}}
+      else if(mr.kind==='appxHead'){row.font={bold:true,size:10.5};for(let ci=1;ci<=6;ci++)row.getCell(ci).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEFEAE0'}};}
+      else if(mr.kind==='appxSum'){row.font={bold:true};}
+    });
+  }
   /* 每张发票块外框：四边围合，底边加重 */
   model.blocks.forEach(function(b){
     for(let r=b.s;r<=b.e;r++){
       const row=ws.getRow(r);
-      for(let c=1;c<=18;c++){
+      for(let c=1;c<=19;c++){
         const cell=row.getCell(c);
         const bd=Object.assign({},cell.border||{});
         if(r===b.s)bd.top=thin;
         if(r===b.e)bd.bottom={style:'medium',color:{argb:'FF8A8177'}};
         if(c===1)bd.left=thin;
-        if(c===18)bd.right=thin;
+        if(c===19)bd.right=thin;
         cell.border=bd;
       }
     }
@@ -7359,6 +7386,21 @@ function ordDetail(o){
     const cur=document.createElement('span');cur.innerHTML=logiBadge(o);lb.appendChild(cur);
     lb.onclick=e=>e.stopPropagation();
     left.appendChild(lb);
+  }
+  /* v28.4 大表业务模式（总账口径 清提派/卡车派送）：默认自动按服务项判定，可手工指定 */
+  if(o.type!=='inq'&&o.flag!=='lost'){
+    const bb=document.createElement('div');
+    bb.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:9px;font-size:12.5px';
+    bb.innerHTML='<span style="color:var(--ink-soft)" title="收入成本大表的服务分类列口径">大表业务模式</span>';
+    const sel2=document.createElement('select');
+    sel2.style.cssText='max-width:170px;font-size:12.5px';
+    sel2.innerHTML=[['','自动（按服务项判定）'],['qtp','清提派'],['kcp','卡车派送']].map(function(v){return '<option value="'+v[0]+'"'+((o.bizMode||'')===v[0]?' selected':'')+'>'+v[1]+'</option>';}).join('');
+    sel2.disabled=isRO();
+    sel2.onclick=function(e){e.stopPropagation();};
+    sel2.onchange=function(e){e.stopPropagation();ordDo(function(){o.bizMode=sel2.value||'';logAdd(o,'大表业务模式改为 '+(sel2.value==='qtp'?'清提派':sel2.value==='kcp'?'卡车派送':'自动'));},'已更新');};
+    bb.appendChild(sel2);
+    bb.onclick=function(e){e.stopPropagation();};
+    left.appendChild(bb);
   }
   /* ── SOP 进度条 + 推进/回滚 ── */
   if(o.type==='inq'){
