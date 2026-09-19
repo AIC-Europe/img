@@ -445,6 +445,14 @@ tbody tr.row.just-changed>td{animation:rowFlash 1.6s ease-out}
 .mod-dock-chip{border:0;background:var(--pine);color:#fff;border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:600;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer;text-align:left}
 .mod-dock-chip:hover{filter:brightness(1.1)}
 .hm-line{font-size:13px;color:var(--brass);margin:2px 0 2px 1px;font-weight:500} /* v27.5 问候寄语 */
+.hr-cal th.hr-wk,.hr-cal td.hr-wk-td{background:#E9EDE9} /* v28.2 周末 */
+.hr-cal th.hr-hol{background:#F3E5B5;color:#7A5E12;font-weight:800} /* NRW 假日 */
+.hr-cal td.hr-hol-td{background:#F3E5B5}
+.hr-lg{display:inline-block;width:11px;height:11px;border-radius:3px;margin:0 3px -1px 6px;border:1px solid var(--line)}
+.hr-lg-wk{background:#E9EDE9}.hr-lg-hol{background:#F3E5B5}
+body.dark .hr-cal th.hr-wk,body.dark .hr-cal td.hr-wk-td{background:#2A302C}
+body.dark .hr-cal th.hr-hol,body.dark .hr-cal td.hr-hol-td{background:#5A4A1A;color:#E8D48A}
+body.dark .hr-lg-wk{background:#2A302C}body.dark .hr-lg-hol{background:#5A4A1A}
 .hr-row{border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:8px;background:var(--card,#fff)} /* v27.9 人事 */
 .hr-main{font-size:13.5px}
 .hr-sub{font-size:12px;color:var(--ink-soft);margin-top:2px}
@@ -970,7 +978,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v28.1</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v28.2</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1610,7 +1618,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=28.1; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=28.2; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -10594,12 +10602,14 @@ function hrIsStaff(){return !!session&&HR_STAFF.includes(session.name);}
 function hrCanDecide(){return !!session&&session.name===HR_APPROVER;}
 /* ── NRW 法定节假日（含复活节系动态日期，Gauss 算法逐年自动） ── */
 function hrEaster(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,da);}
-function hrHolidays(y){
+function hrHolidayList(y){ /* v28.2 带名称（月历悬停用） */
   const E=hrEaster(y);const off=n=>{const d=new Date(E);d.setDate(d.getDate()+n);return d;};
-  const list=[[0,1],[4,1],[9,3],[10,1],[11,25],[11,26]].map(([m,d])=>new Date(y,m,d));
-  list.push(off(-2),off(1),off(39),off(50),off(60)); /* 耶稣受难日/复活节星期一/耶稣升天/圣灵降临星期一/基督圣体节(NRW) */
-  return new Set(list.map(d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')));
+  const fx=[[0,1,'Neujahr'],[4,1,'Tag der Arbeit'],[9,3,'Tag der Deutschen Einheit'],[10,1,'Allerheiligen (NRW)'],[11,25,'1. Weihnachtstag'],[11,26,'2. Weihnachtstag']].map(([m,d,n])=>[new Date(y,m,d),n]);
+  fx.push([off(-2),'Karfreitag'],[off(1),'Ostermontag'],[off(39),'Christi Himmelfahrt'],[off(50),'Pfingstmontag'],[off(60),'Fronleichnam (NRW)']);
+  const key=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const map={};for(const [d,n] of fx)map[key(d)]=n;return map;
 }
+function hrHolidays(y){return new Set(Object.keys(hrHolidayList(y)));}
 function hrWorkdays(from,to){
   if(!from||!to||to<from)return 0;
   const y1=Number(from.slice(0,4)),y2=Number(to.slice(0,4));
@@ -10608,6 +10618,48 @@ function hrWorkdays(from,to){
   while(d<=end){const wd=d.getDay();const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
     if(wd!==0&&wd!==6&&!hol.has(key))n++;d.setDate(d.getDate()+1);}
   return n;
+}
+/* ── v28.2 AU 病假证明附件：≤3MB 存数据库 img-hr/au/<recId>（中德均可），更大走 Firebase Storage（复用 gsProbeOnce）。仅 本人+Peter+Emma 可见。 ── */
+const HR_AU_MAX_MB=10,HR_AU_DB_MB=3;
+async function hrAuPut(rec,file){
+  if(!file)return false;
+  if(!/pdf|image\//.test(file.type||'')&&!/\.(pdf|jpe?g|png)$/i.test(file.name||'')){toast('仅支持 PDF / JPG / PNG');return false;}
+  if(file.size>HR_AU_MAX_MB*1024*1024){alert('文件 '+(file.size/1048576).toFixed(1)+'MB，超过 '+HR_AU_MAX_MB+'MB 上限，请压缩后再传。');return false;}
+  toast('正在上传 AU…');
+  const meta={name:file.name,type:file.type||'application/octet-stream',size:file.size,at:Date.now(),by:session.name};
+  if(file.size<=HR_AU_DB_MB*1024*1024){
+    const data=await new Promise(function(res,rej){const rd=new FileReader();rd.onerror=function(){rej(new Error('read'));};rd.onload=function(){const raw=String(rd.result||'');res(raw.includes(',')?raw.split(',')[1]:'');};rd.readAsDataURL(file);});
+    if(!data)throw new Error('读取文件失败');
+    if(USE_CLOUD&&rtdb)await rtdb.ref(DB_PREFIX+'img-hr/au/'+rec.id).set({name:meta.name,type:meta.type,data:data,size:meta.size,at:meta.at,by:meta.by});
+    meta.loc='db';
+  }else{
+    if(!(await gsProbeOnce()))throw new Error('大文件需要 Storage，当前不可用；请压缩到 3MB 内重试');
+    const safe=String(file.name||'file').replace(/[^\w.\-]+/g,'_').slice(0,80);
+    const path=DB_PREFIX+'img-hr/au_'+rec.id+'_'+safe;
+    const st=firebase.app().storage('gs://'+_gsBucket);
+    await st.ref(path).put(file);
+    meta.loc='gs';meta.bucket=_gsBucket;meta.path=path;
+  }
+  rec.au2=meta;rec.au=true;rec.up=Date.now();
+  await hrSave();toast('AU 已上传');return true;
+}
+async function hrAuOpen(rec){
+  const f=rec.au2;if(!f)return;
+  try{
+    let blob;
+    if(f.loc==='db'){
+      const s=await rtdb.ref(DB_PREFIX+'img-hr/au/'+rec.id).once('value');const v=s.val();
+      if(!v||!v.data)throw new Error('附件不存在');
+      const bin=atob(v.data);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+      blob=new Blob([arr],{type:v.type||'application/octet-stream'});
+    }else{blob=await apGetFileGS(f);}
+    const url=URL.createObjectURL(blob);window.open(url,'_blank');setTimeout(function(){URL.revokeObjectURL(url);},60000);
+  }catch(e){toast('打开失败：'+(e.message||''));}
+}
+function hrAuPick(rec){
+  const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,.jpg,.jpeg,.png,application/pdf,image/*';
+  inp.onchange=async function(){const f=inp.files&&inp.files[0];if(!f)return;try{await hrAuPut(rec,f);renderHR();}catch(e){toast('上传失败：'+(e.message||''));}};
+  inp.click();
 }
 /* ── 存储：与四台账同一套守卫（记录级合并，防互相覆盖） ── */
 function hrMerge(arr){
@@ -10662,6 +10714,7 @@ async function hrSubmit(rec,btn){
   catch(e){hrItems=hrItems.filter(x=>x.id!==rec.id);toast('提交失败：'+(e.message||''));}
   btn.disabled=false;btn.textContent='提交申请';
 }
+/* hrSubmit 返回 Promise 供 AU 随表单上传使用 */
 async function hrDecide(id,ok){
   const x=hrItems.find(t=>t.id===id);if(!x||x.status!=='pending')return;
   let reason='';
@@ -10685,13 +10738,18 @@ function hrRowHtml(x,forWho){
   let h='<div class="hr-row" data-id="'+x.id+'"><div class="hr-main"><b>'+esc(forWho?x.who:HR_TYPES[x.type])+'</b>'
     +(forWho?' · '+HR_TYPES[x.type]:'')+' <span style="color:var(--ink-soft)">'+rng+'</span> '+hrBadge(x)+'</div>';
   if(canSeeNote&&x.note)h+='<div class="hr-sub">备注：'+esc(x.note)+'</div>';
-  if(x.type==='sick'&&x.days>=3&&canSeeNote)h+='<div class="hr-sub">'+(x.au?'☑ 已确认开具 AU 病假证明':'⚠ 连续 ≥3 个工作日：请补交 AU 病假证明')+'</div>';
+  if(x.type==='sick'&&canSeeNote){ /* v28.2 附件优先于勾选 */
+    if(x.au2)h+='<div class="hr-sub" style="color:var(--ok)">☑ AU 已上传：'+esc(x.au2.name)+' · '+new Date(x.au2.at).toLocaleDateString('zh-CN')+'</div>';
+    else if(x.days>=3)h+='<div class="hr-sub" style="color:var(--brass)">'+(x.au?'☑ 已确认开具 AU（纸质），可在此补传电子件':'⚠ 连续 ≥3 个工作日：请补交 AU 病假证明')+'</div>';
+  }
   if(x.status==='rejected'&&x.reason&&canSeeNote)h+='<div class="hr-sub" style="color:var(--bad)">驳回原因：'+esc(x.reason)+'</div>';
   if(x.decBy)h+='<div class="hr-sub">'+esc(x.decBy)+' · '+new Date(x.decAt).toLocaleString('zh-CN')+'</div>';
   else h+='<div class="hr-sub">提交于 '+new Date(x.reqAt).toLocaleString('zh-CN')+'</div>';
   h+='<div class="hr-act">';
   if(hrCanDecide()&&x.status==='pending')h+='<button type="button" class="btn-sm hr-ok" data-id="'+x.id+'" style="border-color:var(--ok);color:var(--ok)">✔ 批准</button><button type="button" class="btn-sm danger hr-no" data-id="'+x.id+'">✖ 驳回</button>';
   if(my&&x.status==='pending')h+='<button type="button" class="btn-sm hr-wd" data-id="'+x.id+'">撤回</button>';
+  if(x.type==='sick'&&my&&x.status!=='withdrawn')h+='<button type="button" class="btn-sm hr-au-up" data-id="'+x.id+'">'+(x.au2?'替换 AU':'上传 AU')+'</button>';
+  if(x.type==='sick'&&x.au2&&canSeeNote)h+='<button type="button" class="btn-sm hr-au-vw" data-id="'+x.id+'">查看 AU</button>';
   return h+'</div></div>';
 }
 function hrFormHtml(){
@@ -10706,7 +10764,7 @@ function hrFormHtml(){
    +'<span id="hrDaysInfo" style="font-size:12.5px;color:var(--brass);font-weight:600"></span>'
    +'</div>'
    +'<div style="margin-top:8px"><input id="hrNote" placeholder="备注（可选；病假不必写病因）" style="width:100%;max-width:520px"></div>'
-   +'<label id="hrAuWrap" style="display:none;font-size:12.5px;margin-top:6px"><input type="checkbox" id="hrAu"> 我已/将开具 AU 病假证明（连续 ≥3 个工作日必需）</label>'
+   +'<label id="hrAuWrap" style="display:none;font-size:12.5px;margin-top:6px"><input type="checkbox" id="hrAu"> 我已/将开具 AU 病假证明（连续 ≥3 个工作日必需）　<input type="file" id="hrAuFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" style="font-size:12px"> <span style="color:var(--ink-soft)">可直接附上 AU（PDF/JPG/PNG ≤10MB，也可事后补传）</span></label>'
    +'<div id="hrBfHint" style="display:none;font-size:12px;color:var(--ink-soft);margin-top:4px">开始日期在今天之前：将标记为「补录」。</div>'
    +'<div style="margin-top:10px"><button type="button" class="btn" id="hrSubmitBtn">提交申请</button></div></div>';
 }
@@ -10732,7 +10790,8 @@ function hrFormWire(){
     if(hrTypeDays(t)){rec.to=To.value;rec.days=hrWorkdays(from,To.value);if(!rec.days){toast('所选范围没有工作日');return;}
       if(t==='sick'&&rec.days>=3)rec.au=$('hrAu').checked;}
     else{rec.hours=Number($('hrHours').value)||0;if(!rec.hours){toast('请填写加班小时数');return;}rec.ord=($('hrOrd').value||'').trim();}
-    hrSubmit(rec,this);
+    const auF=(t==='sick'&&$('hrAuFile')&&$('hrAuFile').files&&$('hrAuFile').files[0])||null;
+    hrSubmit(rec,this).then(function(){if(auF){const saved=hrItems.find(r=>r.id===rec.id);if(saved)hrAuPut(saved,auF).then(function(){renderHR();}).catch(function(e){toast('AU 上传失败（申请已提交）：'+(e.message||''));});}});
   };
 }
 function renderHR(){
@@ -10765,6 +10824,8 @@ function renderHR(){
   box.querySelectorAll('.hr-ok').forEach(b=>b.onclick=()=>hrDecide(b.dataset.id,true));
   box.querySelectorAll('.hr-no').forEach(b=>b.onclick=()=>hrDecide(b.dataset.id,false));
   box.querySelectorAll('.hr-wd').forEach(b=>b.onclick=()=>hrWithdraw(b.dataset.id));
+  box.querySelectorAll('.hr-au-up').forEach(b=>b.onclick=()=>{const x=hrItems.find(t=>t.id===b.dataset.id);if(x)hrAuPick(x);});
+  box.querySelectorAll('.hr-au-vw').forEach(b=>b.onclick=()=>{const x=hrItems.find(t=>t.id===b.dataset.id);if(x)hrAuOpen(x);});
   if(hrIsStaff()&&$('hrView')&&$('hrView').style.display!=='none'){let dirty=false; /* 仅人事页可见时才置已读（后台数据到达不消未读） */for(const x of hrItems)if(x.who===session.name&&!x.seenByReq&&x.status!=='pending'&&x.status!=='withdrawn'){x.seenByReq=true;x.up=Date.now();dirty=true;}
     if(dirty)hrSave().catch(()=>{});}
   hrAlertUpdate();
@@ -10824,20 +10885,21 @@ function hrCalHtml(){
   const now=new Date();if(!_hrCalYM)_hrCalYM=[now.getFullYear(),now.getMonth()];
   const [y,m]=_hrCalYM;const dim=new Date(y,m+1,0).getDate();
   const hol=hrHolidays(y);const abs=hrAbsenceMap(y,m);
+  const holNames=hrHolidayList(y);
   const canType=n=>n===session.name||session.name===HR_APPROVER||session.name==='Emma';
   const TC={vac:'var(--brass)',sick:'#B5651D',comp:'var(--pine)'};
-  let h='<div style="display:flex;align-items:center;gap:10px;margin:4px 0 8px"><button type="button" class="btn-ghost" id="hrCalPrev">◀</button><b style="font-size:14px">'+y+' 年 '+(m+1)+' 月</b><button type="button" class="btn-ghost" id="hrCalNext">▶</button><span style="font-size:11.5px;color:var(--ink-soft)">灰=周末/假日 · 色块=不在（'+(canType('')?'':'本人可见类型；')+'年假=铜色 病假=棕 调休=绿）</span></div>';
+  let h='<div style="display:flex;align-items:center;gap:10px;margin:4px 0 8px;flex-wrap:wrap"><button type="button" class="btn-ghost" id="hrCalPrev">◀</button><b style="font-size:14px">'+y+' 年 '+(m+1)+' 月</b><button type="button" class="btn-ghost" id="hrCalNext">▶</button><span style="font-size:11.5px;color:var(--ink-soft)"><span class="hr-lg hr-lg-wk"></span>周末 <span class="hr-lg hr-lg-hol"></span>NRW 假日（悬停看名称） · 色块=不在（年假=铜 病假=棕 调休=绿）</span></div>';
   h+='<div style="overflow-x:auto"><table class="hr-cal" style="border-collapse:collapse;font-size:11px"><tr><th style="text-align:left;padding:3px 6px;min-width:70px"></th>';
-  for(let d=1;d<=dim;d++){const dt=new Date(y,m,d);const wk=dt.getDay()===0||dt.getDay()===6;const key=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    h+='<th style="padding:2px 3px;min-width:20px;text-align:center;'+((wk||hol.has(key))?'background:var(--n-wash);color:var(--ink-soft)':'')+'" '+(hol.has(key)?'class="hr-hol" title="NRW 法定假日"':'')+'>'+d+'</th>';}
+  for(let d=1;d<=dim;d++){const dt=new Date(y,m,d);const wk=dt.getDay()===0||dt.getDay()===6;const key=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');const hn=holNames[key];
+    h+='<th class="'+(hn?'hr-hol':wk?'hr-wk':'')+'" style="padding:2px 3px;min-width:20px;text-align:center" '+(hn?'title="'+esc(hn)+'"':'')+'>'+d+'</th>';}
   h+='</tr>';
   for(const n of HR_STAFF){
     h+='<tr><td style="padding:3px 6px"><b>'+n+'</b></td>';
     for(let d=1;d<=dim;d++){const t=abs[n][d];const dt=new Date(y,m,d);const wk=dt.getDay()===0||dt.getDay()===6;const key=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      const hn=holNames[key];
       let st='padding:2px;border:1px solid var(--line);height:18px;';
-      if(wk||hol.has(key))st+='background:var(--n-wash);';
       if(t)st+='background:'+(canType(n)?TC[t]:'var(--ink-soft)')+';';
-      h+='<td class="hr-cd'+(t?' abs':'')+'" style="'+st+'" title="'+(t?(n+' · '+(canType(n)?HR_TYPES[t]:'不在')):'')+'"></td>';}
+      h+='<td class="hr-cd'+(t?' abs':(hn?' hr-hol-td':wk?' hr-wk-td':''))+'" style="'+st+'" title="'+(t?(n+' · '+(canType(n)?HR_TYPES[t]:'不在')):(hn?esc(hn):''))+'"></td>';}
     h+='</tr>';
   }
   return h+'</table></div>';
@@ -10849,10 +10911,10 @@ async function hrExportYear(Y,btn){
     const aoa=[['姓名','年假额度(含结转)','年假已批','年假待批','年假剩余','病假天数','加班小时(已确认)','折休天数','加班结余小时']];
     for(const n of HR_STAFF){const b=hrBalance(n,Y);aoa.push([n,b.quota,b.vacA,b.vacP,b.vacLeft,b.sick,b.otH,b.compD,b.otLeft]);}
     aoa.push([]);aoa.push(['明细']);
-    aoa.push(['姓名','类型','开始','结束','工作日/小时','状态','补录','关联单号','备注','审批人','审批时间','驳回原因']);
+    aoa.push(['姓名','类型','开始','结束','工作日/小时','状态','补录','关联单号','备注','AU','审批人','审批时间','驳回原因']);
     const inY=x=>String(x.from||'').slice(0,4)===String(Y);
     for(const x of hrItems.filter(inY).slice().sort((a,b)=>(a.who===b.who?(a.from<b.from?-1:1):(a.who<b.who?-1:1)))){
-      aoa.push([x.who,HR_TYPES[x.type],x.from||'',x.to||'',x.type==='ot'?(x.hours||0):(x.days||0),(HR_ST[x.status]||['?'])[0],x.backfill?'是':'',x.ord||'',x.note||'',x.decBy||'',x.decAt?new Date(x.decAt).toLocaleString('zh-CN'):'',x.reason||'']);
+      aoa.push([x.who,HR_TYPES[x.type],x.from||'',x.to||'',x.type==='ot'?(x.hours||0):(x.days||0),(HR_ST[x.status]||['?'])[0],x.backfill?'是':'',x.ord||'',x.note||'',x.type==='sick'?(x.au2?x.au2.name:(x.au?'纸质已确认':'未传')):'',x.decBy||'',x.decAt?new Date(x.decAt).toLocaleString('zh-CN'):'',x.reason||'']);
     }
     await exportSheet(aoa,'人事','IMG-人事年度台账-'+Y+'-'+todayStr(),aoa[0].map(()=>({wch:14})),true);
   }catch(e){toast('导出失败：'+(e.message||''));}
