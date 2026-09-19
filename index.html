@@ -445,6 +445,13 @@ tbody tr.row.just-changed>td{animation:rowFlash 1.6s ease-out}
 .mod-dock-chip{border:0;background:var(--pine);color:#fff;border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:600;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer;text-align:left}
 .mod-dock-chip:hover{filter:brightness(1.1)}
 .hm-line{font-size:13px;color:var(--brass);margin:2px 0 2px 1px;font-weight:500} /* v27.5 问候寄语 */
+.hr-row{border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:8px;background:var(--card,#fff)} /* v27.9 人事 */
+.hr-main{font-size:13.5px}
+.hr-sub{font-size:12px;color:var(--ink-soft);margin-top:2px}
+.hr-act{margin-top:6px;display:flex;gap:8px}
+.hr-f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--ink-soft)}
+.hr-f input,.hr-f select{border:1.5px solid var(--line);border-radius:8px;padding:5px 7px;font-size:12.5px}
+#hrNote{border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px}
 .more-wrap{position:relative;display:inline-block}
 .more-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--card,#fff);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.16);min-width:230px;padding:6px;z-index:1500;flex-direction:column;gap:2px}
 .more-menu.open{display:flex}
@@ -716,6 +723,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       <button class="mod-btn" id="tabORD" type="button">订单管理<span class="mod-dot" id="ordAlert" style="display:none">0</span></button>
       <button class="mod-btn active" id="tabAR" type="button">应收管理<span class="mod-dot" id="arAlert" style="display:none">0</span></button>
       <button class="mod-btn" id="tabAP" type="button">应付管理<span class="mod-dot" id="apAlert" style="display:none">0</span></button>
+      <button class="mod-btn" id="tabHR" type="button" style="display:none">人事<span class="mod-dot" id="hrAlert" style="display:none">0</span></button>
       <button class="mod-btn" id="tabBASE" type="button">基础资料</button>
     </nav>
     <span class="spacer"></span>
@@ -896,6 +904,10 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
     </div>
   </main>
 
+  <main id="hrView" class="wrap" style="display:none">
+    <div id="hrBody"></div>
+  </main>
+
   <main id="baseView" style="display:none">
     <div id="baseBackupBar" style="display:none;background:linear-gradient(135deg,#0E3B33,#14544A);border-radius:var(--radius);padding:16px 20px;margin-bottom:16px;color:#fff;align-items:center;gap:16px">
       <div style="flex:1">
@@ -958,7 +970,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v27.8</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v28.1</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1598,7 +1610,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=27.8; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=28.1; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2142,6 +2154,7 @@ function enterApp(){
   }catch(e){}
   exportWarm(); /* v26.2 预热 ExcelJS，导出时若已就绪走样式版 */
   try{modalGuardInit();}catch(e){} /* v27.3 录入弹窗防误触+缩小 */
+  try{hrCloudStart();}catch(e){} /* v27.9 人事 */
   try{kbModal('apEntryOverlay','apEntrySave');kbModal('ordEditOverlay','ordEditSave');kbModal('payOverlay','paySave');kbModal('ariOverlay','ariSave');kbModal('ordInvOverlay','ordInvSave');}catch(e){} /* v25.5 Ctrl+Enter 保存 */
   if($('agingBtn'))$('agingBtn').style.display=_ana?'':'none'; /* v24.7 账龄分析：财务+Peter */
   if($('cashBtn'))$('cashBtn').style.display=_ana?'':'none'; /* v24.8 现金流预测：财务+Peter */
@@ -8683,6 +8696,7 @@ function migRender(){
 }
 function renderBASE(){
   baseBackupHintUpdate();
+  try{hrCfgCardEnsure();}catch(e){} /* v28.0 人事配置卡（仅 Emma） */
   try{ /* v26.8 存储迁移卡（仅 Emma，且需云端） */
     let card=$('migCard');
     if(session&&session.name==='Emma'&&USE_CLOUD&&rtdb){
@@ -8744,15 +8758,17 @@ async function ordExport(){
 /* ---- 视图切换与事件 ---- */
 function switchMod(id){
   if(id==='tabBASE'&&!canAnalytics())return;
-  const map={tabHOME:'homeView',tabORD:'ordView',tabAR:'arView',tabAP:'apView',tabBASE:'baseView'};
+  if(id==='tabHR'&&!(typeof canHR==='function'&&canHR()))return;
+  const map={tabHOME:'homeView',tabORD:'ordView',tabAR:'arView',tabAP:'apView',tabBASE:'baseView',tabHR:'hrView'}; /* v27.9 人事 */
   for(const t in map){
     $(t).classList.toggle('active',t===id);
     $(map[t]).style.display=t===id?'':'none';
   }
-  try{document.body.dataset.mod={tabHOME:'home',tabORD:'ord',tabAR:'ar',tabAP:'ap',tabBASE:'base'}[id]||'';}catch(e){}
+  try{document.body.dataset.mod={tabHOME:'home',tabORD:'ord',tabAR:'ar',tabAP:'ap',tabBASE:'base',tabHR:'hr'}[id]||'';}catch(e){}
   if(id==='tabHOME'){try{homeRender();}catch(e){}} /* v18.2 #6 */
 }
 $('tabHOME').onclick=()=>switchMod('tabHOME');
+$('tabHR').onclick=()=>{if(!canHR())return;switchMod('tabHR');try{renderHR();}catch(e){}};
 $('tabORD').onclick=()=>{switchMod('tabORD');renderORD();};
 $('tabAR').onclick=()=>{switchMod('tabAR');};
 $('tabAP').onclick=()=>{switchMod('tabAP');renderAP();apRulesCheck();};
@@ -10563,6 +10579,323 @@ function hmRows(items,empty){
    数据到达后各模块只重绘了自己，工作台无人通知 → 必须显式刷新（仅在其可见时，避免无谓开销）。 */
 /* ── v19.3 P3 站内通知中心：事件全部由现有数据派生（不新增云端结构，零污染风险），
    已读水位线存本地 localStorage，按人隔离。 ── */
+/* ══════════ v27.9 人事模块（Emma 采纳：德国端三人请假/加班，Peter 审批，Emma 只读查看）══════════
+   范围：Minglu / Christina / Bowen 申请（年假 vac / 病假 sick / 调休 comp / 加班登记 ot）；Peter 批准或驳回（驳回必填原因）；
+   Emma 全量只读；Teri / Steven 不可见本模块。数据独立节点 img-hr/state（v1 整表，量小），业务四台账零改动。
+   隐私：病假备注仅 本人+Peter+Emma 可见；团队展示只出天数不出病因。工作日计算跳过周末与 NRW 法定节假日。 */
+const HR_PATH=DB_PREFIX+'img-hr/state';
+const HR_KEY='img-hr-state';
+const HR_STAFF=['Minglu','Christina','Bowen'];
+const HR_APPROVER='Peter';
+const HR_TYPES={vac:'年假',sick:'病假',comp:'调休（折加班）',ot:'加班登记'};
+let hrItems=[];let _hrStarted=false;
+function canHR(){return !!session&&(HR_STAFF.includes(session.name)||session.name===HR_APPROVER||session.name==='Emma');}
+function hrIsStaff(){return !!session&&HR_STAFF.includes(session.name);}
+function hrCanDecide(){return !!session&&session.name===HR_APPROVER;}
+/* ── NRW 法定节假日（含复活节系动态日期，Gauss 算法逐年自动） ── */
+function hrEaster(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,da);}
+function hrHolidays(y){
+  const E=hrEaster(y);const off=n=>{const d=new Date(E);d.setDate(d.getDate()+n);return d;};
+  const list=[[0,1],[4,1],[9,3],[10,1],[11,25],[11,26]].map(([m,d])=>new Date(y,m,d));
+  list.push(off(-2),off(1),off(39),off(50),off(60)); /* 耶稣受难日/复活节星期一/耶稣升天/圣灵降临星期一/基督圣体节(NRW) */
+  return new Set(list.map(d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')));
+}
+function hrWorkdays(from,to){
+  if(!from||!to||to<from)return 0;
+  const y1=Number(from.slice(0,4)),y2=Number(to.slice(0,4));
+  let hol=new Set();for(let y=y1;y<=y2;y++)for(const h of hrHolidays(y))hol.add(h);
+  let n=0;const d=new Date(from+'T12:00:00');const end=new Date(to+'T12:00:00');
+  while(d<=end){const wd=d.getDay();const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    if(wd!==0&&wd!==6&&!hol.has(key))n++;d.setDate(d.getDate()+1);}
+  return n;
+}
+/* ── 存储：与四台账同一套守卫（记录级合并，防互相覆盖） ── */
+function hrMerge(arr){
+  try{
+    const map={};for(const x of hrItems)if(x&&x.id)map[x.id]=x;
+    for(const x of (arr||[]))if(x&&x.id){const cur=map[x.id];if(!cur||(x.up||0)>=(cur.up||0))map[x.id]=x;}
+    hrItems=Object.values(map).sort((a,b)=>(b.reqAt||0)-(a.reqAt||0));
+  }catch(e){}
+}
+function hrGuard(){ /* 只读角色里唯独 Peter 在人事有写权；Emma 在人事无写权（查看） */
+  if(!session)return true;
+  if(hrIsStaff()||hrCanDecide())return false;
+  toast('您在人事模块为只读');return true;
+}
+async function hrSave(){
+  if(hrGuard())return false;
+  try{
+    const _merged=await cloudReadMerge(HR_PATH,HR_KEY,hrMerge);
+    await store.set(HR_KEY,JSON.stringify(hrItems));
+    if(USE_CLOUD&&rtdb){
+      const okTx=await cloudTxWrite(HR_PATH,hrMerge,()=>JSON.stringify(hrItems));
+      cloudWriteGuard(okTx,_merged,'人事');
+      if(okTx!==true)await rtdb.ref(HR_PATH).set({json:JSON.stringify(hrItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});
+      await store.set(HR_KEY,JSON.stringify(hrItems));
+    }
+    hrAlertUpdate();return true;
+  }catch(e){console.error('hrSave:',e);throw e;}
+}
+function hrApplyRemote(s){
+  try{hrItems=JSON.parse(s.json||'[]');store.set(HR_KEY,s.json||'[]');}catch(e){}
+  if(session){try{renderHR();}catch(e){}hrAlertUpdate();try{setTimeout(homeRefreshIfVisible,0);}catch(e){}}
+}
+function hrCloudStart(){
+  if(_hrStarted||!canHR())return;_hrStarted=true;
+  store.get(HR_KEY).then(r=>{if(r&&r.value){try{hrItems=JSON.parse(r.value);}catch(e){}hrAlertUpdate();}}).catch(()=>{});
+  if(USE_CLOUD&&rtdb){rtdb.ref(HR_CFG_PATH).on('value',cs=>{const v=cs.val();hrCfg=(v&&v.json)?JSON.parse(v.json):null;if(session){try{renderHR();}catch(e){}try{hrCfgCardRender();}catch(e){}}});
+  rtdb.ref(HR_PATH).on('value',s=>{const v=s.val();if(v&&v.json&&v._client!==CLOUD_CLIENT_ID)hrApplyRemote(v);else if(v&&v.json&&!session)hrApplyRemote(v);else if(v&&v.json)hrApplyRemote(v);});}
+}
+function hrAlertUpdate(){
+  const el=$('hrAlert'),tab=$('tabHR');if(!tab)return;
+  tab.style.display=canHR()?'':'none';
+  if(!el)return;let n=0;
+  if(hrCanDecide())n=hrItems.filter(x=>x.status==='pending').length;
+  else if(hrIsStaff())n=hrItems.filter(x=>x.who===session.name&&x.status!=='pending'&&x.status!=='withdrawn'&&!x.seenByReq).length;
+  el.textContent=n;el.style.display=n?'':'none';
+}
+/* ── 申请提交 / 决策 ── */
+function hrTypeDays(t){return t==='vac'||t==='sick'||t==='comp';}
+async function hrSubmit(rec,btn){
+  btn.disabled=true;btn.textContent='提交中…';
+  try{hrItems.unshift(rec);await hrSave();toast('已提交，等待 '+HR_APPROVER+' 审批');renderHR();}
+  catch(e){hrItems=hrItems.filter(x=>x.id!==rec.id);toast('提交失败：'+(e.message||''));}
+  btn.disabled=false;btn.textContent='提交申请';
+}
+async function hrDecide(id,ok){
+  const x=hrItems.find(t=>t.id===id);if(!x||x.status!=='pending')return;
+  let reason='';
+  if(!ok){reason=(prompt('驳回原因（必填，申请人可见）：','')||'').trim();if(!reason){toast('已取消：未填写原因');return;}}
+  x.status=ok?'approved':'rejected';x.decBy=session.name;x.decAt=Date.now();if(reason)x.reason=reason;x.seenByReq=false;x.up=Date.now();
+  try{await hrSave();toast(ok?'已批准':'已驳回');renderHR();}catch(e){x.status='pending';delete x.decBy;delete x.decAt;delete x.reason;toast('保存失败：'+(e.message||''));}
+}
+async function hrWithdraw(id){
+  const x=hrItems.find(t=>t.id===id);if(!x||x.status!=='pending'||x.who!==session.name)return;
+  if(!confirm('确认撤回这条申请？'))return;
+  x.status='withdrawn';x.up=Date.now();
+  try{await hrSave();toast('已撤回');renderHR();}catch(e){x.status='pending';toast('保存失败：'+(e.message||''));}
+}
+/* ── 渲染 ── */
+const HR_ST={pending:['待审批','part'],approved:['已批准','ok'],rejected:['已驳回','bad'],withdrawn:['已撤回','']};
+function hrBadge(x){const[t,c]=HR_ST[x.status]||['?',''];return '<span class="badge '+c+'">'+t+'</span>'+(x.backfill?' <span class="badge" style="font-size:10.5px">补录</span>':'');}
+function hrRowHtml(x,forWho){
+  const my=session.name===x.who;
+  const canSeeNote=my||session.name===HR_APPROVER||session.name==='Emma';
+  const rng=x.type==='ot'?(esc(x.from)+' · '+fmt(x.hours)+' 小时'+(x.ord?' · '+esc(x.ord):'')):(esc(x.from)+' → '+esc(x.to)+' · '+x.days+' 个工作日');
+  let h='<div class="hr-row" data-id="'+x.id+'"><div class="hr-main"><b>'+esc(forWho?x.who:HR_TYPES[x.type])+'</b>'
+    +(forWho?' · '+HR_TYPES[x.type]:'')+' <span style="color:var(--ink-soft)">'+rng+'</span> '+hrBadge(x)+'</div>';
+  if(canSeeNote&&x.note)h+='<div class="hr-sub">备注：'+esc(x.note)+'</div>';
+  if(x.type==='sick'&&x.days>=3&&canSeeNote)h+='<div class="hr-sub">'+(x.au?'☑ 已确认开具 AU 病假证明':'⚠ 连续 ≥3 个工作日：请补交 AU 病假证明')+'</div>';
+  if(x.status==='rejected'&&x.reason&&canSeeNote)h+='<div class="hr-sub" style="color:var(--bad)">驳回原因：'+esc(x.reason)+'</div>';
+  if(x.decBy)h+='<div class="hr-sub">'+esc(x.decBy)+' · '+new Date(x.decAt).toLocaleString('zh-CN')+'</div>';
+  else h+='<div class="hr-sub">提交于 '+new Date(x.reqAt).toLocaleString('zh-CN')+'</div>';
+  h+='<div class="hr-act">';
+  if(hrCanDecide()&&x.status==='pending')h+='<button type="button" class="btn-sm hr-ok" data-id="'+x.id+'" style="border-color:var(--ok);color:var(--ok)">✔ 批准</button><button type="button" class="btn-sm danger hr-no" data-id="'+x.id+'">✖ 驳回</button>';
+  if(my&&x.status==='pending')h+='<button type="button" class="btn-sm hr-wd" data-id="'+x.id+'">撤回</button>';
+  return h+'</div></div>';
+}
+function hrFormHtml(){
+  const today=todayStr();
+  return '<div class="base-card" id="hrFormCard"><h3>＋ 新申请 / 登记</h3>'
+   +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">'
+   +'<label class="hr-f">类型<select id="hrType">'+Object.entries(HR_TYPES).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('')+'</select></label>'
+   +'<label class="hr-f">开始日期<input type="date" id="hrFrom" value="'+today+'"></label>'
+   +'<label class="hr-f" id="hrToWrap">结束日期<input type="date" id="hrTo" value="'+today+'"></label>'
+   +'<label class="hr-f" id="hrHoursWrap" style="display:none">小时数<input type="number" id="hrHours" step="0.5" min="0.5" style="width:90px"></label>'
+   +'<label class="hr-f" id="hrOrdWrap" style="display:none">关联成单号（可选）<input id="hrOrd" placeholder="IMG…" style="width:130px"></label>'
+   +'<span id="hrDaysInfo" style="font-size:12.5px;color:var(--brass);font-weight:600"></span>'
+   +'</div>'
+   +'<div style="margin-top:8px"><input id="hrNote" placeholder="备注（可选；病假不必写病因）" style="width:100%;max-width:520px"></div>'
+   +'<label id="hrAuWrap" style="display:none;font-size:12.5px;margin-top:6px"><input type="checkbox" id="hrAu"> 我已/将开具 AU 病假证明（连续 ≥3 个工作日必需）</label>'
+   +'<div id="hrBfHint" style="display:none;font-size:12px;color:var(--ink-soft);margin-top:4px">开始日期在今天之前：将标记为「补录」。</div>'
+   +'<div style="margin-top:10px"><button type="button" class="btn" id="hrSubmitBtn">提交申请</button></div></div>';
+}
+function hrFormWire(){
+  const T=$('hrType'),F=$('hrFrom'),To=$('hrTo');
+  const upd=()=>{
+    const t=T.value;
+    $('hrToWrap').style.display=hrTypeDays(t)?'':'none';
+    $('hrHoursWrap').style.display=t==='ot'?'':'none';
+    $('hrOrdWrap').style.display=t==='ot'?'':'none';
+    let days=0;
+    if(hrTypeDays(t)){if(To.value<F.value)To.value=F.value;days=hrWorkdays(F.value,To.value);
+      $('hrDaysInfo').textContent=days?('= '+days+' 个工作日（已跳过周末与 NRW 法定假日）'):'';}
+    else $('hrDaysInfo').textContent='';
+    $('hrAuWrap').style.display=(t==='sick'&&days>=3)?'':'none';
+    $('hrBfHint').style.display=F.value<todayStr()?'':'none';
+  };
+  T.onchange=upd;F.onchange=upd;To.onchange=upd;upd();
+  $('hrSubmitBtn').onclick=function(){
+    const t=T.value;const from=F.value;if(!from){toast('请选择日期');return;}
+    const rec={id:'hr'+Date.now()+Math.random().toString(36).slice(2,6),type:t,who:session.name,from:from,
+      note:($('hrNote').value||'').trim(),status:'pending',reqAt:Date.now(),up:Date.now(),backfill:from<todayStr()};
+    if(hrTypeDays(t)){rec.to=To.value;rec.days=hrWorkdays(from,To.value);if(!rec.days){toast('所选范围没有工作日');return;}
+      if(t==='sick'&&rec.days>=3)rec.au=$('hrAu').checked;}
+    else{rec.hours=Number($('hrHours').value)||0;if(!rec.hours){toast('请填写加班小时数');return;}rec.ord=($('hrOrd').value||'').trim();}
+    hrSubmit(rec,this);
+  };
+}
+function renderHR(){
+  const box=$('hrBody');if(!box||!canHR())return;
+  let h='<div class="hm-greet" style="font-size:20px">人事 · 请假与加班</div>'
+   +'<div class="hm-sub">'+(hrCanDecide()?'审批人视角（Peter）':hrIsStaff()?('申请人：'+esc(session.name)):'查看视角（只读）')+'　·　假日历：NRW（北威州）</div>';
+  if(hrIsStaff())h+=hrBalCardsHtml(session.name,new Date().getFullYear()); /* v28.0 我的余额 */
+  if(!hrIsStaff())h+=hrBalTableHtml(new Date().getFullYear()); /* v28.0 Peter/Emma 三人总览 */
+  h+='<div class="hm-sec">📅 团队月历</div>'+hrCalHtml();
+  if(!hrIsStaff())h+='<div style="margin:6px 0 4px"><button type="button" class="btn-ghost" id="hrExpBtn">导出 '+new Date().getFullYear()+' 年度 Excel</button></div>';
+  if(hrIsStaff())h+=hrFormHtml();
+  const mine=hrItems.filter(x=>x.who===session.name);
+  const pend=hrItems.filter(x=>x.status==='pending');
+  if(hrCanDecide()){
+    h+='<div class="hm-sec">⏳ 待审批（'+pend.length+'）</div>';
+    h+=pend.length?pend.map(x=>hrRowHtml(x,true)).join(''):'<div class="hm-empty">没有待审批的申请</div>';
+    h+='<div class="hm-sec">全部记录</div>'+hrItems.filter(x=>x.status!=='pending').slice(0,60).map(x=>hrRowHtml(x,true)).join('');
+  }else if(hrIsStaff()){
+    h+='<div class="hm-sec">我的申请</div>';
+    h+=mine.length?mine.map(x=>hrRowHtml(x,false)).join(''):'<div class="hm-empty">还没有申请。今年已休的假期与加班请在此逐条补录（选过去日期即可），由 '+HR_APPROVER+' 一并确认。</div>';
+  }else{
+    h+='<div class="hm-sec">全部记录（只读）</div>'+(hrItems.length?hrItems.slice(0,80).map(x=>hrRowHtml(x,true)).join(''):'<div class="hm-empty">暂无记录</div>');
+  }
+  box.innerHTML=h;
+  if(hrIsStaff()&&$('hrType'))hrFormWire();
+  const pv=$('hrCalPrev'),nx=$('hrCalNext');
+  if(pv)pv.onclick=()=>{_hrCalYM[1]--;if(_hrCalYM[1]<0){_hrCalYM[1]=11;_hrCalYM[0]--;}renderHR();};
+  if(nx)nx.onclick=()=>{_hrCalYM[1]++;if(_hrCalYM[1]>11){_hrCalYM[1]=0;_hrCalYM[0]++;}renderHR();};
+  const ex=$('hrExpBtn');if(ex)ex.onclick=function(){hrExportYear(new Date().getFullYear(),this);};
+  box.querySelectorAll('.hr-ok').forEach(b=>b.onclick=()=>hrDecide(b.dataset.id,true));
+  box.querySelectorAll('.hr-no').forEach(b=>b.onclick=()=>hrDecide(b.dataset.id,false));
+  box.querySelectorAll('.hr-wd').forEach(b=>b.onclick=()=>hrWithdraw(b.dataset.id));
+  if(hrIsStaff()&&$('hrView')&&$('hrView').style.display!=='none'){let dirty=false; /* 仅人事页可见时才置已读（后台数据到达不消未读） */for(const x of hrItems)if(x.who===session.name&&!x.seenByReq&&x.status!=='pending'&&x.status!=='withdrawn'){x.seenByReq=true;x.up=Date.now();dirty=true;}
+    if(dirty)hrSave().catch(()=>{});}
+  hrAlertUpdate();
+}
+
+/* ══════════ v28.0 人事第二期：余额 / 团队月历 / 年度导出 / 配置（Emma 采纳）══════════ */
+const HR_CFG_PATH=DB_PREFIX+'img-hr/config';
+const HR_CFG_DEFAULT={_hoursPerDay:8,Minglu:{quota:26,entry:'2026-01-01',carry:0,quotaYear:null},Bowen:{quota:26,entry:'2026-01-01',carry:0,quotaYear:null},Christina:{quota:24,entry:'2026-07-20',carry:0,quotaYear:null}};
+let hrCfg=null;let _hrCalYM=null;
+function hrCfgGet(){const c=hrCfg||HR_CFG_DEFAULT;const out={_hoursPerDay:Number(c._hoursPerDay)||8};for(const n of HR_STAFF)out[n]=Object.assign({},HR_CFG_DEFAULT[n],c[n]||{});return out;}
+function hrQuotaSuggest(p,Y){ /* 入职年按整月 1/12 折算（§5 BUrlG），四舍五入到 0.5 */
+  const q=Number(p.quota)||0;const ey=Number((p.entry||'').slice(0,4));
+  if(!ey||ey<Y)return q;if(ey>Y)return 0;
+  const em=Number(p.entry.slice(5,7)),ed=Number(p.entry.slice(8,10));
+  const months=12-em+(ed===1?1:0);
+  return Math.round(q*months/12*2)/2;
+}
+function hrQuotaYear(p,Y){return p.quotaYear!=null&&p.quotaYear!==''?Number(p.quotaYear):hrQuotaSuggest(p,Y);}
+function hrBalance(name,Y){
+  const cfg=hrCfgGet(),p=cfg[name]||{quota:0,carry:0};
+  const inY=x=>String(x.from||'').slice(0,4)===String(Y);
+  const mine=hrItems.filter(x=>x.who===name&&inY(x));
+  const sum=(t,st)=>mine.filter(x=>x.type===t&&x.status===st).reduce((a,x)=>a+(x.days||0),0);
+  const otH=mine.filter(x=>x.type==='ot'&&x.status==='approved').reduce((a,x)=>a+(x.hours||0),0);
+  const compD=sum('comp','approved');
+  const quota=hrQuotaYear(p,Y)+(Number(p.carry)||0);
+  return {quota:quota,vacA:sum('vac','approved'),vacP:sum('vac','pending'),
+    vacLeft:Math.round((quota-sum('vac','approved'))*10)/10,
+    sick:sum('sick','approved'),otH:otH,compD:compD,
+    otLeft:Math.round((otH-compD*cfg._hoursPerDay)*10)/10};
+}
+function hrBalCardsHtml(name,Y){
+  const b=hrBalance(name,Y);
+  const c=(l,v,s,cls)=>'<div class="hm-card '+(cls||'')+'" style="cursor:default"><div class="l">'+l+'</div><div class="v" style="font-size:20px">'+v+'</div><div class="s">'+s+'</div></div>';
+  return '<div class="hm-hero" style="margin-bottom:10px">'
+   +c(Y+' 年假',b.vacLeft+' 天','额度 '+b.quota+' · 已批 '+b.vacA+(b.vacP?' · 待批 '+b.vacP:''),b.vacLeft<0?'bad':'')
+   +c('病假累计',b.sick+' 天',Y+' 年已确认','')
+   +c('加班结余',b.otLeft+' 小时','已确认 '+b.otH+' h · 已折休 '+b.compD+' 天',b.otLeft<0?'warn':'')+'</div>';
+}
+function hrBalTableHtml(Y){
+  let h='<table style="width:100%;font-size:12.5px;border-collapse:collapse;margin-bottom:12px"><tr style="background:var(--n-wash)"><th style="text-align:left;padding:5px 8px">'+Y+' 年</th><th>年假额度</th><th>已批</th><th>待批</th><th>剩余</th><th>病假</th><th>加班 h</th><th>折休 天</th><th>加班结余 h</th></tr>';
+  for(const n of HR_STAFF){const b=hrBalance(n,Y);
+    h+='<tr><td style="padding:5px 8px"><b>'+n+'</b></td><td style="text-align:center">'+b.quota+'</td><td style="text-align:center">'+b.vacA+'</td><td style="text-align:center">'+(b.vacP||'—')+'</td><td style="text-align:center;font-weight:700;color:'+(b.vacLeft<0?'var(--bad)':'var(--pine)')+'">'+b.vacLeft+'</td><td style="text-align:center">'+b.sick+'</td><td style="text-align:center">'+b.otH+'</td><td style="text-align:center">'+b.compD+'</td><td style="text-align:center;color:'+(b.otLeft<0?'var(--bad)':'inherit')+'">'+b.otLeft+'</td></tr>';}
+  return h+'</table>';
+}
+/* ── 团队月历：谁哪天不在（隐私：他人只显示"不在"，本人/Peter/Emma 可见类型色） ── */
+function hrAbsenceMap(y,m){ /* {'姓名':{day:type}} 仅 approved 的天数类申请 */
+  const map={};for(const n of HR_STAFF)map[n]={};
+  for(const x of hrItems){
+    if(x.status!=='approved'||!hrTypeDays(x.type))continue;
+    const d=new Date(x.from+'T12:00:00'),end=new Date(x.to+'T12:00:00');
+    while(d<=end){if(d.getFullYear()===y&&d.getMonth()===m)map[x.who][d.getDate()]=x.type;d.setDate(d.getDate()+1);}
+  }
+  return map;
+}
+function hrCalHtml(){
+  const now=new Date();if(!_hrCalYM)_hrCalYM=[now.getFullYear(),now.getMonth()];
+  const [y,m]=_hrCalYM;const dim=new Date(y,m+1,0).getDate();
+  const hol=hrHolidays(y);const abs=hrAbsenceMap(y,m);
+  const canType=n=>n===session.name||session.name===HR_APPROVER||session.name==='Emma';
+  const TC={vac:'var(--brass)',sick:'#B5651D',comp:'var(--pine)'};
+  let h='<div style="display:flex;align-items:center;gap:10px;margin:4px 0 8px"><button type="button" class="btn-ghost" id="hrCalPrev">◀</button><b style="font-size:14px">'+y+' 年 '+(m+1)+' 月</b><button type="button" class="btn-ghost" id="hrCalNext">▶</button><span style="font-size:11.5px;color:var(--ink-soft)">灰=周末/假日 · 色块=不在（'+(canType('')?'':'本人可见类型；')+'年假=铜色 病假=棕 调休=绿）</span></div>';
+  h+='<div style="overflow-x:auto"><table class="hr-cal" style="border-collapse:collapse;font-size:11px"><tr><th style="text-align:left;padding:3px 6px;min-width:70px"></th>';
+  for(let d=1;d<=dim;d++){const dt=new Date(y,m,d);const wk=dt.getDay()===0||dt.getDay()===6;const key=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    h+='<th style="padding:2px 3px;min-width:20px;text-align:center;'+((wk||hol.has(key))?'background:var(--n-wash);color:var(--ink-soft)':'')+'" '+(hol.has(key)?'class="hr-hol" title="NRW 法定假日"':'')+'>'+d+'</th>';}
+  h+='</tr>';
+  for(const n of HR_STAFF){
+    h+='<tr><td style="padding:3px 6px"><b>'+n+'</b></td>';
+    for(let d=1;d<=dim;d++){const t=abs[n][d];const dt=new Date(y,m,d);const wk=dt.getDay()===0||dt.getDay()===6;const key=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      let st='padding:2px;border:1px solid var(--line);height:18px;';
+      if(wk||hol.has(key))st+='background:var(--n-wash);';
+      if(t)st+='background:'+(canType(n)?TC[t]:'var(--ink-soft)')+';';
+      h+='<td class="hr-cd'+(t?' abs':'')+'" style="'+st+'" title="'+(t?(n+' · '+(canType(n)?HR_TYPES[t]:'不在')):'')+'"></td>';}
+    h+='</tr>';
+  }
+  return h+'</table></div>';
+}
+/* ── 年度导出（Peter / Emma） ── */
+async function hrExportYear(Y,btn){
+  btn.disabled=true;btn.textContent='导出中…';
+  try{
+    const aoa=[['姓名','年假额度(含结转)','年假已批','年假待批','年假剩余','病假天数','加班小时(已确认)','折休天数','加班结余小时']];
+    for(const n of HR_STAFF){const b=hrBalance(n,Y);aoa.push([n,b.quota,b.vacA,b.vacP,b.vacLeft,b.sick,b.otH,b.compD,b.otLeft]);}
+    aoa.push([]);aoa.push(['明细']);
+    aoa.push(['姓名','类型','开始','结束','工作日/小时','状态','补录','关联单号','备注','审批人','审批时间','驳回原因']);
+    const inY=x=>String(x.from||'').slice(0,4)===String(Y);
+    for(const x of hrItems.filter(inY).slice().sort((a,b)=>(a.who===b.who?(a.from<b.from?-1:1):(a.who<b.who?-1:1)))){
+      aoa.push([x.who,HR_TYPES[x.type],x.from||'',x.to||'',x.type==='ot'?(x.hours||0):(x.days||0),(HR_ST[x.status]||['?'])[0],x.backfill?'是':'',x.ord||'',x.note||'',x.decBy||'',x.decAt?new Date(x.decAt).toLocaleString('zh-CN'):'',x.reason||'']);
+    }
+    await exportSheet(aoa,'人事','IMG-人事年度台账-'+Y+'-'+todayStr(),aoa[0].map(()=>({wch:14})),true);
+  }catch(e){toast('导出失败：'+(e.message||''));}
+  btn.disabled=false;btn.textContent='导出 '+Y+' 年度 Excel';
+}
+/* ── 基础资料·人事配置卡（仅 Emma 可编辑） ── */
+async function hrCfgSave(next){
+  if(!session||session.name!=='Emma'){toast('仅 Emma 可修改人事配置');return false;}
+  hrCfg=next;
+  if(USE_CLOUD&&rtdb)await rtdb.ref(HR_CFG_PATH).set({json:JSON.stringify(next),_at:Date.now(),_by:session.name,_client:CLOUD_CLIENT_ID});
+  toast('人事配置已保存');return true;
+}
+function hrCfgCardRender(){
+  const box=$('hrCfgBox');if(!box)return;
+  const cfg=hrCfgGet();const Y=new Date().getFullYear();
+  let h='<div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px">年假额度=本年额度（入职年按整月 1/12 折算的建议值，可手改）＋上年结转。加班折休按 <b>'+cfg._hoursPerDay+'</b> 小时/天。</div>';
+  h+='<table style="width:100%;font-size:12.5px;border-collapse:collapse"><tr style="background:var(--n-wash)"><th style="text-align:left;padding:4px 8px">姓名</th><th>合同年假</th><th>入职日期</th><th>'+Y+' 额度(建议 '+HR_STAFF.map(n=>hrQuotaSuggest(cfg[n],Y)).join('/')+')</th><th>上年结转</th></tr>';
+  for(const n of HR_STAFF){const p=cfg[n];
+    h+='<tr><td style="padding:4px 8px"><b>'+n+'</b></td>'
+     +'<td style="text-align:center"><input data-n="'+n+'" data-k="quota" type="number" step="1" value="'+p.quota+'" style="width:60px"></td>'
+     +'<td style="text-align:center"><input data-n="'+n+'" data-k="entry" type="date" value="'+esc(p.entry||'')+'"></td>'
+     +'<td style="text-align:center"><input data-n="'+n+'" data-k="quotaYear" type="number" step="0.5" value="'+(p.quotaYear!=null?p.quotaYear:'')+'" placeholder="'+hrQuotaSuggest(p,Y)+'" style="width:70px"></td>'
+     +'<td style="text-align:center"><input data-n="'+n+'" data-k="carry" type="number" step="0.5" value="'+(p.carry||0)+'" style="width:60px"></td></tr>';}
+  h+='</table><div style="margin-top:8px"><button type="button" class="btn" id="hrCfgSaveBtn">保存人事配置</button></div>';
+  box.innerHTML=h;
+  box.querySelectorAll('input').forEach(el=>el.style.cssText+=';border:1.5px solid var(--line);border-radius:7px;padding:3px 5px;font-size:12px');
+  $('hrCfgSaveBtn').onclick=async function(){
+    const next=JSON.parse(JSON.stringify(hrCfgGet()));
+    box.querySelectorAll('input[data-n]').forEach(el=>{const v=el.value;next[el.dataset.n][el.dataset.k]=(el.dataset.k==='entry')?v:(v===''?null:Number(v));});
+    this.disabled=true;try{await hrCfgSave(next);}catch(e){toast('保存失败：'+(e.message||''));}this.disabled=false;
+    hrCfgCardRender();try{renderHR();}catch(e){}
+  };
+}
+function hrCfgCardEnsure(){
+  try{
+    let card=$('hrCfgCard');
+    if(session&&session.name==='Emma'){
+      if(!card){card=document.createElement('div');card.className='base-card';card.id='hrCfgCard';card.innerHTML='<h3>🧑‍💼 人事配置（年假额度 · 仅 Emma）</h3><div id="hrCfgBox"></div>';const host=$('baseCards');if(host&&host.parentNode)host.parentNode.insertBefore(card,host.nextSibling);}
+      hrCfgCardRender();
+    }else if(card)card.remove();
+  }catch(e){}
+}
+
 /* ── v19.4 V1 无障碍 + 键盘可达：27 个弹窗此前缺 role/焦点管理，Tab 会跑到背景元素上 ── */
 /* ── v19.5 C2 导出样板收敛：xlsx + CSV 兜底原先逐字重复多处，改动需同步多遍（易漏），统一为单一助手。 ── */
 /* ── v21.7 导出汇总行：各处导出此前只有明细、没有合计，核账时须自行求和。
@@ -10941,6 +11274,14 @@ function homeRender(){
     cards.push(hmCard(myOvd.length?'bad':'ok','warn','我的客户逾期',myOvd.length+' 张',myOvd.length?('€ '+fmt(Math.round(myOvdSum*100)/100)+' 待催收'):'无逾期','myovd'));
     cards.push(hmCard(mySend.length?'warn':'ok','mail','近期开票·待发客户',mySend.length+' 张',mySend.length?'财务已开票，请转发客户':'暂无','mysend'));
     cards.push(hmCard(myRcpt.length?'ok':'','check','我的加急回执',myRcpt.length+' 张',myRcpt.length?'近7天已付款':'暂无回执','myrcpt'));
+    try{ /* v27.9 人事卡 */
+      if(typeof canHR==='function'&&canHR()){
+        if(hrCanDecide()){const n=hrItems.filter(x=>x.status==='pending').length;
+          cards.unshift(hmCard(n?'warn':'ok','check','待审批·人事',n+' 条',n?'请假/加班等待处理':'暂无待办','hr'));}
+        else if(hrIsStaff()){const p=hrItems.filter(x=>x.who===me&&x.status==='pending').length;const d=hrItems.filter(x=>x.who===me&&!x.seenByReq&&x.status!=='pending'&&x.status!=='withdrawn').length;
+          cards.push(hmCard(d?'warn':'','check','我的人事申请',(p+d)?(p+' 待批'+(d?' / '+d+' 有批复':'')):'—',d?'有新批复，点人事查看':'请假/加班在「人事」提交','hr'));}
+      }
+    }catch(e){}
     out+='<div class="hm-hero">'+cards.map(c=>c.html).join('')+'</div>';
     out+='<div class="hm-sec">'+ic('warn','ic-sm')+'我的超期未开票（前 5）</div>';
     out+=hmRows(noInv.slice(0,5).map(o=>({
@@ -10970,7 +11311,8 @@ function homeAct(a){
   if(!a)return;
   const [k,v]=a.split(':');
   const setF=(id,val)=>{const e=$(id);if(e){e.value=val;e.dispatchEvent(new Event(id.includes('Search')?'input':'change'));}};
-  if(k==='health'){healthOpen();return;} /* v25.1 */
+  if(k==='hr'){switchMod('tabHR');try{renderHR();}catch(e){}}
+  else if(k==='health'){healthOpen();return;} /* v25.1 */
   if(k==='base'){switchMod('tabBASE');return;}
   if(k==='ord'){switchMod('tabORD');return;}
   if(k==='arifiles'){switchMod('tabAR');arSub('ari');setTimeout(()=>{setF('ariFMonth','');},120);return;}
@@ -11178,13 +11520,13 @@ function logRender(){
   $('logCount').textContent='共 '+rows.length+' 条';
   const cap=rows.slice(0,300);
   $('logBody').innerHTML=cap.length?
-    '<div style="border:1px solid var(--n-line);border-radius:8px;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:12.3px">'+
+    '<div style="border:1px solid var(--n-line);border-radius:8px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.3px">'+
     '<thead><tr>'+['时间','模块','类型','单据','客户/供应商','操作人','内容'].map((h,i)=>'<th style="text-align:left;padding:6px 9px;background:var(--n-soft);color:var(--ink-soft);font-weight:600;white-space:nowrap">'+h+'</th>').join('')+'</tr></thead><tbody>'+
     cap.map(r=>'<tr>'+
       '<td style="padding:6px 9px;border-top:1px solid var(--n-line);white-space:nowrap;font-family:var(--font-num)">'+(r.time?new Date(r.time).toLocaleString('zh-CN'):'—')+'</td>'+
       '<td style="padding:6px 9px;border-top:1px solid var(--n-line);white-space:nowrap"><span class="badge '+(r.mod==='ap'?'part':r.mod==='pay'?'ok':'')+'">'+LOG_MOD[r.mod]+'</span></td>'+
       '<td style="padding:6px 9px;border-top:1px solid var(--n-line);white-space:nowrap"><span style="font-size:11px;font-weight:700;color:'+(r.type==='del'?'var(--bad)':r.type==='amt'?'var(--brass)':r.type==='st'?'var(--pine)':'var(--ink-soft)')+'">'+(AUDIT_TYPE[r.type]||'其他')+'</span></td>'+ /* v26.3 */
-      '<td style="padding:6px 9px;border-top:1px solid var(--n-line);white-space:nowrap;font-family:var(--font-num)">'+esc(r.ref)+'</td>'+
+      '<td style="padding:6px 9px;border-top:1px solid var(--n-line);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-num)" title="'+esc(r.ref)+'">'+esc(r.ref)+'</td>'+ /* v28.1 多单号撑爆修复 */
       '<td style="padding:6px 9px;border-top:1px solid var(--n-line);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.cust)+'">'+esc(r.cust||'—')+'</td>'+
       '<td style="padding:6px 9px;border-top:1px solid var(--n-line);white-space:nowrap"><b>'+esc(r.who)+'</b>'+(r.role?'<span style="color:var(--ink-soft);font-size:11px"> · '+esc(r.role==='finance'?'财务':r.role==='readonly'?'只读':'业务')+'</span>':'')+'</td>'+
       '<td style="padding:6px 9px;border-top:1px solid var(--n-line)">'+esc(r.text)+'</td>'+
