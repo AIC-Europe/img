@@ -1014,7 +1014,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v29.6</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v29.9</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1620,8 +1620,11 @@ const memStore={};
 /* 记住每个业务账户的真实姓名（本机） */
 const isAcctName=v=>/^(业务[0-9]*|财务)$/.test(String(v||'').trim());
 let _memName='';
-function myNameGet(){if(hasLS){try{return localStorage.getItem('img-ar-myname-'+(session?session.name:''))||'';}catch(e){}}return _memName;}
-function myNameSet(n){_memName=n;if(hasLS){try{localStorage.setItem('img-ar-myname-'+(session?session.name:''),n);}catch(e){}}}
+/* v29.8 别名只对旧式共享账号（业务N/财务）生效；实名账号永远以登录名为"我"——修复 Bowen 电脑上"我"变成 Minglu 的归属 bug */
+function myNameLegacy(){return !!(session&&isAcctName(session.name));}
+function myNameGet(){if(!myNameLegacy())return '';if(hasLS){try{return localStorage.getItem('img-ar-myname-'+(session?session.name:''))||'';}catch(e){}}return _memName;}
+function myNameSet(n){if(!myNameLegacy())return;_memName=n;if(hasLS){try{localStorage.setItem('img-ar-myname-'+(session?session.name:''),n);}catch(e){}}}
+function myNamePurge(){ /* 登录时清掉实名账号残留的错误别名 */ if(myNameLegacy()||!hasLS||!session)return;try{const k='img-ar-myname-'+session.name;const v=localStorage.getItem(k);if(v&&v!==session.name){localStorage.removeItem(k);console.warn('已清除残留别名',v);}}catch(e){}}
 /* 未读备注提醒：记录本人对每笔的最后查看时间 */
 let _seenMem={};
 function seenKey(){return 'img-ar-seen-'+(session?session.name:'');}
@@ -1654,7 +1657,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=29.6; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=29.9; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2217,6 +2220,7 @@ function enterApp(){
     moreMenuBuild('ordMore',$('benchBtn'),[['分析',['ordMrBtn','ordCaBtn','ordSupBtn','ordStatsBtn']],['其他',['ordBulkBtn']]]);
     moreMenuRefresh();
   }catch(e){}
+  myNamePurge(); /* v29.8 实名账号清残留别名 */
   exportWarm(); /* v26.2 预热 ExcelJS，导出时若已就绪走样式版 */
   try{modalGuardInit();}catch(e){} /* v27.3 录入弹窗防误触+缩小 */
   try{hrCloudStart();}catch(e){} /* v27.9 人事 */
@@ -7482,6 +7486,7 @@ function ordCmt(o,text,author){
   o.comments=o.comments||[];
   o.comments.push({author:author||(session.role==='business'?(myNameGet()||session.name):session.name),role:session.role,text:text,time:Date.now()});
 }
+window.bizName=function(){return bizName();};
 function bizName(){return session.role==='business'?(myNameGet()||session.name):session.name;}
 
 /* ══ v27.3 录入弹窗防误触 + 缩小（Christina 需求，Emma 采纳 A+B）══
@@ -9411,7 +9416,7 @@ function ariDaysTag(inv){
 /* ---- 渲染 ---- */
 /* v25.3 应收发票「负责人」筛选片（Emma 采纳 #6b）：负责人从关联订单带出（订单负责人），无订单/无负责人归「—」 */
 let ariFOwn='';let _ariOwnSkip=false;
-function ariOwnerOf(x){if(!x||!x.orderNo)return '';const o=(ordItems||[]).find(function(o){return !o.deleted&&o.orderNo===x.orderNo;});return (o&&o.owner)||'';}
+function ariOwnerOf(x){if(!x||!x.orderNo)return '';const o=(ordItems||[]).find(function(o){return !o.deleted&&o.orderNo===x.orderNo;});if(!o)return '';return ordCreatorOf(o)||o.owner||'';} /* v29.9 制作人优先 */
 function ariOwnBarRender(){
   const bar=$('ariOwnBar');if(!bar)return;
   _ariOwnSkip=true;let base=[];try{base=ariFiltered();}finally{_ariOwnSkip=false;}
@@ -10838,6 +10843,10 @@ $('dunArchClose').onclick=()=>$('dunArchOverlay').classList.remove('open');
 $('dunArchOverlay').addEventListener('click',e=>{if(e.target===$('dunArchOverlay'))$('dunArchOverlay').classList.remove('open');});
 
 /* ---- (d) 今日待办摘要 ---- */
+/* v29.9 工作台归属口径（Emma 定 A）：订单按「制作人」createdBy；无制作人的老单/系统导入回退负责人 */
+function ordCreatorOf(o){const c=String((o&&o.createdBy)||'').trim();return (c&&c!=='系统导入'&&!isAcctName(c))?c:'';}
+function ordMineBy(o,name){const c=ordCreatorOf(o);return c?c===name:ownerHas(o,name);}
+window.ordMineBy=ordMineBy;
 function ownerHas(o,name){
   return String(o.owner||'').split(/[,，、/]+/).map(s=>s.trim()).filter(Boolean).includes(name);
 }
@@ -11425,7 +11434,7 @@ function ntfCollect(){
       for(const c of (x.comments||[])){
         if(!c||!c.text||c.author===me)continue;
         const hit=c.text.includes('@'+me)||c.text.includes('@'+myAlias)||
-                  (mod==='ord'&&ownerHas(x,myAlias)&&/加急|异常|请|麻烦|确认/.test(c.text));
+                  (mod==='ord'&&ordMineBy(x,myAlias)&&/加急|异常|请|麻烦|确认/.test(c.text));
         if(hit)push(c.time,'chat','var(--info)',c.author+' 提到你',
           '['+mod+'] '+(refOf(x)||'')+'：'+c.text.slice(0,44),(mod==='ord'?'ord2:':mod==='ap'?'ap:':'ari:')+(refOf(x)||''));
       }
@@ -11453,7 +11462,7 @@ function ntfCollect(){
     for(const x of ariItems){
       if(x.deleted||!(x.files||[]).length)continue;
       const o=ordItems.find(o2=>!o2.deleted&&o2.orderNo===x.orderNo);
-      if(!o||!ownerHas(o,myAlias))continue;
+      if(!o||!ordMineBy(o,myAlias))continue;
       const f=(x.files||[])[0];
       push(f&&f.at,'doc','var(--ok)','财务已开票',(x.invNo||'')+'　'+(x.customer||'')+'　可下载发客户','ari:'+(x.invNo||''));
     }
@@ -11494,51 +11503,139 @@ function homeRefreshIfVisible(){
   try{ntfBadge();}catch(e){} /* v19.3 数据到达同步通知徽章 */
 }
 /* v27.5 问候寄语（Emma 需求）：时段/周五/月末各配一组短句，按日期取同一条（当天不闪变）；三语跟随界面语言 */
+/* v29.7 工作台寄语按角色三套（Emma 反馈：财务的话不该给业务看）：finance / business / mgmt(Peter)，各按 时段/周五/月末 分池；同一天同角色全员看到同一句（seed 按日） */
 const HM_LINES={
+finance:{
   morning:[
     {zh:'新的一天，先喝口水再看逾期 ☕',en:'New day — coffee first, overdue list second ☕',de:'Neuer Tag – erst Kaffee, dann die Mahnliste ☕'},
-    {zh:'早起的单子有虫吃，先扫一眼滞留单',en:'Early bird gets the order — check stalled ones first',de:'Der frühe Vogel fängt den Auftrag – erst die Liegenbleiber prüfen'},
     {zh:'今天也把数字对齐，把心情摆平',en:'Balance the numbers, balance the mood',de:'Zahlen im Lot, Laune im Lot'},
-    {zh:'一单一单来，不急',en:'One order at a time — no rush',de:'Ein Auftrag nach dem anderen – ganz ruhig'},
-    {zh:'先处理最难的那件，后面都是下坡路',en:'Do the hardest thing first — the rest is downhill',de:'Das Schwerste zuerst – der Rest läuft von allein'},
-    {zh:'记得吃早饭，现金流和你都需要能量',en:'Eat breakfast — you and the cash flow both need fuel',de:'Frühstück nicht vergessen – du und der Cashflow braucht Energie'}],
+    {zh:'先处理最难的那张票，后面都是下坡路',en:'Do the hardest invoice first — the rest is downhill',de:'Die schwierigste Rechnung zuerst – der Rest läuft von allein'},
+    {zh:'记得吃早饭，现金流和你都需要能量',en:'Eat breakfast — you and the cash flow both need fuel',de:'Frühstück nicht vergessen – du und der Cashflow braucht Energie'},
+    {zh:'先看健康中心，再开始录票',en:'Health Center first, then start booking',de:'Erst das Health-Center, dann die Belege'},
+    {zh:'到账先核销，心里才有数',en:'Allocate receipts first — then you know where you stand',de:'Erst Zahlungseingänge zuordnen – dann weißt du, wo du stehst'}],
   noon:[
     {zh:'先吃饭，发票不会跑 🍚',en:'Lunch first — invoices won\'t run away 🍚',de:'Erst Mittagessen – die Rechnungen laufen nicht weg 🍚'},
-    {zh:'午后犯困？喝口茶再战',en:'Post-lunch dip? Tea helps',de:'Mittagstief? Ein Tee hilft'},
-    {zh:'上午的事翻篇，下午重新开始',en:'Morning is done — fresh start this afternoon',de:'Der Vormittag ist abgehakt – frischer Start am Nachmittag'},
+    {zh:'别在饭点核对银行流水 😄',en:'No bank statements during lunch 😄',de:'Keine Kontoauszüge in der Mittagspause 😄'},
     {zh:'吃好喝好，账才对得好',en:'Well fed, well reconciled',de:'Gut gegessen, gut abgestimmt'},
+    {zh:'午后犯困？喝口茶再战',en:'Post-lunch dip? Tea helps',de:'Mittagstief? Ein Tee hilft'},
     {zh:'休息十分钟，效率翻一倍',en:'Ten minutes of rest, double the focus',de:'Zehn Minuten Pause, doppelte Konzentration'},
-    {zh:'别在饭点核对银行流水 😄',en:'No bank statements during lunch 😄',de:'Keine Kontoauszüge in der Mittagspause 😄'}],
+    {zh:'吃饭时不聊逾期，消化更好',en:'No overdue talk at lunch — better digestion',de:'Beim Essen nicht über offene Posten reden – bekommt besser'}],
   afternoon:[
     {zh:'下午茶时间到，顺手清两张待办',en:'Tea time — clear two to-dos on the side',de:'Teatime – nebenbei zwei Aufgaben abhaken'},
-    {zh:'离下班越来越近，把今天的单收个尾',en:'Almost done — wrap up today\'s orders',de:'Fast geschafft – die heutigen Aufträge abrunden'},
-    {zh:'再坚持一下，你比昨天的自己快',en:'Keep going — you\'re faster than yesterday',de:'Weiter so – du bist schneller als gestern'},
-    {zh:'阳光正好，别忘了看窗外一眼',en:'Nice light out there — look up once in a while',de:'Schönes Licht draußen – ruhig mal aufschauen'},
-    {zh:'难缠的邮件现在发，明早就有回复',en:'Send the tricky email now — reply lands tomorrow morning',de:'Die knifflige Mail jetzt senden – Antwort kommt morgen früh'},
-    {zh:'专注一小时，胜过忙乱一下午',en:'One focused hour beats a scattered afternoon',de:'Eine konzentrierte Stunde schlägt einen zerfahrenen Nachmittag'}],
+    {zh:'加急的先付，其余按到期日排',en:'Urgent ones first, the rest by due date',de:'Eilige zuerst, der Rest nach Fälligkeit'},
+    {zh:'催收邮件现在发，明早就有回复',en:'Send the reminder now — replies come in the morning',de:'Mahnung jetzt raus – die Antwort kommt morgen früh'},
+    {zh:'录完一张就核一张，别攒到月末',en:'Reconcile as you go — don\'t pile it up for month-end',de:'Sofort abstimmen – nicht bis Monatsende stapeln'},
+    {zh:'今天的到账今天核，睡得踏实',en:'Today\'s receipts reconciled today — sleep well',de:'Heutige Eingänge heute zuordnen – ruhig schlafen'},
+    {zh:'供应商对账单发出去，下午就清静了',en:'Send the supplier statement — a quiet afternoon follows',de:'Lieferantenabstimmung raus – dann wird der Nachmittag ruhig'}],
   evening:[
-    {zh:'辛苦了，别忘了下班 🌙',en:'Good work today — remember to log off 🌙',de:'Gute Arbeit – Feierabend nicht vergessen 🌙'},
-    {zh:'今天的你已经很棒了',en:'You did well today',de:'Du hast das heute gut gemacht'},
-    {zh:'晚上处理数字要多核对一遍哦',en:'Late-night numbers deserve a double check',de:'Zahlen am Abend lieber doppelt prüfen'},
-    {zh:'留点力气给明天',en:'Save some energy for tomorrow',de:'Heb dir Energie für morgen auf'},
-    {zh:'夜深了，重要操作明早再做也不迟',en:'It\'s late — big changes can wait till morning',de:'Es ist spät – Großes kann bis morgen warten'},
-    {zh:'关电脑前，喝口水 🌙',en:'One sip of water before shutting down 🌙',de:'Noch ein Schluck Wasser vorm Herunterfahren 🌙'}],
+    {zh:'关电脑前存一份备份，然后下班 🌙',en:'One backup, then log off 🌙',de:'Ein Backup, dann Feierabend 🌙'},
+    {zh:'今天对完的账，明天不用再想',en:'What\'s reconciled tonight won\'t haunt you tomorrow',de:'Was heute stimmt, verfolgt dich morgen nicht'},
+    {zh:'辛苦了，剩下的明天再说',en:'Good work — the rest can wait till tomorrow',de:'Gut gemacht – der Rest hat bis morgen Zeit'},
+    {zh:'晚上别看逾期清单，看点别的',en:'No overdue list tonight — read something else',de:'Heute Abend keine Mahnliste – lies etwas anderes'},
+    {zh:'明天要付的加急，今晚先标好',en:'Mark tomorrow\'s urgent payments tonight',de:'Die eiligen Zahlungen für morgen heute Abend markieren'},
+    {zh:'账目对平的晚上，最适合早点睡',en:'Books balanced? Best night for an early sleep',de:'Bücher im Lot? Beste Nacht zum früh Schlafen'}],
   friday:[
-    {zh:'周五了，把加急清完好过周末 🎉',en:'Friday! Clear the urgent ones, enjoy the weekend 🎉',de:'Freitag! Dringendes erledigen, dann ab ins Wochenende 🎉'},
-    {zh:'周五加油，周末在向你招手',en:'Push through Friday — the weekend is waving',de:'Freitag durchziehen – das Wochenende winkt'},
-    {zh:'把这周的账收个漂亮的尾',en:'End the week with clean books',de:'Die Woche mit sauberen Büchern abschließen'}],
+    {zh:'周五了，把本周到账都核销掉再走 🎉',en:'Friday — allocate this week\'s receipts before you go 🎉',de:'Freitag – erst die Eingänge der Woche zuordnen, dann los 🎉'},
+    {zh:'周五的逾期催一遍，周一有惊喜',en:'Chase overdue on Friday — surprises on Monday',de:'Freitags mahnen – montags Überraschung'},
+    {zh:'把加急付完，周末手机就安静了',en:'Pay the urgent ones — a quiet phone all weekend',de:'Eilige bezahlen – ein ruhiges Handy am Wochenende'}],
   monthend:[
-    {zh:'月底冲刺，月结清单等你打勾 ✅',en:'Month-end sprint — the closing checklist awaits ✅',de:'Endspurt zum Monatsende – die Abschluss-Checkliste wartet ✅'},
-    {zh:'月末对账周，细心是最好的武器',en:'Reconciliation week — care is your best tool',de:'Abstimmungswoche – Sorgfalt ist dein bestes Werkzeug'},
-    {zh:'月底了，先归档再迎新月',en:'Month\'s end — archive first, fresh month next',de:'Monatsende – erst archivieren, dann frisch starten'}]
-};
+    {zh:'月末冲刺：待录入清零，大表才好导 📊',en:'Month-end sprint: clear pending entries so the P&L export is clean 📊',de:'Monatsend-Sprint: offene Erfassungen auf null, dann stimmt der Export 📊'},
+    {zh:'月结清单一项项打勾，别跳',en:'Tick the closing checklist one by one — no skipping',de:'Die Abschluss-Checkliste Punkt für Punkt – nichts überspringen'},
+    {zh:'月末的账对完，下个月才轻松',en:'Close this month clean — next month starts light',de:'Sauber abschließen – der nächste Monat startet leicht'}]
+},
+business:{
+  morning:[
+    {zh:'早起的单子有虫吃，先扫一眼滞留单',en:'Early bird gets the order — check stalled ones first',de:'Der frühe Vogel fängt den Auftrag – erst die Liegenbleiber prüfen'},
+    {zh:'一单一单来，不急',en:'One order at a time — no rush',de:'Ein Auftrag nach dem anderen – ganz ruhig'},
+    {zh:'先回客户，再回邮件',en:'Reply to the customer first, then the inbox',de:'Erst dem Kunden antworten, dann die Mails'},
+    {zh:'今天到港的先安排派送，别让柜子等',en:'Arrivals today — arrange delivery first, don\'t let the box wait',de:'Heutige Ankünfte zuerst disponieren – der Container wartet nicht gern'},
+    {zh:'报价早发一小时，成单快一天',en:'Send the quote an hour earlier — close the deal a day sooner',de:'Angebot eine Stunde früher – Auftrag einen Tag schneller'},
+    {zh:'先看物流看板，再看邮件',en:'Logistics board first, inbox second',de:'Erst das Logistik-Board, dann das Postfach'}],
+  noon:[
+    {zh:'先吃饭，供应商也在吃饭 🍚',en:'Lunch first — the suppliers are eating too 🍚',de:'Erst Mittagessen – die Lieferanten essen auch 🍚'},
+    {zh:'午饭时别刷询价，会消化不良 😄',en:'No quote hunting over lunch — bad for digestion 😄',de:'Keine Angebotssuche beim Essen – schlecht für den Magen 😄'},
+    {zh:'休息十分钟，下午的电话更有底气',en:'Ten minutes off — afternoon calls go better',de:'Zehn Minuten Pause – die Nachmittagsgespräche laufen besser'},
+    {zh:'上午的单翻篇，下午重新出发',en:'Morning orders done — fresh start this afternoon',de:'Die Vormittagsaufträge sind abgehakt – frischer Start am Nachmittag'},
+    {zh:'吃好了，才有力气搬柜子（比喻的）',en:'Well fed, ready to move containers (figuratively)',de:'Satt und bereit, Container zu bewegen (im übertragenen Sinn)'},
+    {zh:'饭点不回客户，饭后再回更周全',en:'Don\'t answer customers at lunch — a fuller reply after',de:'Kunden nicht beim Essen antworten – danach antwortet man besser'}],
+  afternoon:[
+    {zh:'下午茶时间到，顺手把完成的服务项勾掉',en:'Tea time — tick off the finished services',de:'Teatime – erledigte Leistungen abhaken'},
+    {zh:'供应商发票收到就传，财务今天就能录',en:'Upload supplier invoices as they arrive — finance books them today',de:'Lieferantenrechnungen sofort hochladen – die Buchhaltung erfasst sie heute'},
+    {zh:'客户确认了报价，记得点⑤对接财务',en:'Quote confirmed? Hit step ⑤ and hand over to finance',de:'Angebot bestätigt? Schritt ⑤ – an die Buchhaltung übergeben'},
+    {zh:'派送完成的单，今天就推进到完结',en:'Delivered today? Move the order to closed today',de:'Heute zugestellt? Heute auf abgeschlossen setzen'},
+    {zh:'一个电话能解决的，别发三封邮件',en:'If one call solves it, don\'t write three emails',de:'Wenn ein Anruf reicht, keine drei Mails'},
+    {zh:'询价三家够了，别问到第五家',en:'Three quotes are enough — don\'t ask a fifth',de:'Drei Angebote reichen – kein fünftes einholen'}],
+  evening:[
+    {zh:'看板上没红色就可以下班了 🌙',en:'No red on the board — go home 🌙',de:'Kein Rot auf dem Board – Feierabend 🌙'},
+    {zh:'今天的单推到位，明天没人追',en:'Orders moved along today — nobody chases you tomorrow',de:'Heute vorangebracht – morgen fragt keiner nach'},
+    {zh:'辛苦了，柜子在路上，你可以歇了',en:'Good work — the boxes are moving, you can rest',de:'Gut gemacht – die Container rollen, du kannst ruhen'},
+    {zh:'晚上别盯船期，明早再看也一样',en:'Don\'t watch vessel schedules tonight — same info tomorrow',de:'Heute Abend keine Schiffsdaten – morgen früh sind sie gleich'},
+    {zh:'明天到港的柜子，今晚先确认派送',en:'Tomorrow\'s arrivals — confirm delivery tonight',de:'Morgige Ankünfte – Zustellung heute Abend bestätigen'},
+    {zh:'单子推到位了，晚上就别想它了',en:'Order moved along? Stop thinking about it tonight',de:'Auftrag vorangebracht? Heute Abend nicht mehr daran denken'}],
+  friday:[
+    {zh:'周五了，把待开票的单都推到财务再走 🎉',en:'Friday — hand every billable order to finance before you go 🎉',de:'Freitag – alle abrechenbaren Aufträge an die Buchhaltung, dann los 🎉'},
+    {zh:'周五发出的报价，周一就有回音',en:'Quotes sent Friday get answered Monday',de:'Freitags versandte Angebote – montags Antwort'},
+    {zh:'下周到港的柜子今天先排好，周末安心',en:'Plan next week\'s arrivals today — enjoy the weekend',de:'Nächste Woche schon heute disponieren – Wochenende genießen'}],
+  monthend:[
+    {zh:'月末冲刺：本月完成的单都推到⑤，收入才进本月 📊',en:'Month-end sprint: push finished orders to ⑤ so revenue lands this month 📊',de:'Monatsend-Sprint: fertige Aufträge auf ⑤ – Umsatz zählt noch diesen Monat 📊'},
+    {zh:'供应商票还没到的，催一下，别拖到下月',en:'Chase missing supplier invoices — don\'t let them slip to next month',de:'Fehlende Lieferantenrechnungen anmahnen – nicht in den nächsten Monat rutschen lassen'},
+    {zh:'把停在④的单看一遍，能勾的都勾了',en:'Review orders stuck at ④ — tick whatever\'s done',de:'Aufträge auf ④ durchsehen – alles Erledigte abhaken'}]
+},
+mgmt:{
+  morning:[
+    {zh:'早上好，先看六张卡，再看细节',en:'Morning — six cards first, details later',de:'Guten Morgen – erst die sechs Karten, dann die Details'},
+    {zh:'数字看趋势，不看单日',en:'Read the trend, not the single day',de:'Auf den Trend schauen, nicht auf den einzelnen Tag'},
+    {zh:'今天最值得问的一个问题：哪张逾期最久？',en:'Best question today: which overdue is the oldest?',de:'Die wichtigste Frage heute: welche Forderung ist am längsten offen?'},
+    {zh:'团队昨天推进了多少单，看板一目了然',en:'How many orders moved yesterday — the board tells you',de:'Wie viele Aufträge gestern vorankamen – das Board zeigt es'},
+    {zh:'先问一句：昨天有没有加急没付？',en:'First question: any urgent payment left from yesterday?',de:'Erste Frage: blieb gestern eine eilige Zahlung offen?'},
+    {zh:'看板红色越少，团队越轻松',en:'Less red on the board, lighter team',de:'Weniger Rot auf dem Board, leichteres Team'}],
+  noon:[
+    {zh:'午饭时间，把手机放下 🍚',en:'Lunch — phone down 🍚',de:'Mittagspause – Handy weg 🍚'},
+    {zh:'好决定多半在饭后做',en:'Good decisions are usually made after lunch',de:'Gute Entscheidungen fallen meist nach dem Essen'},
+    {zh:'休息一下，下午的审批更清醒',en:'A short break — clearer approvals this afternoon',de:'Kurze Pause – klarere Freigaben am Nachmittag'},
+    {zh:'饭后再看数字，情绪更稳',en:'Numbers after lunch — steadier mood',de:'Zahlen nach dem Essen – ruhigere Stimmung'},
+    {zh:'吃饭时别批申请，回来再批',en:'Don\'t approve requests over lunch — do it after',de:'Beim Essen keine Anträge freigeben – danach'},
+    {zh:'午休是老板给自己的授权',en:'The lunch break is the boss\'s approval for the boss',de:'Die Mittagspause ist die Freigabe des Chefs für den Chef'}],
+  afternoon:[
+    {zh:'人事里有待批的申请？三分钟批完',en:'Pending HR requests? Three minutes to clear them',de:'Offene Personalanträge? In drei Minuten erledigt'},
+    {zh:'毛利率低于阈值的单，值得问一句为什么',en:'Orders below the margin threshold deserve a "why"',de:'Aufträge unter der Margenschwelle verdienen ein "Warum"'},
+    {zh:'DSO 每降一天，现金就多睡一天在账上',en:'Every day off DSO is a day cash stays in the account',de:'Jeder Tag weniger DSO ist ein Tag mehr Cash auf dem Konto'},
+    {zh:'看客户分析，谁贡献了利润，谁贡献了麻烦',en:'Customer analysis: who brings profit, who brings trouble',de:'Kundenanalyse: wer bringt Gewinn, wer bringt Ärger'},
+    {zh:'逾期最久的那家，值得打个电话',en:'The longest-overdue customer deserves a call',de:'Der am längsten säumige Kunde verdient einen Anruf'},
+    {zh:'审批快一天，团队计划早一天',en:'Approve a day sooner — the team plans a day earlier',de:'Einen Tag früher freigeben – das Team plant einen Tag früher'}],
+  evening:[
+    {zh:'今天的数字看完就放下，明天还有 🌙',en:'Seen the numbers? Let them go — tomorrow brings more 🌙',de:'Zahlen gesehen? Loslassen – morgen gibt es neue 🌙'},
+    {zh:'团队今天干得不错，明早说一声',en:'The team did well today — tell them tomorrow morning',de:'Das Team war heute gut – sag es morgen früh'},
+    {zh:'晚上不看逾期，老板也需要休息',en:'No overdue list tonight — bosses need rest too',de:'Heute Abend keine Mahnliste – auch Chefs brauchen Ruhe'},
+    {zh:'今天的六张卡都看过，就够了 🌙',en:'Seen the six cards today — that\'s enough 🌙',de:'Die sechs Karten heute gesehen – das reicht 🌙'},
+    {zh:'把明天要问的问题记一条，然后休息',en:'Note tomorrow\'s one question, then rest',de:'Die eine Frage für morgen notieren, dann Ruhe'},
+    {zh:'老板下班早，团队也敢下班',en:'When the boss leaves on time, the team dares to too',de:'Geht der Chef pünktlich, traut sich auch das Team'}],
+  friday:[
+    {zh:'周五了，本周新单 vs 完结单，看一眼比例 🎉',en:'Friday — new vs closed orders this week, check the ratio 🎉',de:'Freitag – neue vs. abgeschlossene Aufträge, das Verhältnis prüfen 🎉'},
+    {zh:'周五批完人事申请，团队周末安心',en:'Approve HR requests on Friday — the team relaxes on the weekend',de:'Freitags Anträge freigeben – das Team hat ein ruhiges Wochenende'},
+    {zh:'周末愉快，数字下周一再见',en:'Enjoy the weekend — the numbers will be here Monday',de:'Schönes Wochenende – die Zahlen warten bis Montag'}],
+  monthend:[
+    {zh:'月末了，月报周一就出，先看毛利与 DSO 📊',en:'Month-end — the report lands Monday; start with margin and DSO 📊',de:'Monatsende – der Bericht kommt Montag; erst Marge und DSO 📊'},
+    {zh:'本月毛利率剔除代垫看，才是真实水平',en:'Read this month\'s margin excluding pass-throughs — that\'s the real level',de:'Die Monatsmarge ohne durchlaufende Posten lesen – das ist das echte Niveau'},
+    {zh:'月末问一句：哪家客户该谈账期了？',en:'Month-end question: which customer needs a payment-terms talk?',de:'Frage zum Monatsende: mit welchem Kunden muss über Zahlungsziele gesprochen werden?'}]
+}};
+function hmRoleKey(){
+  try{
+    if(session&&session.name==='Peter')return 'mgmt';
+    if(session&&session.role==='finance')return 'finance';
+    if(session&&(session.role==='business'||session.role==='biz'))return 'business';
+    if(typeof isRO==='function'&&isRO())return 'mgmt';
+  }catch(e){}
+  return 'business';
+}
 function hmGreetLine(){
   const d=new Date();const h=d.getHours();
   const eom=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+  const L=HM_LINES[hmRoleKey()]||HM_LINES.business;
   let pool;
-  if(d.getDate()>=eom-2)pool=HM_LINES.monthend;
-  else if(d.getDay()===5)pool=HM_LINES.friday;
-  else pool=h<11?HM_LINES.morning:h<14?HM_LINES.noon:h<18?HM_LINES.afternoon:HM_LINES.evening;
+  if(d.getDate()>=eom-2)pool=L.monthend;
+  else if(d.getDay()===5)pool=L.friday;
+  else pool=h<11?L.morning:h<14?L.noon:h<18?L.afternoon:L.evening;
   const seed=d.getFullYear()*372+(d.getMonth()+1)*31+d.getDate();
   const it=pool[seed%pool.length];
   return it[LANG==='de'?'de':LANG==='en'?'en':'zh']||it.zh;
@@ -11607,12 +11704,12 @@ function homeRender(){
       tag:'<span class="badge new" style="font-size:10.5px">'+esc(apEntryDate(x)||'')+'</span>',
       amt:null})),'没有待录入的应付发票');
   }else{
-    const mine=ordItems.filter(o=>!o.deleted&&!o.flag&&o.type!=='inq'&&ownerHas(o,me));
+    const mine=ordItems.filter(o=>!o.deleted&&!o.flag&&o.type!=='inq'&&ordMineBy(o,me));
     const stall=mine.filter(ordStalled);
-    const noInv=ordItems.filter(o=>!o.deleted&&ownerHas(o,me)&&ordNoInvOverdue(o));
+    const noInv=ordItems.filter(o=>!o.deleted&&ordMineBy(o,me)&&ordNoInvOverdue(o));
     const issue=mine.filter(o=>(o.logi||'')==='issue');
     const transit=mine.filter(o=>['booked','transit','customs','delivery'].includes(o.logi||''));
-    cards.push(hmCard('','box','我的进行中',mine.length+' 单','负责人：'+esc(me),'ord'));
+    cards.push(hmCard('','box','我的进行中',mine.length+' 单','制作人：'+esc(me),'ord'));
     cards.push(hmCard(noInv.length?'bad':'ok','doc','超期未开票',noInv.length+' 单',noInv.length?'已成交超 '+ORD_NOINV_DAYS+' 天':'无积压','noari'));
     cards.push(hmCard(stall.length?'warn':'ok','clock','滞留单',stall.length+' 单',stall.length?'超 7 天未推进':'流程顺畅','stall'));
     cards.push(hmCard(issue.length?'bad':'','truck','物流异常',issue.length+' 单',issue.length?'需跟进处理':'运输正常','kan'));
@@ -11722,14 +11819,14 @@ function digestBuild(){
     if(lbDays===null||lbDays>7)li('🗄','距上次手动备份'+(lbDays===null?'——从未导出':'已 '+lbDays+' 天')+'，请到「基础资料」导出一份','var(--warn)');
   }else{
     const me=myNameGet()||session.name;
-    const mine=ordItems.filter(o=>!o.deleted&&!o.flag&&ownerHas(o,me));
+    const mine=ordItems.filter(o=>!o.deleted&&!o.flag&&ordMineBy(o,me));
     const stall=mine.filter(ordStalled);
     if(stall.length)li('⏱','你有 <b>'+stall.length+'</b> 个滞留单超 7 天未动（'+stall.map(o=>esc(o.orderNo)).slice(0,3).join('、')+(stall.length>3?'…':'')+'）','var(--bad)');
-    const noInv=ordItems.filter(o=>!o.deleted&&ownerHas(o,me)&&ordNoInvOverdue(o));
+    const noInv=ordItems.filter(o=>!o.deleted&&ordMineBy(o,me)&&ordNoInvOverdue(o));
     if(noInv.length)li('⚠','你有 <b>'+noInv.length+'</b> 单已成交超 '+ORD_NOINV_DAYS+' 天未开应收（'+noInv.map(o=>esc(o.orderNo)).slice(0,3).join('、')+(noInv.length>3?'…':'')+'），请尽快开票','var(--bad)'); /* v17.0 */
     const toSend=ordItems.filter(o=>{
       if(o.deleted||o.flag||(o.step||1)!==7)return false;
-      if(!ownerHas(o,me))return false;
+      if(!ordMineBy(o,me))return false;
       return ariItems.some(x=>!x.deleted&&x.orderNo===o.orderNo&&(x.files||[]).length);
     });
     if(toSend.length)li('📄','有 <b>'+toSend.length+'</b> 单财务已开票上传，记得下载发票发给客户','var(--brass)');
