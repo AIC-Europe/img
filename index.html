@@ -1014,7 +1014,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v29.9</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v30.0</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1657,7 +1657,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=29.9; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=30.0; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -7133,6 +7133,7 @@ function ordFiltered(){
   return ordItems.filter(x=>!x.deleted)
     .filter(x=>ordSubView==='inq'?(x.type==='inq'||x.flag==='lost'):(x.type!=='inq'&&x.flag!=='lost'))
     .filter(x=>!ordFOwner||ordOwnerSplit(x).includes(ordFOwner))
+    .filter(x=>!ordFMine||(session&&ordMineBy(x,session.name))) /* v30.0 */
     .filter(x=>{if(!m)return true;const cd=x.createdAt?new Date(x.createdAt):null;if(!cd)return true;
       const z=n=>String(n).padStart(2,'0');return (cd.getFullYear()+'-'+z(cd.getMonth()+1))===m;})
     .filter(x=>{
@@ -10332,6 +10333,8 @@ $('oTypeOrd').onchange=$('oTypeInq').onchange=function(){
 };
 let ordSubView='ord';
 let ordFOwner='';
+let ordFMine=false; /* v30.0 「我的（制作人）」筛选：工作台卡片直达用 */
+window.ordGoMine=function(st){try{ordSub('ord');}catch(e){}ordFMine=!!(session&&session.role==='business');ordFOwner='';const m=$('ordFMonth');if(m)m.value='';const f=$('ordFStatus');if(f)f.value=st||'';try{if(typeof kanShow==='function')kanShow(false);}catch(e){}renderORD();};
 function ordOwnerSplit(o){const a=String(o.owner||'').split(/[,，、/]+/).map(t=>t.trim()).filter(Boolean);return a.length?a:['—'];}
 function ordOwnerBarRender(){
   const bar=$('ordOwnerBar');if(!bar)return;
@@ -10341,10 +10344,13 @@ function ordOwnerBarRender(){
   const names=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]||a.localeCompare(b));
   if(ordFOwner&&!names.includes(ordFOwner))ordFOwner=''; /* 切子页后该人无单则自动回到全部 */
   const chip=(label,val,n)=>'<button type="button" class="own-chip'+(ordFOwner===val?' on':'')+'" data-own="'+esc(val)+'">'+esc(label)+(n!=null?' <span class="oc-n">'+n+'</span>':'')+'</button>';
-  let h='<span style="font-size:12px;color:var(--ink-soft);font-weight:600">负责人</span>'+chip('全部','',null);
+  const mineN=session?pool.filter(o=>ordMineBy(o,session.name)).length:0;
+  let h='<span style="font-size:12px;color:var(--ink-soft);font-weight:600">负责人</span>'+
+    '<button type="button" class="own-chip'+((!ordFMine&&!ordFOwner)?' on':'')+'" data-own="">全部</button>'+
+    (session?'<button type="button" class="own-chip'+(ordFMine?' on':'')+'" data-mine="1" title="按制作人（建单人）筛选我的单">我的 <span class="oc-n">'+mineN+'</span></button>':'');
   for(const k of names)h+=chip(k,k,cnt[k]);
   bar.innerHTML=h;
-  bar.querySelectorAll('.own-chip').forEach(b=>{b.onclick=()=>{ordFOwner=b.dataset.own;renderORD();};});
+  bar.querySelectorAll('.own-chip').forEach(b=>{b.onclick=()=>{if(b.dataset.mine){ordFMine=!ordFMine;ordFOwner='';}else{ordFOwner=b.dataset.own;ordFMine=false;}renderORD();};});
 }
 function ordSub(which){
   ordSubView=which;
@@ -11763,7 +11769,7 @@ function homeAct(a){
   if(k==='hr'){switchMod('tabHR');try{renderHR();}catch(e){}}
   else if(k==='health'){healthOpen();return;} /* v25.1 */
   if(k==='base'){switchMod('tabBASE');return;}
-  if(k==='ord'){switchMod('tabORD');return;}
+  if(k==='ord'){switchMod('tabORD');setTimeout(()=>ordGoMine(''),120);return;} /* v30.0 直达正式成单+我的 */
   if(k==='arifiles'){switchMod('tabAR');arSub('ari');setTimeout(()=>{setF('ariFMonth','');},120);return;}
   if(k==='apall'){switchMod('tabAP');setTimeout(()=>{setF('apFMonth','');setF('apFStatus','');},120);return;}
   if(k==='aging'){try{document.getElementById('agingBtn').click();}catch(e){}return;} /* v29.3 */
@@ -11773,9 +11779,8 @@ function homeAct(a){
   else if(k==='apnew'){switchMod('tabAP');setTimeout(()=>{setF('apFMonth','');setF('apFStatus','new');},120);}
   else if(k==='unrec'){switchMod('tabAR');arSub('arp');setTimeout(()=>{setF('fMonth','');try{render();}catch(e){}},120);} /* v21.1 修正：参数应为 arp，此前传 'pay' 导致两个面板全隐藏 */
   else if(k==='toinv'){switchMod('tabAR');arSub('ari');setTimeout(()=>{setF('ariFMonth','');setF('ariFStatus','toinv');},120);}
-  else if(k==='ord'){switchMod('tabORD');setTimeout(()=>setF('ordFMonth',''),120);}
-  else if(k==='noari'){switchMod('tabORD');setTimeout(()=>{setF('ordFMonth','');setF('ordFStatus','noAri');},120);}
-  else if(k==='stall'){switchMod('tabORD');setTimeout(()=>{setF('ordFMonth','');setF('ordFStatus','stall');},120);}
+  else if(k==='noari'){switchMod('tabORD');setTimeout(()=>ordGoMine('noAri'),120);}
+  else if(k==='stall'){switchMod('tabORD');setTimeout(()=>ordGoMine('stall'),120);}
   else if(k==='kan'){switchMod('tabORD');setTimeout(()=>{setF('ordFMonth','');if(typeof kanShow==='function')kanShow(true);},150);}
   else if(k==='myovd'){switchMod('tabAR');arSub('ari');setTimeout(()=>{setF('ariFMonth','');setF('ariFStatus','overdue');const b=document.querySelector('#ariOwnBar [data-aown="'+CSS.escape(myNameGet()||session.name)+'"]');if(b)b.click();},160);} /* v27.7 */
   else if(k==='mysend'){switchMod('tabAR');arSub('ari');setTimeout(()=>{setF('ariFMonth','');const b=document.querySelector('#ariOwnBar [data-aown="'+CSS.escape(myNameGet()||session.name)+'"]');if(b)b.click();},160);}
