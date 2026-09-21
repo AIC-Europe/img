@@ -1014,7 +1014,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v30.0</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v30.1</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1657,7 +1657,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=30.0; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=30.1; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -11023,7 +11023,8 @@ function hrBadge(x){const[t,c]=HR_ST[x.status]||['?',''];return '<span class="ba
 function hrRowHtml(x,forWho){
   const my=session.name===x.who;
   const canSeeNote=my||session.name===HR_APPROVER||session.name==='Emma';
-  const rng=x.type==='ot'?(esc(x.from)+' · '+fmt(x.hours)+' 小时'+(x.ord?' · '+esc(x.ord):'')):(esc(x.from)+' → '+esc(x.to)+' · '+x.days+' 个工作日');
+  const partTxt=x.part?(x.part==='h'?(' · '+x.partH+' 小时 ≈ '+x.days+' 天'):(' · '+(x.part==='am'?'上午':'下午')+'半天')):(' · '+x.days+' 个工作日');
+  const rng=x.type==='ot'?(esc(x.from)+' · '+fmt(x.hours)+' 小时'+(x.ord?' · '+esc(x.ord):'')):(esc(x.from)+(x.part?'':(' → '+esc(x.to)))+partTxt);
   let h='<div class="hr-row" data-id="'+x.id+'"><div class="hr-main"><b>'+esc(forWho?x.who:HR_TYPES[x.type])+'</b>'
     +(forWho?' · '+HR_TYPES[x.type]:'')+' <span style="color:var(--ink-soft)">'+rng+'</span> '+hrBadge(x)+'</div>';
   if(canSeeNote&&x.note)h+='<div class="hr-sub">备注：'+esc(x.note)+'</div>';
@@ -11048,6 +11049,8 @@ function hrFormHtml(){
    +'<label class="hr-f">类型<select id="hrType">'+Object.entries(HR_TYPES).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('')+'</select></label>'
    +'<label class="hr-f">开始日期<input type="date" id="hrFrom" value="'+today+'"></label>'
    +'<label class="hr-f" id="hrToWrap">结束日期<input type="date" id="hrTo" value="'+today+'"></label>'
+   +'<label class="hr-f" id="hrPartWrap">时长<select id="hrPart"><option value="">全天</option><option value="am">上午半天</option><option value="pm">下午半天</option><option value="h">按小时</option></select></label>'
+   +'<label class="hr-f" id="hrPartHWrap" style="display:none">小时<input type="number" id="hrPartH" step="0.5" min="0.5" max="7.5" value="4" style="width:80px"></label>'
    +'<label class="hr-f" id="hrHoursWrap" style="display:none">小时数<input type="number" id="hrHours" step="0.5" min="0.5" style="width:90px"></label>'
    +'<label class="hr-f" id="hrOrdWrap" style="display:none">关联成单号（可选）<input id="hrOrd" placeholder="IMG…" style="width:130px"></label>'
    +'<span id="hrDaysInfo" style="font-size:12.5px;color:var(--brass);font-weight:600"></span>'
@@ -11065,18 +11068,31 @@ function hrFormWire(){
     $('hrHoursWrap').style.display=t==='ot'?'':'none';
     $('hrOrdWrap').style.display=t==='ot'?'':'none';
     let days=0;
-    if(hrTypeDays(t)){if(To.value<F.value)To.value=F.value;days=hrWorkdays(F.value,To.value);
-      $('hrDaysInfo').textContent=days?('= '+days+' 个工作日（已跳过周末与 NRW 法定假日）'):'';}
+    /* v30.1 半天/小时（年假、调休适用；病假按天） */
+    const partOk=(t==='vac'||t==='comp');const P=$('hrPart');
+    $('hrPartWrap').style.display=partOk?'':'none';if(!partOk)P.value='';
+    const part=partOk?P.value:'';
+    $('hrPartHWrap').style.display=part==='h'?'':'none';
+    if(part){To.value=F.value;To.disabled=true;}else To.disabled=false;
+    if(hrTypeDays(t)){if(To.value<F.value)To.value=F.value;
+      if(part){const wd=hrWorkdays(F.value,F.value);const hpd=hrCfgGet()._hoursPerDay||8;const hh=Number($('hrPartH').value)||0;
+        days=!wd?0:(part==='h'?Math.round(hh/hpd*100)/100:0.5);
+        $('hrDaysInfo').textContent=!wd?'所选日期不是工作日':(part==='h'?('= '+hh+' 小时 ≈ '+days+' 天（按 '+hpd+' 小时/天折算）'):('= 0.5 个工作日（'+(part==='am'?'上午':'下午')+'）'));}
+      else{days=hrWorkdays(F.value,To.value);$('hrDaysInfo').textContent=days?('= '+days+' 个工作日（已跳过周末与 NRW 法定假日）'):'';}}
     else $('hrDaysInfo').textContent='';
     $('hrAuWrap').style.display=(t==='sick'&&days>=3)?'':'none';
     $('hrBfHint').style.display=F.value<todayStr()?'':'none';
   };
-  T.onchange=upd;F.onchange=upd;To.onchange=upd;upd();
+  T.onchange=upd;F.onchange=upd;To.onchange=upd;$('hrPart').onchange=upd;$('hrPartH').oninput=upd;upd();
   $('hrSubmitBtn').onclick=function(){
     const t=T.value;const from=F.value;if(!from){toast('请选择日期');return;}
     const rec={id:'hr'+Date.now()+Math.random().toString(36).slice(2,6),type:t,who:session.name,from:from,
       note:($('hrNote').value||'').trim(),status:'pending',reqAt:Date.now(),up:Date.now(),backfill:from<todayStr()};
-    if(hrTypeDays(t)){rec.to=To.value;rec.days=hrWorkdays(from,To.value);if(!rec.days){toast('所选范围没有工作日');return;}
+    const part=(t==='vac'||t==='comp')?($('hrPart').value||''):'';
+    if(hrTypeDays(t)){rec.to=part?from:To.value;rec.days=hrWorkdays(from,rec.to);if(!rec.days){toast('所选范围没有工作日');return;}
+      if(part){const hpd=hrCfgGet()._hoursPerDay||8;rec.part=part;
+        if(part==='h'){rec.partH=Number($('hrPartH').value)||0;if(!(rec.partH>0&&rec.partH<hpd)){toast('小时数须在 0.5 与 '+(hpd-0.5)+' 之间');return;}rec.days=Math.round(rec.partH/hpd*100)/100;}
+        else rec.days=0.5;}
       if(t==='sick'&&rec.days>=3)rec.au=$('hrAu').checked;}
     else{rec.hours=Number($('hrHours').value)||0;if(!rec.hours){toast('请填写加班小时数');return;}rec.ord=($('hrOrd').value||'').trim();}
     const auF=(t==='sick'&&$('hrAuFile')&&$('hrAuFile').files&&$('hrAuFile').files[0])||null;
@@ -11166,7 +11182,7 @@ function hrAbsenceMap(y,m){ /* {'姓名':{day:type}} 仅 approved 的天数类�
   for(const x of hrItems){
     if(x.status!=='approved'||!hrTypeDays(x.type))continue;
     const d=new Date(x.from+'T12:00:00'),end=new Date(x.to+'T12:00:00');
-    while(d<=end){if(d.getFullYear()===y&&d.getMonth()===m)map[x.who][d.getDate()]=x.type;d.setDate(d.getDate()+1);}
+    while(d<=end){if(d.getFullYear()===y&&d.getMonth()===m)map[x.who][d.getDate()]={t:x.type,part:x.part||'',h:x.partH||0};d.setDate(d.getDate()+1);}
   }
   return map;
 }
@@ -11177,18 +11193,23 @@ function hrCalHtml(){
   const holNames=hrHolidayList(y);
   const canType=n=>n===session.name||session.name===HR_APPROVER||session.name==='Emma';
   const TC={vac:'var(--brass)',sick:'#B5651D',comp:'var(--pine)'};
-  let h='<div style="display:flex;align-items:center;gap:10px;margin:4px 0 8px;flex-wrap:wrap"><button type="button" class="btn-ghost" id="hrCalPrev">◀</button><b style="font-size:14px">'+y+' 年 '+(m+1)+' 月</b><button type="button" class="btn-ghost" id="hrCalNext">▶</button><span style="font-size:11.5px;color:var(--ink-soft)"><span class="hr-lg hr-lg-wk"></span>周末 <span class="hr-lg hr-lg-hol"></span>NRW 假日（悬停看名称） · 色块=不在（年假=铜 病假=棕 调休=绿）</span></div>';
+  let h='<div style="display:flex;align-items:center;gap:10px;margin:4px 0 8px;flex-wrap:wrap"><button type="button" class="btn-ghost" id="hrCalPrev">◀</button><b style="font-size:14px">'+y+' 年 '+(m+1)+' 月</b><button type="button" class="btn-ghost" id="hrCalNext">▶</button><span style="font-size:11.5px;color:var(--ink-soft)"><span class="hr-lg hr-lg-wk"></span>周末 <span class="hr-lg hr-lg-hol"></span>NRW 假日（悬停看名称） · 色块=不在（年假=铜 病假=棕 调休=绿）· 半格=半天 · 斜纹=小时假</span></div>';
   h+='<div style="overflow-x:auto"><table class="hr-cal" style="border-collapse:collapse;font-size:11px"><tr><th style="text-align:left;padding:3px 6px;min-width:70px"></th>';
   for(let d=1;d<=dim;d++){const dt=new Date(y,m,d);const wk=dt.getDay()===0||dt.getDay()===6;const key=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');const hn=holNames[key];
     h+='<th class="'+(hn?'hr-hol':wk?'hr-wk':'')+'" style="padding:2px 3px;min-width:20px;text-align:center" '+(hn?'title="'+esc(hn)+'"':'')+'>'+d+'</th>';}
   h+='</tr>';
   for(const n of HR_STAFF){
     h+='<tr><td style="padding:3px 6px"><b>'+n+'</b></td>';
-    for(let d=1;d<=dim;d++){const t=abs[n][d];const dt=new Date(y,m,d);const wk=dt.getDay()===0||dt.getDay()===6;const key=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    for(let d=1;d<=dim;d++){const a=abs[n][d];const t=a&&a.t;const dt=new Date(y,m,d);const wk=dt.getDay()===0||dt.getDay()===6;const key=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
       const hn=holNames[key];
       let st='padding:2px;border:1px solid var(--line);height:18px;';
-      if(t)st+='background:'+(canType(n)?TC[t]:'var(--ink-soft)')+';';
-      h+='<td class="hr-cd'+(t?' abs':(hn?' hr-hol-td':wk?' hr-wk-td':''))+'" style="'+st+'" title="'+(t?(n+' · '+(canType(n)?HR_TYPES[t]:'不在')):(hn?esc(hn):''))+'"></td>';}
+      if(t){const col=canType(n)?TC[t]:'var(--ink-soft)';
+        if(a.part==='am')st+='background:linear-gradient(90deg,'+col+' 50%,transparent 50%);';
+        else if(a.part==='pm')st+='background:linear-gradient(90deg,transparent 50%,'+col+' 50%);';
+        else if(a.part==='h')st+='background:repeating-linear-gradient(45deg,'+col+' 0 3px,transparent 3px 6px);';
+        else st+='background:'+col+';';}
+      const ptxt=a&&a.part?(a.part==='h'?(' · '+a.h+' 小时'):(a.part==='am'?' · 上午半天':' · 下午半天')):'';
+      h+='<td class="hr-cd'+(t?' abs':(hn?' hr-hol-td':wk?' hr-wk-td':''))+(a&&a.part?' hr-part-'+a.part:'')+'" style="'+st+'" title="'+(t?(n+' · '+(canType(n)?HR_TYPES[t]:'不在')+(canType(n)?ptxt:'')):(hn?esc(hn):''))+'"></td>';}
     h+='</tr>';
   }
   h+='</table></div>';
@@ -11207,7 +11228,7 @@ async function hrExportYear(Y,btn){
     aoa.push(['姓名','类型','开始','结束','工作日/小时','状态','补录','关联单号','备注','AU','审批人','审批时间','驳回原因']);
     const inY=x=>String(x.from||'').slice(0,4)===String(Y);
     for(const x of hrItems.filter(inY).slice().sort((a,b)=>(a.who===b.who?(a.from<b.from?-1:1):(a.who<b.who?-1:1)))){
-      aoa.push([x.who,HR_TYPES[x.type],x.from||'',x.to||'',x.type==='ot'?(x.hours||0):(x.days||0),(HR_ST[x.status]||['?'])[0],x.backfill?'是':'',x.ord||'',x.note||'',x.type==='sick'?(x.au2?x.au2.name:(x.au?'纸质已确认':'未传')):'',x.decBy||'',x.decAt?new Date(x.decAt).toLocaleString('zh-CN'):'',x.reason||'']);
+      aoa.push([x.who,HR_TYPES[x.type],x.from||'',x.to||'',x.type==='ot'?(x.hours||0):(x.part?((x.days||0)+(x.part==='h'?(' ('+x.partH+'h)'):(x.part==='am'?' (上午)':' (下午)'))):(x.days||0)),(HR_ST[x.status]||['?'])[0],x.backfill?'是':'',x.ord||'',x.note||'',x.type==='sick'?(x.au2?x.au2.name:(x.au?'纸质已确认':'未传')):'',x.decBy||'',x.decAt?new Date(x.decAt).toLocaleString('zh-CN'):'',x.reason||'']);
     }
     await exportSheet(aoa,'人事','IMG-人事年度台账-'+Y+'-'+todayStr(),aoa[0].map(()=>({wch:14})),true);
   }catch(e){toast('导出失败：'+(e.message||''));}
