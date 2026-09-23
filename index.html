@@ -1014,7 +1014,7 @@ footer{font-size:12px;color:var(--ink-soft);text-align:center;padding:14px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v30.1</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v30.2</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1657,7 +1657,7 @@ const store={
 
 /* ---- 云端实时同步（架构取自鲁商平台：防抖推送 / 回声跳过 / 时间戳守卫 / 事务种子）---- */
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=30.1; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
+const APP_VERSION=30.2; /* 版本号必须单段小数且单调递增：23.10 会被 JS 读成 23.1 */ /* 与页脚版本号保持一致；v23.1起恢复联动——所有旧版页面将收到刷新横幅 */
 /* 新版本自动提醒：云端记录最高版本号，旧版页面自动弹出刷新横幅 */
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1817,6 +1817,26 @@ window.stickyCols=stickyCols; /* 测试可达 */
 const STICKY_TABLES=[['apTable','供应商'],['ordTable','客户'],['ariTable','客户'],['ledgerTable','客户']];
 function stickyAll(){for(const [id,txt] of STICKY_TABLES){try{stickyCols(id,txt);}catch(e){}}}
 window.addEventListener('resize',function(){clearTimeout(window._stkT);window._stkT=setTimeout(stickyAll,120);});
+/* v30.2 服务项/行项目净额单一真源（Christina 反馈：费率模式此前只在编辑预览生效）
+   费率 pm='rate'：数量×基数×费率%；折扣：数量×价格×(1−折扣%)。兼容两种行结构（price 或数字 unit） */
+function svcLineNet(s){
+  if(!s)return 0;
+  const q=(s.qty==null||s.qty==='')?1:(Number(s.qty)||0);
+  const p=(typeof s.unit==='number')?s.unit:(Number(s.price)||0);
+  if(s.pm==='rate')return Math.round(q*p*((Number(s.rate)||0)/100)*100)/100;
+  return Math.round(q*p*(1-(Number(s.disc)||0)/100)*100)/100;
+}
+window.svcLineNet=svcLineNet;
+/* v30.2 价格容错解析：接受 1.234,56 / 1234,56 / 1234.56 / 1 234,56；无法解析返回 NaN */
+function parseAmt(v){
+  let t=String(v==null?'':v).trim().replace(/\s|€|EUR/gi,'');
+  if(!t)return NaN;
+  const lc=t.lastIndexOf(','),ld=t.lastIndexOf('.');
+  if(lc>=0&&ld>=0){t=(lc>ld)?t.replace(/\./g,'').replace(',','.'):t.replace(/,/g,'');}
+  else if(lc>=0){t=(t.length-lc-1===3&&(t.match(/,/g)||[]).length===1&&!/^[+-]?\d{1,3},\d{3}$/.test(t)?t.replace(',','.'):(/^[+-]?\d{1,3}(,\d{3})+$/.test(t)?t.replace(/,/g,''):t.replace(',','.')));}
+  const n=Number(t);return isFinite(n)?n:NaN;
+}
+window.parseAmt=parseAmt;
 function cssVar(n){try{return getComputedStyle(document.body).getPropertyValue(n).trim()||'#888';}catch(e){return '#888';}} /* v29.0 SVG 取色板 */
 const fmt=n=>Number(n).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
 const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
@@ -4018,7 +4038,7 @@ function rcCollect(month){
     const ls=(x.linesLocked&&x.linesLocked.length)?x.linesLocked:(x.lines||[]);
     let lsum=0;const parts=[];
     for(const l of (ls||[])){
-      const v=(l.tot!=null)?Number(l.tot):((Number(l.qty)||1)*(Number(l.unit!=null?l.unit:l.price)||0)*(1-(Number(l.disc)||0)/100));
+      const v=(l.tot!=null)?Number(l.tot):svcLineNet(l); /* v30.2 */
       if(!isFinite(v)||!v)continue;
       parts.push({name:l.name||'（未分服务项）',v:v});lsum+=v;
     }
@@ -4080,7 +4100,7 @@ function rcBigRows(){
     const ls=(x.linesLocked&&x.linesLocked.length)?x.linesLocked:(x.lines||[]);
     const parts=[];let lsum=0;
     for(const l of (ls||[])){
-      const v=(l.tot!=null)?Number(l.tot):((Number(l.qty)||1)*(Number(l.unit!=null?l.unit:l.price)||0)*(1-(Number(l.disc)||0)/100));
+      const v=(l.tot!=null)?Number(l.tot):svcLineNet(l); /* v30.2 */
       if(!isFinite(v)||!v)continue;
       parts.push({name:l.name||'（未分服务项）',en:l.en||'',qty:Number(l.qty)||1,v:v});lsum+=v;
     }
@@ -6614,6 +6634,7 @@ async function ordLoad(){
   try{const r=await store.get(ORD_KEY);ordItems=r&&r.value?JSON.parse(r.value):[];}catch(e){ordItems=[];}
   ordItems.forEach(ordMigrate);
 }
+window.ordMergeRemote=function(r){return ordMergeRemote(r);}; /* 测试可达 */
 function ordMergeRemote(remote){
   if(!Array.isArray(remote))return;
   remote.forEach(ordMigrate);
@@ -6643,6 +6664,8 @@ function ordMergeRemote(remote){
       if(q&&q.qid&&!qdel.has(q.qid)&&!qhave.has(q.qid)){(l.quotes=l.quotes||[]).push(q);qhave.add(q.qid);}
     }
     if(l.quotes)l.quotes=l.quotes.filter(q=>!qdel.has(q.qid));
+    /* v30.2 标量字段记录级仲裁：远端 up 更新 → 售价/币种/描述/负责人/业务模式等标量以远端为准（数组与对象字段各有专门合并） */
+    if((r.up||0)>(l.up||0)){for(const k of Object.keys(r)){const v=r[k];if(v!==null&&typeof v==='object')continue;if(k==='id'||k==='step'||k==='stepAt'||k==='flag'||k==='deleted')continue;l[k]=v;}}
     /* 服务项：按 sid 并集 + 删除墓碑；done 状态取或（勾了就算勾） */
     const sdel=new Set([].concat(l.svcDeleted||[],r.svcDeleted||[]));
     if(sdel.size)l.svcDeleted=[...sdel];
@@ -6651,7 +6674,11 @@ function ordMergeRemote(remote){
       if(!s||!s.sid||sdel.has(s.sid))continue;
       const ex=smap.get(s.sid);
       if(!ex){(l.svc=l.svc||[]).push(s);smap.set(s.sid,s);}
-      else if(s.done&&!ex.done)ex.done=true;
+      else{
+        /* v30.2 行级仲裁（Christina 反馈：改价后被他人旧副本写回）：远端行更新时间更新 → 以远端字段为准；done 仍取或 */
+        if((s.up||0)>(ex.up||0)){const keepDone=ex.done||s.done;for(const k of Object.keys(ex))if(k!=='sid')delete ex[k];Object.assign(ex,s);ex.done=keepDone;}
+        else if(s.done&&!ex.done)ex.done=true;
+      }
     }
     if(l.svc)l.svc=l.svc.filter(s=>!sdel.has(s.sid));
     if(r.inv&&!l.inv)l.inv=r.inv;
@@ -7206,7 +7233,8 @@ function ordSvcLines(o){
   return (o.svc||[]).filter(s=>s.price!=null).map(s=>({
     name:s.name,en:s.en||'',qty:s.qty||1,unit:s.unit||'unit',
     price:s.price,vat:s.vat!=null?s.vat:19,disc:s.disc||0,cur:s.cur||'EUR',
-    amount:Math.round((s.qty||1)*(s.price||0)*(1-(s.disc||0)/100)*100)/100
+    pm:s.pm||undefined,rate:s.rate||0,
+    amount:svcLineNet(s) /* v30.2 */
   }));
 }
 /* v21.4 阶段1③：服务明细合计与发票净额一致性校验（容差 0.01，纯舍入误差不报警） */
@@ -7480,7 +7508,10 @@ function renderORD(){
 }
 
 async function ordDo(fn,okMsg){
-  try{await fn();await ordSave();if(okMsg)toast(okMsg);renderORD();}
+  try{const _b=JSON.stringify(ordItems);await fn();const _now=Date.now();
+    /* v30.2 只给本次真正改动的订单盖 up 戳（供合并仲裁） */
+    try{const before=JSON.parse(_b);const bm=new Map(before.map(x=>[x.id,JSON.stringify(x)]));for(const o of ordItems){if(bm.get(o.id)!==JSON.stringify(o))o.up=_now;}}catch(e){}
+    await ordSave();if(okMsg)toast(okMsg);renderORD();}
   catch(e){toast('保存失败：'+(e.message||''));}
 }
 function ordCmt(o,text,author){
@@ -7696,7 +7727,7 @@ function ordDetail(o){
     svcBox.style.cssText='margin-top:10px;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--card)';
     const doneN=(o.svc||[]).filter(s=>s.done).length;
     svcBox.innerHTML='<div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px">服务项 / Line items（'+doneN+'/'+(o.svc||[]).length+'）· 点 ○ 打勾，全部完成自动推进「④服务完成」</div>';
-    const amountOf=s=>Math.round((s.qty||1)*(s.price||0)*(1-(s.disc||0)/100)*100)/100;
+    const amountOf=s=>svcLineNet(s); /* v30.2 费率贯通 */
     let netSum=0;
     for(const s of (o.svc||[])){
       const amt=amountOf(s);if(s.price!=null)netSum+=amt;
@@ -7725,7 +7756,7 @@ function ordDetail(o){
       }else row.appendChild(mk('',40));
       row.appendChild(mk('<span style="color:var(--ink-soft)">VAT '+(s.vat!=null?s.vat:19)+'%</span>',56));
       /* v22.4 费率项显式标注，避免与折扣混淆 */
-      if(s.pm==='rate')row.appendChild(mk('<span style="color:var(--brass);font-size:11px">费率 '+(s.rate||0)+'%</span>',62));
+      if(s.pm==='rate')row.appendChild(mk('<span style="color:var(--brass);font-size:11px" title="基数 '+fmt(s.price||0)+' × '+(s.rate||0)+'% = '+fmt(svcLineNet(s))+'">费率 '+(s.rate||0)+'% = '+fmt(svcLineNet(s))+'</span>',110));
       else if(s.disc)row.appendChild(mk('<span style="color:var(--ink-soft);font-size:11px">折扣 '+s.disc+'%</span>',62));
       else row.appendChild(mk('',62));
       row.appendChild(mk(s.disc?(s.disc>0?'<span style="color:var(--warn)">-'+s.disc+'%</span>':'<span style="color:var(--ok)">+'+Math.abs(s.disc)+'%</span>'):'',44));
@@ -7743,6 +7774,7 @@ function ordDetail(o){
            if(el)el.value=pm;
            iDisc.value=(pm==='rate')?(s.rate||0):(s.disc||0);}
           _svcEditSid=s.sid;bAdd.textContent='💾 保存修改';
+          try{window._svcRecalc&&window._svcRecalc();}catch(e){} /* v30.2 回填即重算，不再显示 0,00 */
           if(iAF){iAF.value=s.addrFrom||'';
             const _t=(s.addrTos&&s.addrTos.length?s.addrTos:(s.addrTo?[s.addrTo]:[]));
             iAT.value=_t[0]||'';iAT2.value=_t[1]||'';iAT3.value=_t[2]||'';
@@ -7779,7 +7811,7 @@ function ordDetail(o){
       const sums={},ptSums={};
       for(const s of (o.svc||[])){
         if(s.price==null)continue;
-        const a=Math.round((s.qty||1)*(s.price||0)*(1-(s.disc||0)/100)*100)/100;
+        const a=svcLineNet(s); /* v30.2 */
         const c=s.cur||'EUR';sums[c]=Math.round(((sums[c]||0)+a)*100)/100;
         /* v21.4 阶段1①：代垫单独归集，供「业务收入口径」= 合计 − 代垫 */
         if(typeof svcIsPassThrough==='function'&&svcIsPassThrough(s.name))ptSums[c]=Math.round(((ptSums[c]||0)+a)*100)/100;
@@ -7830,7 +7862,7 @@ function ordDetail(o){
       /* v21.4 阶段1③：按确认只保留「数量」，移除单位下拉。
          历史数据的 unit 仍被读取与展示，新录入统一记为 'unit'，避免旧单显示异常。 */
       iUnit=document.createElement('input');iUnit.type='hidden';iUnit.value='unit';
-      iPrice=document.createElement('input');iPrice.type='number';iPrice.step='0.01';iPrice.placeholder='Price (Net)';iPrice.title='单价·净额';iPrice.style.cssText=st+';width:96px';
+      iPrice=document.createElement('input');iPrice.type='text';iPrice.inputMode='decimal';iPrice.placeholder='Price (Net)';iPrice.title='单价·净额（可输入 1.234,56 或 1234.56）';iPrice.style.cssText=st+';width:96px;text-align:right'; /* v30.2 容错解析，逗号小数不再被吞 */
       iVat=document.createElement('select');iVat.title='VAT';
       for(const v of [['19','19%'],['0','0%']]){const op=document.createElement('option');op.value=v[0];op.textContent='VAT '+v[1];iVat.appendChild(op);}
       iVat.style.cssText=st+';padding:6px 4px';
@@ -7845,10 +7877,10 @@ function ordDetail(o){
       iDisc=document.createElement('input');iDisc.type='number';iDisc.step='0.01';iDisc.min='-100';iDisc.max='100';iDisc.value='0';iDisc.placeholder='0';iDisc.title='折扣填正数（如 5=-5%）· 附加费填负数（如燃油附加 21% 填 -21 → 金额×1.21）';iDisc.style.cssText=st+';width:52px';
       const discL=document.createElement('span');discL.textContent='%';discL.style.cssText='font-size:12px;color:var(--ink-soft)';
       const amtL=document.createElement('span');amtL.style.cssText='font-family:var(--font-num);font-weight:700;min-width:76px;text-align:right';amtL.textContent='0,00';
-      const recalc=()=>{const _p=parseFloat(iDisc.value)||0;
-        const a=(iPm.value==='rate')
-          ? Math.round((parseFloat(iQty.value)||1)*(parseFloat(iPrice.value)||0)*(_p/100)*100)/100
-          : Math.round((parseFloat(iQty.value)||1)*(parseFloat(iPrice.value)||0)*(1-_p/100)*100)/100;amtL.textContent=fmt(a);};
+      const recalc=()=>{const _p=parseFloat(iDisc.value)||0;const _pr=parseAmt(iPrice.value);
+        const bad=iPrice.value.trim()!==''&&isNaN(_pr);iPrice.style.borderColor=bad?'var(--bad)':'';
+        const a=svcLineNet({qty:parseFloat(iQty.value)||1,price:isNaN(_pr)?0:_pr,pm:iPm.value==='rate'?'rate':'',rate:_p,disc:_p});amtL.textContent=bad?'格式无效':fmt(a);};
+      window._svcRecalc=recalc; /* v30.2 ✏ 回填后重算 */
       for(const el of [iQty,iPrice,iDisc])el.addEventListener('input',recalc);
       iPm.addEventListener('change',recalc);
       bAdd=document.createElement('button');bAdd.className='btn-sm';
@@ -7861,9 +7893,11 @@ function ordDetail(o){
         /* v23.2 正式成单派送费强制收发货地址（询价单不强制，转成单后补填口在✏） */
         const _isDel=svcIsDelivery(lib?lib.name:nm2,lib?(lib.en||''):'');
         if(_isDel&&o.type!=='inq'&&(!iAF.value.trim()||addrTosGet().length===0)){addrRowSync();toast('派送费须填写收发货地址（发货地址与至少一个收货地址必填）');return;}
+        const _prRaw=iPrice.value.trim(),_prN=parseAmt(_prRaw);
+        if(_prRaw!==''&&isNaN(_prN)){toast('价格格式无效：'+_prRaw+'（请用 1234,56 或 1234.56）');iPrice.focus();return;} /* v30.2 不再静默存空 */
         const item={
           name:lib?lib.name:nm2,en:lib?(lib.en||''):'',qty:Math.max(0.01,parseFloat(iQty.value)||1),unit:iUnit.value,
-          price:iPrice.value===''?null:Math.round((parseFloat(iPrice.value)||0)*100)/100,
+          price:_prRaw===''?null:Math.round(_prN*100)/100,up:Date.now(), /* v30.2 行级时间戳供合并仲裁 */
           vat:parseFloat(iVat.value)||0,cur:iCur.value
         };
         /* v22.4 按模式写入：费率存 rate+pm，折扣存 disc */
@@ -8345,7 +8379,7 @@ function ordQuotation(o){
   if(priced.length){
     for(const s of priced){
       const qty=s.qty||1, lvat=s.vat!=null?s.vat:rate, disc=s.disc||0;
-      const tot=Math.round(qty*s.price*(1-disc/100)*100)/100;
+      const tot=svcLineNet(s); /* v30.2 费率贯通 */
       net+=tot;vat+=tot*lvat/100;
       lines.push({name:s.name,en:s.en||'',qty:qty,unitN:s.unit||'unit',unit:s.price,tot:tot,vat:lvat,disc:disc,cur:s.cur||cur});
     }
@@ -9923,7 +9957,7 @@ function ariLinesHeal(){
         const q=(l.qty==null?1:Number(l.qty))||0;
         const amt=(l.tot!=null&&isFinite(Number(l.tot)))?Number(l.tot)
                  :((l.amount!=null&&isFinite(Number(l.amount)))?Number(l.amount)
-                 :Math.round(q*pri*(1-(Number(l.disc)||0)/100)*100)/100);
+                 :svcLineNet(l)); /* v30.2 */
         if(l.price==null&&typeof l.unit==='number'){l.price=pri;fixed++;}
         if(l.amount==null){l.amount=amt;fixed++;}
         if(l.tot==null){l.tot=amt;fixed++;}
@@ -9946,7 +9980,7 @@ function ariLinesHTML(x,compact){
     if(l.tot!=null&&isFinite(Number(l.tot)))return Number(l.tot);
     if(l.amount!=null&&isFinite(Number(l.amount)))return Number(l.amount);
     const q=(l.qty==null?1:Number(l.qty))||0;
-    return Math.round(q*_pri(l)*(1-(Number(l.disc)||0)/100)*100)/100;
+    return svcLineNet(l); /* v30.2 */
   };
   const _unitLbl=function(l){return (typeof l.unit==='string')?l.unit:(l.unitN||'');};
   let h='<div style="font-size:12px;color:var(--brass);font-weight:700;margin-bottom:6px">📋 订单报价明细（请按此逐行在 sevdesk 开票）</div>';
