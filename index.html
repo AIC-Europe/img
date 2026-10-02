@@ -980,7 +980,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v32.8</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v33.0</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1621,7 +1621,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=32.8;
+const APP_VERSION=33.0;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2228,6 +2228,7 @@ function enterApp(){
   }catch(e){}
   myNamePurge();
   try{metricsApplyStatic();}catch(e){}
+  try{setTimeout(function(){try{filesHealAuto();}catch(e){}},6000);}catch(e){}
   exportWarm();
   try{modalGuardInit();}catch(e){}
   try{hrCloudStart();}catch(e){}
@@ -3251,7 +3252,7 @@ const AP_MAX_MB_GS=15;
 const STG_BUCKETS=['img-ledger.firebasestorage.app','img-ledger.appspot.com'];
 let _gsBucket=null,_gsProbe=null,_gsLastPct=-1;
 
-const STORAGE_FIRST=true;const SELF_HEAL_TO_DB=false;
+const STORAGE_FIRST=false;const SELF_HEAL_TO_DB=true;
 async function apGetFileGSBlob(f){
   const st=firebase.app().storage('gs://'+f.bucket);
   const url=await st.ref(f.path).getDownloadURL();
@@ -3261,7 +3262,7 @@ async function apGetFileGSBlob(f){
 
 async function fileStoreAny(fid,file,metaIn){
   const meta=Object.assign({},metaIn||{});
-  if(USE_CLOUD&&STORAGE_FIRST){try{if(await gsProbeOnce()){const gs=await apPutFileGS(fid,file);meta.store='gs';meta.bucket=gs.bucket;meta.path=gs.path;return meta;}}catch(e){}}
+  if(USE_CLOUD&&(STORAGE_FIRST||file.size>AP_MAX_MB*1024*1024)){try{if(await gsProbeOnce()){const gs=await apPutFileGS(fid,file);meta.store='gs';meta.bucket=gs.bucket;meta.path=gs.path;return meta;}}catch(e){}}
   const data=await new Promise(function(res,rej){const rd=new FileReader();rd.onerror=function(){rej(new Error('read'));};rd.onload=function(){const raw=String(rd.result||'');res(raw.includes(',')?raw.split(',')[1]:'');};rd.readAsDataURL(file);});
   if(!data)throw new Error('文件读取失败');
   await apStoreFile(fid,{name:file.name,type:file.type||'application/octet-stream',data:data,size:file.size,at:Date.now(),by:(session&&session.name)||''});
@@ -3270,7 +3271,8 @@ async function fileStoreAny(fid,file,metaIn){
 window.fileStoreAny=fileStoreAny;
 
 async function filesMigrateToGS(opts){
-  opts=opts||{};if(!session||session.name!=='Emma'){toast('附件迁移仅 Emma 可执行');return null;}
+  opts=opts||{};if(!opts.iKnowChinaCannotReadStorage){toast('已停用：Storage 对中国大陆不可达，迁移会让中国端读不到附件');return null;}
+  if(!session||session.name!=='Emma'){toast('附件迁移仅 Emma 可执行');return null;}
   if(!(await gsProbeOnce())){toast('Storage 不可用，无法迁移');return null;}
   const targets=[];
   for(const [list,save,label] of [[apItems,apSave,'应付'],[ariItems,ariSaveAll,'应收'],[ordItems,ordSave,'订单']]){
@@ -3303,6 +3305,29 @@ function filesStoreStats(){
   return st;
 }
 window.filesStoreStats=filesStoreStats;
+
+const HEAL_BATCH=20;let _healBusy=false;
+function filesHealTargets(){const t=[];for(const [list,save,label] of [[apItems,apSave,'应付'],[ariItems,ariSaveAll,'应收'],[ordItems,ordSave,'订单']]){for(const it of list){if(it.deleted)continue;for(const f of (it.files||[])){if(f&&f.fid&&f.store==='gs'&&!f.dual&&(f.size||0)<=AP_MAX_MB*1024*1024)t.push({f:f,it:it,save:save,label:label});}}}return t;}
+async function filesHealAuto(){
+  if(_healBusy||!USE_CLOUD||!rtdb||!session||session.role!=='finance')return null;
+  const targets=filesHealTargets();if(!targets.length)return {done:0,failed:0,total:0};
+  if(!(await gsProbeOnce()))return null;
+  _healBusy=true;const rep={done:0,failed:0,total:targets.length};
+  try{
+    for(const t of targets.slice(0,HEAL_BATCH)){
+      try{const blob=await apGetFileGSBlob(t.f);if(!blob)throw new Error('empty');
+        const data=await new Promise(function(res,rej){const rd=new FileReader();rd.onerror=function(){rej(new Error('read'));};rd.onload=function(){const raw=String(rd.result||'');res(raw.includes(',')?raw.split(',')[1]:'');};rd.readAsDataURL(blob);});
+        if(!data)throw new Error('read');
+        await apStoreFile(t.f.fid,{name:t.f.name,type:t.f.type||blob.type||'application/octet-stream',data:data,size:blob.size,at:Date.now(),by:session.name});
+        t.f.dual=true;t.f.healedAt=Date.now();t.it.up=Date.now();await t.save();rep.done++;
+      }catch(e){rep.failed++;}
+    }
+    if(rep.done)toast('🌏 已自动生成 '+rep.done+' 个附件的大陆副本'+(rep.total>HEAL_BATCH?'（剩余 '+(rep.total-rep.done)+' 个下次继续）':''));
+  }finally{_healBusy=false;}
+  try{apHealBtnUpdate();}catch(e){}
+  return rep;
+}
+window.filesHealAuto=filesHealAuto;window.filesHealTargets=filesHealTargets;
 
 async function gsProbeOnce(){
   if(_gsProbe!==null)return _gsProbe;
@@ -3575,9 +3600,8 @@ async function apSelfHeal(f,blob){
 
 async function apFileBlob(f){
 
-  if(f&&f.store==='gs'){try{const b=await apGetFileGSBlob(f);if(b)return b;}catch(e){if(!f.dual)throw e;}}
   if(f&&(f.store!=='gs'||f.dual)){try{const b=await apRtdbBlob(f.fid);if(b)return b;}catch(e){if(f.store!=='gs')throw e;}}
-  if(false&&f&&f.store==='gs'){
+  if(f&&f.store==='gs'){
     const st=firebase.app().storage('gs://'+f.bucket);
     const url=await st.ref(f.path).getDownloadURL();
     const resp=await fetch(url);if(!resp.ok)throw new Error('HTTP '+resp.status);
@@ -7606,6 +7630,15 @@ function ordStalled(o){
   if(o.flag)return false;
   return (Date.now()-ordLastAct(o))>7*86400000;
 }
+
+function ordNoKey(s){
+  s=String(s||'');
+  const m=s.match(/^[A-Za-z]+(\d{4})(\d+)(?:_(\d+))?$/);
+  if(m)return parseInt(m[1],10)*1e6+parseInt(m[2],10)*100+(m[3]?parseInt(m[3],10):0);
+  const mm=s.match(/(\d+)(?:_(\d+))?$/);
+  return mm?parseInt(mm[1],10)*100+(mm[2]?parseInt(mm[2],10):0):0;
+}
+window.ordNoKey=ordNoKey;
 function seqNextNo(prefix){
 
   const d=new Date(),z=n=>String(n).padStart(2,'0');
@@ -7680,8 +7713,7 @@ function ordFiltered(){
 
       const key=x=>{
         const s=String(x.orderNo||'');
-        const mm=s.match(/(\d+)(?:_(\d+))?$/);
-        return {inq:x.type==='inq'?1:0,num:mm?parseInt(mm[1],10)*100+(mm[2]?parseInt(mm[2],10):0):0,s};
+        return {inq:x.type==='inq'?1:0,num:ordNoKey(s),s};
       };
       const ka=key(a),kb=key(b);
       if(ka.inq!==kb.inq)return ka.inq-kb.inq;
@@ -9529,16 +9561,10 @@ function renderBASE(){
     let fc=$('fsCard');
     if(session&&session.name==='Emma'&&USE_CLOUD&&rtdb){
       if(!fc){fc=document.createElement('div');fc.className='base-card';fc.id='fsCard';const host=$('migCard')||$('baseCards');if(host&&host.parentNode)host.parentNode.insertBefore(fc,host.nextSibling);}
-      const st=filesStoreStats();const mb=b=>(b/1048576).toFixed(1)+' MB';
-      fc.innerHTML='<h3>📎 附件存储</h3><div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">共 <b style="color:var(--ink)">'+st.n+'</b> 个附件：数据库内 <b style="color:'+(st.db?'var(--warn)':'var(--ok)')+'">'+st.db+'</b>（'+mb(st.dbBytes)+'）· Storage <b style="color:var(--ok)">'+st.gs+'</b>（'+mb(st.gsBytes)+'）。自 v32.5 起新上传一律 Storage 优先；数据库副本会拖慢快照与备份，建议迁完。</div>'+
-        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn-ghost" id="fsMigBtn" type="button"'+(st.db?'':' disabled')+'>🚚 迁移到 Storage（'+st.db+' 个，可中断续跑）</button><span id="fsMigLog" style="font-size:12px;color:var(--ink-soft)"></span></div>';
-      const b=fc.querySelector('#fsMigBtn');if(b)b.onclick=async function(){
-        if(!confirm('把 '+st.db+' 个数据库附件逐个搬到 Firebase Storage？每个文件上传后会回读校验，成功才删除数据库副本；可随时关页面中断，下次继续。'))return;
-        b.disabled=true;const log=fc.querySelector('#fsMigLog');
-        const rep=await filesMigrateToGS({onProgress:function(r,tg){log.textContent='进行中 '+(r.done+r.failed)+' / '+r.total+'（成功 '+r.done+'，失败 '+r.failed+'）'+(tg&&tg.f?' · '+tg.f.name:'');}});
-        if(rep){toast('附件迁移完成：成功 '+rep.done+' · 失败 '+rep.failed+' · '+mb(rep.bytes));if(rep.errors.length)alert('失败清单：\n'+rep.errors.slice(0,20).join('\n'));}
-        renderBASE();
-      };
+      const st=filesStoreStats();const mb=b=>(b/1048576).toFixed(1)+' MB';const heal=filesHealTargets().length;
+      fc.innerHTML='<h3>📎 附件存储</h3><div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">共 <b style="color:var(--ink)">'+st.n+'</b> 个附件：数据库 <b style="color:var(--ink)">'+st.db+'</b>（'+mb(st.dbBytes)+'）· Storage <b style="color:var(--ink)">'+st.gs+'</b>（'+mb(st.gsBytes)+'）。规则：≤'+AP_MAX_MB+' MB 存数据库（中国大陆直读），更大的走 Storage 并由德国端自动生成大陆副本。</div>'+
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-size:12px;color:'+(heal?'var(--warn)':'var(--ok)')+'">'+(heal?('⚠ '+heal+' 个附件尚无大陆副本（中国端暂不可下载）'):'✓ 全部附件中国端可下载')+'</span>'+(heal?'<button class="btn-ghost" id="fsHealBtn" type="button">🌏 立即补副本</button>':'')+'</div>';
+      const hb=fc.querySelector('#fsHealBtn');if(hb)hb.onclick=async function(){hb.disabled=true;hb.textContent='处理中…';const r=await filesHealAuto();if(r===null)toast('当前网络达不到 Storage（中国端？），请德国端执行');renderBASE();};
     }else if(fc)fc.remove();
   }catch(e){}
   $('baseStCli').innerHTML=meta.clients.length+'<span class="s-unit"> 家</span>';
@@ -13782,6 +13808,12 @@ Object.assign(I18N,{
 "📦 已归档":{en:"📦 Archived",de:"📦 Archiviert"},
 "月度凭证包未归档":{en:"Monthly voucher packs not archived",de:"Monatsbelegpakete nicht archiviert"},
 "滚动到底也会自动加载 · 导出 Excel 包含全部":{en:"Scrolling to the bottom also loads more · Excel export includes all",de:"Scrollen lädt automatisch nach · Excel-Export enthält alles"},
+"本月 NRW 假日：":{en:"NRW holidays this month:",de:"NRW-Feiertage diesen Monat:"},
+"均已认领":{en:"all claimed",de:"alle zugeordnet"},
+"本月暂无订单。":{en:"No orders this month.",de:"Keine Aufträge diesen Monat."},
+"🌏 立即补副本":{en:"🌏 Create mainland copies now",de:"🌏 Festland-Kopien jetzt erzeugen"},
+"✓ 全部附件中国端可下载":{en:"✓ All attachments downloadable from China",de:"✓ Alle Anhänge aus China abrufbar"},
+"个附件：数据库":{en:"attachments: database",de:"Anhänge: Datenbank"},
 "本期开票 = 所选月份（默认当月）开票日的正票 含税金额合计（EUR）；冲销票与待开票存根不计":{en:"Invoiced in period = gross total (EUR) of positive invoices dated in the selected month (default: current); cancellations and stubs excluded",de:"Berechnet im Zeitraum = Bruttosumme (EUR) der positiven Rechnungen im gewählten Monat (Standard: aktuell); Stornos und Platzhalter ausgeschlossen"},
 "本期已收 = 本期发票已到账部分（按核销）；回款率 = 已收 ÷ 本期开票":{en:"Received in period = allocated receipts on this period's invoices; rate = received ÷ invoiced",de:"Eingegangen = zugeordnete Zahlungen auf Rechnungen des Zeitraums; Quote = Eingang ÷ berechnet"},
 "本期未收 = 本期发票 含税金额 − 已核销到账":{en:"Open in period = gross of period invoices − allocated receipts",de:"Offen im Zeitraum = brutto − zugeordnete Zahlungen"},
@@ -13962,6 +13994,10 @@ I18N_RULES.push(
 [/^📦\ 上月凭证未归档（(\d+(?:[.,]\d+)?)\-(\d+(?:[.,]\d+)?)）——月结完成后生成归档包并存网盘$/,{en:"📦 Last month ($1-$2) not archived — build the voucher pack after closing and save it to the drive",de:"📦 Vormonat ($1-$2) nicht archiviert — nach Abschluss Belegpaket erzeugen und ablegen"}],
 [/^已显示\ (\d+(?:[.,]\d+)?)\ \/\ (\d+(?:[.,]\d+)?)\ 条\ ·$/,{en:"Showing $1 / $2 ·",de:"Angezeigt $1 / $2 ·"}],
 [/^显示更多（剩余\ (\d+(?:[.,]\d+)?)）$/,{en:"Show more ($1 left)",de:"Mehr anzeigen ($1 übrig)"}],
+[/^(\d+(?:[.,]\d+)?)日$/,{en:"day $1",de:"$1."}],
+[/^⚠\ (\d+(?:[.,]\d+)?)\ 个附件尚无大陆副本（中国端暂不可下载）$/,{en:"⚠ $1 attachments without mainland copy (not downloadable from China yet)",de:"⚠ $1 Anhänge ohne Festland-Kopie (aus China noch nicht abrufbar)"}],
+[/^（(\d+(?:[.,]\d+)?)\ MB）。规则：≤(\d+(?:[.,]\d+)?)\ MB\ 存数据库（中国大陆直读），更大的走\ Storage\ 并由德国端自动生成大陆副本。$/,{en:"($1 MB). Rule: ≤$2 MB in the database (readable from mainland China); larger files go to Storage and the German side auto-creates a mainland copy.",de:"($1 MB). Regel: ≤$2 MB in der Datenbank (aus China lesbar); größere nach Storage, deutsche Seite erzeugt automatisch eine Festland-Kopie."}],
+[/^）。规则：≤(\d+(?:[.,]\d+)?)\ MB\ 存数据库（中国大陆直读），更大的走\ Storage\ 并由德国端自动生成大陆副本。$/,{en:"). Rule: ≤$1 MB in the database (readable from mainland China); larger files go to Storage and the German side auto-creates a mainland copy.",de:"). Regel: ≤$1 MB in der Datenbank (aus China lesbar); größere nach Storage, deutsche Seite erzeugt automatisch eine Festland-Kopie."}],
 [/^休假中 · 代办 (.+)$/,{en:"On leave · deputy $1",de:"Abwesend · Vertretung $1"}],
 [/^默认 (.+)$/,{en:"Default $1",de:"Standard $1"}],
 [/^代办中（(.+) 休假）$/,{en:"Covering ($1 on leave)",de:"Vertretung ($1 abwesend)"}],
