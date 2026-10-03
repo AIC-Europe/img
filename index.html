@@ -985,7 +985,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v33.4</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v33.5</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1634,7 +1634,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=33.4;
+const APP_VERSION=33.5;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -3417,7 +3417,7 @@ async function apSave(){
   try{
 
     if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){
-      const ok=await v2ReadMerge(AP_PATH,apMergeRemote);if(!ok)throw new Error('网络不稳定，未能读取云端最新数据；为避免覆盖他人记录已中止保存，请稍后重试。');
+      const ok=await v2ReadMerge(AP_PATH,apMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());
       const j2=JSON.stringify(apItems);await store.set(AP_KEY,j2);
       await v2Write(AP_PATH,apItems,'应付');return true;
     }
@@ -7315,7 +7315,7 @@ async function v2ReadMerge(path,mergeFn){
     const last=_v2Last[path]={};for(const r of arr)last[r.id]=JSON.stringify(r);
     if(arr.length)mergeFn(arr);
     return true;
-  }catch(e){console.error('v2 read:',e&&e.message);return false;}
+  }catch(e){_cloudLastErr={path:path,perm:cloudErrIsPerm(e),msg:String(e&&e.message||e)};console.error('v2 read:',e&&e.message);return false;}
 }
 async function v2Write(path,items,label){
   const last=_v2Last[path]||(_v2Last[path]={});const upd={};let n=0;
@@ -7335,10 +7335,18 @@ function v2Subscribe(path,applyFn){
     applyFn({json:JSON.stringify(arr),_at:meta._at||Date.now(),_by:meta._by||'',_client:meta._client||''});
   },function(err){cloudFail(err);});
 }
+let _cloudLastErr=null;
+function cloudReadFailMsg(){
+  if(_cloudLastErr&&_cloudLastErr.perm){const node=String(_cloudLastErr.path||'').replace(/^.*?(img-[a-z]+).*$/,'$1');return '数据库规则未开放节点「'+node+'」（PERMISSION_DENIED）——请在 Firebase 控制台 Realtime Database → Rules 为该节点加 ".read": true, ".write": true 后重试。本次未写入任何数据。';}
+  return '网络不稳定，未能读取云端最新数据；为避免覆盖他人记录已中止保存，请稍后重试。';
+}
+window.cloudReadFailMsg=cloudReadFailMsg;
+function cloudErrIsPerm(e){const m=String((e&&(e.code||e.message))||'').toLowerCase();return m.includes('permission')||m.includes('denied');}
+window.cloudErrIsPerm=cloudErrIsPerm;
 function cloudReadMerge(path,key,mergeFn){
 
   return (async function(){
-    let ok=true;
+    let ok=true;_cloudLastErr=null;
     try{const r=await store.get(key);if(r&&r.value)mergeFn(JSON.parse(r.value));}
     catch(e){ok=false;console.error('preSave local read:',e&&e.message);}
     if(USE_CLOUD&&rtdb){
@@ -7349,7 +7357,7 @@ function cloudReadMerge(path,key,mergeFn){
         ]);
         const v=s.val();
         if(v&&v.json)mergeFn(JSON.parse(v.json));
-      }catch(e){ok=false;console.error('preSave cloud read:',e&&e.message);}
+      }catch(e){ok=false;_cloudLastErr={path:path,perm:cloudErrIsPerm(e),msg:String(e&&e.message||e)};console.error('preSave cloud read:',e&&e.message);}
     }
     return ok;
   })();
@@ -7358,7 +7366,7 @@ function cloudWriteGuard(okTx,merged,label){
 
   if(okTx===true)return true;
   if(!merged){
-    throw new Error('网络不稳定，未能读取云端最新数据；为避免覆盖他人记录已中止保存，请稍后重试。');
+    throw new Error(cloudReadFailMsg());
   }
   return false;
 }
@@ -7367,7 +7375,7 @@ async function ordSave(){
   if(roGuard())return false;
   try{
     if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){
-      const ok=await v2ReadMerge(ORD_PATH,ordMergeRemote);if(!ok)throw new Error('网络不稳定，未能读取云端最新数据；为避免覆盖他人记录已中止保存，请稍后重试。');
+      const ok=await v2ReadMerge(ORD_PATH,ordMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());
       const j2=JSON.stringify(ordItems);await store.set(ORD_KEY,j2);_ordLastJson=j2;
       await v2Write(ORD_PATH,ordItems,'订单');return true;
     }
@@ -9839,7 +9847,7 @@ async function ariSaveAll(){
   try{alcInvalidate();}catch(e){}
   try{
     if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){
-      const ok=await v2ReadMerge(ARI_PATH,ariMerge);if(!ok)throw new Error('网络不稳定，未能读取云端最新数据；为避免覆盖他人记录已中止保存，请稍后重试。');
+      const ok=await v2ReadMerge(ARI_PATH,ariMerge);if(!ok)throw new Error(cloudReadFailMsg());
       const j2=JSON.stringify(ariItems);await store.set(ARI_KEY,j2);
       await v2Write(ARI_PATH,ariItems,'应收发票');return true;
     }
@@ -11955,9 +11963,10 @@ function canBank(){return !!session&&session.role==='finance';}
 function bankCloudStart(){
   if(_bankStarted||!canBank())return;_bankStarted=true;
   store.get(BANK_KEY).then(r=>{if(r&&r.value){try{bankItems=JSON.parse(r.value);}catch(e){}bankAlertUpdate();}}).catch(()=>{});
-  if(USE_CLOUD&&rtdb){rtdb.ref(BANK_PATH).on('value',s=>{const v=s.val();if(v&&v.json)bankApplyRemote(v);});}
+  if(USE_CLOUD&&rtdb){rtdb.ref(BANK_PATH).on('value',s=>{const v=s.val();if(v&&v.json)bankApplyRemote(v);},err=>{_bankPermErr=cloudErrIsPerm(err)?String(err&&err.message||err):'';if(_bankPermErr&&document.body.dataset.mod==='bank')renderBANK();});}
   bankAlertUpdate();
 }
+let _bankPermErr='';
 function bankMerge(arr){
   try{const map={};for(const x of bankItems)if(x&&x.id)map[x.id]=x;
     for(const x of (arr||[]))if(x&&x.id){const cur=map[x.id];if(!cur||(x.up||0)>=(cur.up||0))map[x.id]=x;}
@@ -12114,7 +12123,7 @@ function renderBANK(){
   const inn=list.filter(x=>x.amount>0).reduce((s,x)=>s+x.amount,0),out=list.filter(x=>x.amount<0).reduce((s,x)=>s-x.amount,0);
   const pend=all.filter(x=>x.status==='pending').length,mat=all.filter(x=>x.status==='matched').length;
   const statusLabel={pending:'待认领',matched:'已匹配待确认',confirmed:'已确认',ignored:'已忽略'};
-  let h='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px"><div><div style="font-weight:700;font-size:15px">🏦 银行流水与对账 <span style="font-size:11.5px;color:var(--ink-soft);font-weight:400">中国银行杜塞分行 · EUR · 仅财务</span></div></div>'+
+  let h=(_bankPermErr?'<div class="hm-sec" style="background:var(--bad-bg);color:var(--bad);padding:8px 12px;border-radius:8px;margin-bottom:10px">⛔ 数据库规则未开放节点「img-bank」（PERMISSION_DENIED）：请在 Firebase 控制台 Realtime Database → Rules 加 "img-bank": {".read": true, ".write": true}，发布后刷新页面。</div>':'')+'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px"><div><div style="font-weight:700;font-size:15px">🏦 银行流水与对账 <span style="font-size:11.5px;color:var(--ink-soft);font-weight:400">中国银行杜塞分行 · EUR · 仅财务</span></div></div>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" style="width:auto" id="bankImportBtn" type="button">⬆ 导入流水（xls）</button><button class="btn-ghost" id="bankConfirmAllBtn" type="button"'+(mat?'':' disabled')+'>✓ 一键确认已匹配（'+mat+'）</button><button class="btn-ghost" id="bankRulesBtn" type="button">⚙ 关键词规则（'+bankRules().length+'）</button><button class="btn-ghost" id="bankHqBtn" type="button">📤 总部格式导出</button></div></div>';
   h+='<div class="stat-strip"><div class="stat"><div class="s-label">本期流水</div><div class="s-value">'+list.length+'<span class="s-unit"> 笔</span></div></div><div class="stat good"><div class="s-label">收入</div><div class="s-value">€ '+fmt(inn)+'</div></div><div class="stat bad"><div class="s-label">支出</div><div class="s-value">€ '+fmt(out)+'</div></div><div class="stat warn"><div class="s-label">待认领（全量）</div><div class="s-value">'+pend+'<span class="s-unit"> 笔</span></div></div><div class="stat"><div class="s-label">已匹配待确认</div><div class="s-value">'+mat+'<span class="s-unit"> 笔</span></div></div></div>';
   h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0"><select id="bankFMonth" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px"><option value="">全部月份</option>'+months.map(m=>'<option value="'+m+'"'+(bankFMonth===m?' selected':'')+'>'+m+'</option>').join('')+'</select>'+
@@ -14291,6 +14300,7 @@ Object.assign(I18N,{
 "＋ 加载默认规则（税务局/保险/房租/工资/政府收费）":{en:"+ Load default rules (tax office/insurance/rent/payroll/fees)",de:"+ Standardregeln laden (Finanzamt/Versicherung/Miete/Gehalt/Gebühren)"},
 "当前":{en:"Currently",de:"Aktuell"},
 "条。流水导入时按户名/摘要/附言关键词自动归总部科目并生成摘要；发票号能对上的不走规则。规则越全，总部月报人工越少。":{en:"rules. On import, keywords in name/memo/note assign the HQ account and build the summary; invoice-number matches take precedence. More rules = less manual work on the HQ report.",de:"Regeln. Beim Import ordnen Schlüsselwörter in Name/Verwendungszweck das Konto zu und bilden die Zusammenfassung; Rechnungsnummern-Treffer haben Vorrang."},
+"⛔ 数据库规则未开放节点「img-bank」（PERMISSION_DENIED）：请在 Firebase 控制台 Realtime Database → Rules 加 \"img-bank\": {\".read\": true, \".write\": true}，发布后刷新页面。":{en:"⛔ Database rules do not allow node \"img-bank\" (PERMISSION_DENIED): add \"img-bank\": {\".read\": true, \".write\": true} under Realtime Database → Rules in the Firebase console, publish, then refresh.",de:"⛔ Datenbankregeln erlauben Knoten „img-bank\" nicht (PERMISSION_DENIED): in der Firebase-Konsole unter Realtime Database → Rules \"img-bank\": {\".read\": true, \".write\": true} ergänzen, veröffentlichen, dann neu laden."},
 "本期开票 = 所选月份（默认当月）开票日的正票 含税金额合计（EUR）；冲销票与待开票存根不计":{en:"Invoiced in period = gross total (EUR) of positive invoices dated in the selected month (default: current); cancellations and stubs excluded",de:"Berechnet im Zeitraum = Bruttosumme (EUR) der positiven Rechnungen im gewählten Monat (Standard: aktuell); Stornos und Platzhalter ausgeschlossen"},
 "本期已收 = 本期发票已到账部分（按核销）；回款率 = 已收 ÷ 本期开票":{en:"Received in period = allocated receipts on this period's invoices; rate = received ÷ invoiced",de:"Eingegangen = zugeordnete Zahlungen auf Rechnungen des Zeitraums; Quote = Eingang ÷ berechnet"},
 "本期未收 = 本期发票 含税金额 − 已核销到账":{en:"Open in period = gross of period invoices − allocated receipts",de:"Offen im Zeitraum = brutto − zugeordnete Zahlungen"},
