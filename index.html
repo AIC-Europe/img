@@ -985,7 +985,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v33.8</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v33.9</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1634,7 +1634,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=33.8;
+const APP_VERSION=33.9;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -12170,7 +12170,7 @@ function renderBANK(){
       '<td style="font-size:11.5px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(x.memo+' '+x.note)+'">'+esc(x.memo)+(x.note?' <span style="color:var(--ink-soft)">'+esc(x.note)+'</span>':'')+'</td>'+
       '<td>'+esc(m.acct||'')+'</td><td style="font-size:11.5px">'+esc(m.summary||'')+'</td><td style="font-size:11px;color:var(--ink-soft)">'+bankRefCellHtml(x)+'</td>'+
       '<td><span class="badge" style="background:var(--n-wash);color:'+stCol[x.status]+';font-size:10.5px">'+(statusLabel[x.status]||x.status)+(m.auto===false?' ✎':'')+'</span>'+(x.status==='matched'&&m.auto?('<div style="font-size:10px;margin-top:2px;color:'+(m.basis==='name'?'var(--warn)':'var(--muted)')+'">'+({no:'按发票号',name:'⚠ 按户名+金额，请核对',rule:'按规则',fee:'银行收费'}[m.basis]||'')+'</div>'):'')+(x.status==='pending'&&x.hint?'<div style="font-size:10px;margin-top:2px;color:var(--warn)" title="'+esc(x.hint)+'">'+esc(x.hint)+'</div>':'')+'</td>'+
-      '<td style="white-space:nowrap">'+(x.status==='matched'?'<button type="button" class="btn-sm bk-ok" data-id="'+x.id+'">确认</button> ':'')+(x.status!=='confirmed'?'<button type="button" class="btn-sm bk-edit" data-id="'+x.id+'">指定</button> ':'')+(x.status==='pending'?'<button type="button" class="btn-sm bk-ign" data-id="'+x.id+'">忽略</button>':'')+'</td></tr>';
+      '<td style="white-space:nowrap">'+(x.status==='matched'?'<button type="button" class="btn-sm bk-ok" data-id="'+x.id+'">确认</button> ':'')+(x.status!=='confirmed'?'<button type="button" class="btn-sm bk-edit" data-id="'+x.id+'">指定</button> ':'')+(x.status==='pending'?'<button type="button" class="btn-sm bk-ign" data-id="'+x.id+'">忽略</button>':'')+(x.status==='confirmed'?'<button type="button" class="btn-sm bk-undo" data-id="'+x.id+'" title="原路回滚由这笔流水写入的付款/到账，流水回到待认领">撤回</button>':'')+(x.status==='ignored'?'<button type="button" class="btn-sm bk-unign" data-id="'+x.id+'">恢复</button>':'')+'</td></tr>';
   }
   h+='</tbody></table></div>';
   if(list.length>(_winN['bankBody']||WIN_STEP))h+='<div style="text-align:center;padding:8px;font-size:12px;color:var(--ink-soft)">已显示 '+Math.min(list.length,_winN['bankBody']||WIN_STEP)+' / '+list.length+' 条 · <button type="button" class="btn-sm" id="bankMore">显示更多</button></div>';
@@ -12194,6 +12194,11 @@ function bankBind(){
   box.querySelectorAll('.bk-ok').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;await bankConfirm(tx);toast('已确认并写入台账');renderBANK();});
   box.querySelectorAll('.bk-ign').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;const r=prompt('忽略原因（如：内部转账 / 退回）：');if(r===null)return;await bankIgnore(tx,r);renderBANK();});
   box.querySelectorAll('.bk-edit').forEach(b=>b.onclick=()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(tx)bankEditOpen(tx);});
+  box.querySelectorAll('.bk-undo').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;const m=tx.match||{};
+    if(!confirm('撤回这笔流水的确认？\n'+tx.date+' · '+tx.cpName+' · € '+fmt(Math.abs(tx.amount))+'\n将原路回滚：'+(m.linkOnly?'摘掉已关联的流水号（不动已登记的付款）':(m.kind==='ar'?'删除由此生成的到账登记与核销':'删除由此生成的应付付款记录'))+'，流水回到待认领。'))return;
+    const r=prompt('撤回原因（写入审计日志）：','匹配错误');if(r===null)return;
+    try{const res=await bankUnconfirm(tx,r.trim());toast('已撤回：删除 '+res.removed+' 条、摘流水号 '+res.unlinked+' 条');renderBANK();}catch(e){toast('撤回失败：'+(e.message||e));}});
+  box.querySelectorAll('.bk-unign').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;tx.status='pending';tx.match=null;tx.up=Date.now();await bankSave();renderBANK();});
 }
 
 const BANK_ACCTS=['应收账款','应付账款','应付职工薪酬','管理费用','财务费用','应交税费','营业外收入','营业外支出','其他应收款','其他应付款','固定资产','办公费'];
@@ -12420,6 +12425,30 @@ window.bankTxLineHtml=bankTxLineHtml;
 
 function bankNoAttCount(){let n=0;for(const tx of bankItems){if(tx.deleted||tx.status!=='confirmed')continue;for(const v of bankRefInvoices(tx))if(!v.files.length)n++;}return n;}
 window.bankNoAttCount=bankNoAttCount;
+
+async function bankUnconfirm(tx,reason){
+  if(!canBank()||!tx||tx.status!=='confirmed')return false;
+  const m=tx.match||{};let apTouched=false,arTouched=false,removed=0,unlinked=0;
+  if(m.kind==='ar'){
+    for(const p of payments){if(p.deleted)continue;
+      if(p.bankTx===tx.id){
+        if(p.note&&/银行流水自动核销/.test(p.note)){p.deleted=true;p.deletedBy=session.name;p.deletedAt=Date.now();(p.comments=p.comments||[]).push({author:session.name,role:session.role,text:'🗑 撤回银行流水确认 '+tx.txNo+(reason?('：'+reason):''),time:Date.now()});removed++;}
+        else{delete p.bankTx;delete p.bankTxNo;unlinked++;}
+        p.up=Date.now();arTouched=true;}}
+  }else if(m.kind==='ap'||m.kind==='ops'){
+    for(const r of (m.refs||[])){const it=apItems.find(x=>x.id===r.id);if(!it||!it.payments)continue;
+      if(r.linkOnly){for(const p of it.payments){if(p.bankTx===tx.id){delete p.bankTx;delete p.bankTxNo;unlinked++;}}}
+      else{const gone=it.payments.filter(p=>p.bankTx===tx.id);it.payments=it.payments.filter(p=>p.bankTx!==tx.id);for(const p of gone){(it.payDeleted=it.payDeleted||[]).push(p.time+'|'+p.amount);}removed+=gone.length;}
+      (it.comments=it.comments||[]).push({author:session.name,role:session.role,text:'↩ 撤回银行流水确认 '+tx.txNo+(reason?('：'+reason):''),time:Date.now()});
+      it.up=Date.now();apTouched=true;}
+  }
+  if(arTouched){try{alcInvalidate();}catch(e){}await savePayments();}
+  if(apTouched)await apSave();
+  tx.status='pending';tx.prevMatch=tx.match;tx.match=null;tx.hint='已撤回确认'+(reason?('：'+reason):'')+'（原匹配：'+((m.refs||[]).map(r=>r.no).join(' ')||m.summary||'')+'）';tx.up=Date.now();
+  await bankSave();
+  return {removed:removed,unlinked:unlinked};
+}
+window.bankUnconfirm=bankUnconfirm;
 
 function aoaWithTotal(aoa,headerRowIdx,numCols,label){
   try{
@@ -14169,7 +14198,7 @@ Object.assign(I18N,{
 "小时数":{en:"Hours",de:"Stunden"},
 "关联成单号（可选）":{en:"Order no. (optional)",de:"Auftragsnr. (optional)"},
 "我的申请":{en:"My requests",de:"Meine Anträge"},
-"撤回":{en:"Withdraw",de:"Zurückziehen"},
+"撤回":{en:"Undo",de:"Zurücknehmen"},
 "上传 AU":{en:"Upload AU",de:"AU hochladen"},
 "你有":{en:"You have",de:"Du hast"},
 "成员":{en:"Member",de:"Mitglied"},
@@ -14442,6 +14471,8 @@ Object.assign(I18N,{
 "银行收费":{en:"bank fee",de:"Bankgebühr"},
 "已付清·仅关联":{en:"paid · link only",de:"bezahlt · nur verknüpft"},
 "该发票已登记付款/到账，确认时只挂流水号":{en:"Payment already recorded; confirming only attaches the bank ref",de:"Zahlung bereits erfasst; Bestätigen hängt nur die Bankreferenz an"},
+"恢复":{en:"Restore",de:"Wiederherstellen"},
+"原路回滚由这笔流水写入的付款/到账，流水回到待认领":{en:"Roll back the payment/receipt written by this transaction; it returns to unassigned",de:"Zahlung/Eingang dieser Buchung zurücknehmen; Buchung wird wieder nicht zugeordnet"},
 "本期开票 = 所选月份（默认当月）开票日的正票 含税金额合计（EUR）；冲销票与待开票存根不计":{en:"Invoiced in period = gross total (EUR) of positive invoices dated in the selected month (default: current); cancellations and stubs excluded",de:"Berechnet im Zeitraum = Bruttosumme (EUR) der positiven Rechnungen im gewählten Monat (Standard: aktuell); Stornos und Platzhalter ausgeschlossen"},
 "本期已收 = 本期发票已到账部分（按核销）；回款率 = 已收 ÷ 本期开票":{en:"Received in period = allocated receipts on this period's invoices; rate = received ÷ invoiced",de:"Eingegangen = zugeordnete Zahlungen auf Rechnungen des Zeitraums; Quote = Eingang ÷ berechnet"},
 "本期未收 = 本期发票 含税金额 − 已核销到账":{en:"Open in period = gross of period invoices − allocated receipts",de:"Offen im Zeitraum = brutto − zugeordnete Zahlungen"},
