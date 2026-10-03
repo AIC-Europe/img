@@ -985,7 +985,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v33.9</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.0</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1634,7 +1634,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=33.9;
+const APP_VERSION=34.0;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -12155,7 +12155,7 @@ function renderBANK(){
   const pend=all.filter(x=>x.status==='pending').length,mat=all.filter(x=>x.status==='matched').length;
   const statusLabel={pending:'待认领',matched:'已匹配待确认',confirmed:'已确认',ignored:'已忽略'};
   let h=(_bankPermErr?'<div class="hm-sec" style="background:var(--bad-bg);color:var(--bad);padding:8px 12px;border-radius:8px;margin-bottom:10px">⛔ 数据库规则未开放节点「img-bank」（PERMISSION_DENIED）：请在 Firebase 控制台 Realtime Database → Rules 加 "img-bank": {".read": true, ".write": true}，发布后刷新页面。</div>':'')+'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px"><div><div style="font-weight:700;font-size:15px">🏦 银行流水与对账 <span style="font-size:11.5px;color:var(--ink-soft);font-weight:400">中国银行杜塞分行 · EUR · 仅财务</span></div></div>'+
-    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" style="width:auto" id="bankImportBtn" type="button">⬆ 导入流水（xls）</button><button class="btn-ghost" id="bankConfirmAllBtn" type="button"'+(mat?'':' disabled')+'>✓ 一键确认已匹配（'+mat+'）</button><button class="btn-ghost" id="bankRulesBtn" type="button">⚙ 关键词规则（'+bankRules().length+'）</button><button class="btn-ghost" id="bankHqBtn" type="button">📤 总部格式导出</button><button class="btn-ghost" id="bankZipBtn" type="button" title="总部格式 Excel（含关联发票与附件文件名）+ 收入/支出文件夹里的发票 PDF">📦 导出流水+发票包</button><label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="checkbox" id="bankZipOnly" style="accent-color:var(--pine)">仅已确认</label></div></div>';
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" style="width:auto" id="bankImportBtn" type="button">⬆ 导入流水（xls）</button><button class="btn-ghost" id="bankConfirmAllBtn" type="button"'+(mat?'':' disabled')+'>✓ 一键确认已匹配（'+mat+'）</button><button class="btn-ghost" id="bankRulesBtn" type="button">⚙ 关键词规则（'+bankRules().length+'）</button><button class="btn-ghost" id="bankHqBtn" type="button">📤 总部格式导出</button><button class="btn-ghost" id="bankZipBtn" type="button" title="总部格式 Excel（含关联发票与附件路径）+ 按编号建文件夹存放对应发票 PDF">📦 导出流水+发票包</button><label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="checkbox" id="bankZipOnly" style="accent-color:var(--pine)">仅已确认</label></div></div>';
   h+='<div class="stat-strip"><div class="stat"><div class="s-label">本期流水</div><div class="s-value">'+list.length+'<span class="s-unit"> 笔</span></div></div><div class="stat good"><div class="s-label">收入</div><div class="s-value">€ '+fmt(inn)+'</div></div><div class="stat bad"><div class="s-label">支出</div><div class="s-value">€ '+fmt(out)+'</div></div><div class="stat warn"><div class="s-label">待认领（全量）</div><div class="s-value">'+pend+'<span class="s-unit"> 笔</span></div></div><div class="stat"><div class="s-label">已匹配待确认</div><div class="s-value">'+mat+'<span class="s-unit"> 笔</span></div></div></div>';
   h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0"><select id="bankFMonth" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px"><option value="">全部月份</option>'+months.map(m=>'<option value="'+m+'"'+(bankFMonth===m?' selected':'')+'>'+m+'</option>').join('')+'</select>'+
     '<select id="bankFStatus" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px"><option value="">全部状态</option>'+Object.keys(statusLabel).map(k=>'<option value="'+k+'"'+(bankFStatus===k?' selected':'')+'>'+statusLabel[k]+'</option>').join('')+'</select>'+
@@ -12372,7 +12372,7 @@ function bankZipRows(month,onlyConfirmed){
   const rows=bankHqRows(month).filter(r=>!onlyConfirmed||r.status==='confirmed');
   const byTx={};for(const x of bankItems)byTx[x.txNo]=x;
   return rows.map(r=>{const tx=byTx[r.txNo];const inv=tx?bankRefInvoices(tx):[];
-    const files=[];inv.forEach((v,vi)=>{v.files.forEach((f,fi)=>{const suf=(inv.length>1||v.files.length>1)?('_'+String.fromCharCode(97+vi)+(v.files.length>1?(fi+1):'')):'';files.push({v:v,f:f,name:r.no+'_'+r.date+'_'+bankSanit(v.party)+'_'+bankSanit(v.no)+suf+(String(f.name||'').match(/\.[a-z0-9]{2,5}$/i)||['.pdf'])[0]});});});
+    const files=[];inv.forEach((v,vi)=>{v.files.forEach((f,fi)=>{const suf=v.files.length>1?('_'+(fi+1)):'';files.push({v:v,f:f,folder:r.no,name:bankSanit(v.no)+'_'+bankSanit(v.party)+suf+(String(f.name||'').match(/\.[a-z0-9]{2,5}$/i)||['.pdf'])[0]});});});
     return Object.assign({},r,{inv:inv,files:files,noAtt:inv.filter(v=>!v.files.length).map(v=>v.no)});});
 }
 window.bankZipRows=bankZipRows;
@@ -12380,7 +12380,7 @@ function bankZipAoa(zrows,month){
   const acctNo=(typeof BANK_ACCT_NO!=='undefined'&&BANK_ACCT_NO)||'';
   const aoa=[['IMG Europe GmbH'+(acctNo?'-'+acctNo:'')],['日期','编号','会计科目','摘要','期初余额','收入金额','支出金额','期末余额','户名','关联发票','附件文件','状态']];
   if(zrows.length)aoa.push(['','','期初余额','',zrows[0].begin,'','','','','','','']);
-  for(const r of zrows)aoa.push([r.date,r.no,r.acct,r.summary,r.begin,r.inn,r.out,r.end,r.payee,r.inv.map(v=>v.no).join(' '),r.files.length?r.files.map(x=>x.name).join(' | '):(r.noAtt.length?'缺附件：'+r.noAtt.join(' '):''),r.status==='confirmed'?'':(r.status==='pending'?'⚠ 待认领':r.status==='matched'?'待确认':'已忽略')]);
+  for(const r of zrows)aoa.push([r.date,r.no,r.acct,r.summary,r.begin,r.inn,r.out,r.end,r.payee,r.inv.map(v=>v.no).join(' '),r.files.length?r.files.map(x=>x.folder+'/'+x.name).join(' | '):(r.noAtt.length?'缺附件：'+r.noAtt.join(' '):''),r.status==='confirmed'?'':(r.status==='pending'?'⚠ 待认领':r.status==='matched'?'待确认':'已忽略')]);
   const inn=zrows.reduce((s,r)=>s+(Number(r.inn)||0),0),out=zrows.reduce((s,r)=>s+(Number(r.out)||0),0);
   aoa.push(['','','合计','',zrows.length?zrows[0].begin:'',Math.round(inn*100)/100,Math.round(out*100)/100,zrows.length?zrows[zrows.length-1].end:'','','','','']);
   return aoa;
@@ -12398,15 +12398,15 @@ async function bankZipExport(month,onlyConfirmed,opts){
   XLSX.utils.book_append_sheet(wb,ws,'IMG Europe-0360');
   const sumR=bankHqAoa(month);const ws2=XLSX.utils.aoa_to_sheet(sumR.sum);XLSX.utils.book_append_sheet(wb,ws2,'汇总表');
   const xbuf=XLSX.write(wb,{bookType:'xlsx',type:'array'});zip.file(base+'.xlsx',xbuf);
-  const inF=zip.folder('收入'),outF=zip.folder('支出');const fails=[];let n=0;
-  for(const r of zrows){for(const x of r.files){try{const blob=await packBlob(x.f);if(!blob){fails.push(x.name);continue;}(Number(r.inn)>0?inF:outF).file(x.name,blob);n++;if(opts.onProgress)opts.onProgress(n);}catch(e){fails.push(x.name);}}}
+  const fails=[];let n=0;const folders={};
+  for(const r of zrows){for(const x of r.files){try{const blob=await packBlob(x.f);if(!blob){fails.push(x.folder+'/'+x.name);continue;}(folders[x.folder]=folders[x.folder]||zip.folder(x.folder)).file(x.name,blob);n++;if(opts.onProgress)opts.onProgress(n);}catch(e){fails.push(x.folder+'/'+x.name);}}}
   const noatt=zrows.filter(r=>r.noAtt.length).map(r=>r.no+' '+r.date+' '+r.payee+'：'+r.noAtt.join(' '));
   if(noatt.length)zip.file('98-缺附件发票清单.txt','以下流水关联的发票在平台上没有附件：\n'+noatt.join('\n'));
   if(fails.length)zip.file('99-未能打包的文件.txt','以下附件未能取回：\n'+fails.join('\n'));
   const blob=await zip.generateAsync({type:'blob'});
   if(!opts.noSave)saveBlob(blob,base+'.zip');
   toast('已导出 '+zrows.length+' 笔 · 附件 '+n+' 个'+(noatt.length?' · 缺附件 '+noatt.length+' 行':''));
-  return {rows:zrows.length,files:n,noAtt:noatt.length,fails:fails.length,bytes:blob.size||0,names:zrows.flatMap(r=>r.files.map(x=>x.name))};
+  return {rows:zrows.length,files:n,noAtt:noatt.length,fails:fails.length,bytes:blob.size||0,names:zrows.flatMap(r=>r.files.map(x=>x.folder+'/'+x.name)),folders:Object.keys(folders).length};
 }
 window.bankZipExport=bankZipExport;
 
@@ -14473,6 +14473,7 @@ Object.assign(I18N,{
 "该发票已登记付款/到账，确认时只挂流水号":{en:"Payment already recorded; confirming only attaches the bank ref",de:"Zahlung bereits erfasst; Bestätigen hängt nur die Bankreferenz an"},
 "恢复":{en:"Restore",de:"Wiederherstellen"},
 "原路回滚由这笔流水写入的付款/到账，流水回到待认领":{en:"Roll back the payment/receipt written by this transaction; it returns to unassigned",de:"Zahlung/Eingang dieser Buchung zurücknehmen; Buchung wird wieder nicht zugeordnet"},
+"总部格式 Excel（含关联发票与附件路径）+ 按编号建文件夹存放对应发票 PDF":{en:"HQ-format Excel (with linked invoices and file paths) + one folder per line number holding its invoice PDFs",de:"Excel im Zentralen-Format (mit Rechnungen/Pfaden) + je Nummer ein Ordner mit den Rechnungs-PDFs"},
 "本期开票 = 所选月份（默认当月）开票日的正票 含税金额合计（EUR）；冲销票与待开票存根不计":{en:"Invoiced in period = gross total (EUR) of positive invoices dated in the selected month (default: current); cancellations and stubs excluded",de:"Berechnet im Zeitraum = Bruttosumme (EUR) der positiven Rechnungen im gewählten Monat (Standard: aktuell); Stornos und Platzhalter ausgeschlossen"},
 "本期已收 = 本期发票已到账部分（按核销）；回款率 = 已收 ÷ 本期开票":{en:"Received in period = allocated receipts on this period's invoices; rate = received ÷ invoiced",de:"Eingegangen = zugeordnete Zahlungen auf Rechnungen des Zeitraums; Quote = Eingang ÷ berechnet"},
 "本期未收 = 本期发票 含税金额 − 已核销到账":{en:"Open in period = gross of period invoices − allocated receipts",de:"Offen im Zeitraum = brutto − zugeordnete Zahlungen"},
