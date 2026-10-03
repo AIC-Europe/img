@@ -710,7 +710,7 @@ td{font-size:12.5px}
       <button class="mod-btn" id="tabORD" type="button">订单管理<span class="mod-dot" id="ordAlert" style="display:none">0</span></button>
       <button class="mod-btn active" id="tabAR" type="button">应收管理<span class="mod-dot" id="arAlert" style="display:none">0</span></button>
       <button class="mod-btn" id="tabAP" type="button">应付管理<span class="mod-dot" id="apAlert" style="display:none">0</span></button>
-      <button class="mod-btn" id="tabHR" type="button" style="display:none">人事<span class="mod-dot" id="hrAlert" style="display:none">0</span></button>
+      <button class="mod-btn" id="tabBANK" type="button" style="display:none">银行<span class="mod-dot" id="bankAlert" style="display:none"></span></button><button class="mod-btn" id="tabHR" type="button" style="display:none">人事<span class="mod-dot" id="hrAlert" style="display:none">0</span></button>
       <button class="mod-btn" id="tabBASE" type="button">基础资料</button>
     </nav>
     <span class="spacer"></span>
@@ -910,6 +910,11 @@ td{font-size:12.5px}
     <div id="hrBody"></div>
   </main>
 
+  <main id="bankView" class="wrap" style="display:none">
+    <div id="bankBody"></div>
+  </main>
+  <input type="file" id="bankFileInput" accept=".xls,.xlsx,.csv" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
+
   <main id="baseView" style="display:none">
     <div id="baseBackupBar" style="display:none;background:linear-gradient(135deg,#0E3B33,#14544A);border-radius:var(--radius);padding:16px 20px;margin-bottom:16px;color:#fff;align-items:center;gap:16px">
       <div style="flex:1">
@@ -980,7 +985,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v33.0</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v33.4</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1487,7 +1492,13 @@ td{font-size:12.5px}
 <div class="overlay" id="apUpOverlay">
   <div class="modal" style="max-width:460px">
     <h2>上传供应商发票</h2>
-    <div class="field"><label for="apUpOrder">IMG 成单号 *</label><input id="apUpOrder" placeholder="例如：IMG-2026-0158"></div>
+    <div class="field" id="apUpKindRow" style="display:none"><label>发票类型</label>
+      <div style="display:flex;gap:6px"><button type="button" class="btn-sm ap-kind on" data-k="biz" style="flex:1">📦 业务（挂订单）</button><button type="button" class="btn-sm ap-kind" data-k="ops" style="flex:1">🏢 运营（费用类）</button></div>
+      <div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px">运营类=房租/保险/工资/税/银行费/报销等，不挂订单、不进订单成本；仅财务可见</div>
+    </div>
+    <div class="field" id="apUpOrderRow"><label for="apUpOrder">IMG 成单号 *</label><input id="apUpOrder" placeholder="例如：IMG-2026-0158"></div>
+    <div class="field" id="apUpCatRow" style="display:none"><label for="apUpCat">费用类别 *（总部科目）</label><select id="apUpCat"><option value="">— 选择 —</option><option>管理费用</option><option>财务费用</option><option>应付职工薪酬</option><option>应交税费</option><option>营业外支出</option><option>其他应付款</option><option>固定资产</option><option>办公费</option></select></div>
+    <div class="field" id="apUpRecurRow" style="display:none"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="apUpRecur" style="accent-color:var(--pine)">🔁 周期性（房租/保险等每月固定，到期前 7 天提醒并进现金流预测）</label></div>
     <div class="field"><label>发票文件 *</label>
       <button class="btn-ghost" id="apUpPick" type="button" style="width:100%"><svg class="ic" aria-hidden="true"><use href="#i-doc"/></svg> 选择文件（PDF / 图片）</button>
       <div id="apUpFileName" style="font-size:12.5px;color:var(--ink-soft);margin-top:6px">未选择文件</div>
@@ -1532,6 +1543,8 @@ td{font-size:12.5px}
       </div>
       <div class="field full" id="apDueWrap"><label for="apDue">到期日</label><input type="date" id="apDue"><div style="font-size:12px;color:var(--ink-soft);margin-top:4px" id="apDueHint">按账期自动计算，可手动调整</div></div>
       <div class="field full"><label for="apNote">备注</label><textarea id="apNote" rows="2" placeholder="可选，例如：需先核对运单后付款"></textarea></div>
+      <div class="field" id="apEntryCatRow" style="display:none"><label for="apEntryCat">费用类别 *（总部科目）</label><select id="apEntryCat"><option value="">— 选择 —</option><option>管理费用</option><option>财务费用</option><option>应付职工薪酬</option><option>应交税费</option><option>营业外支出</option><option>其他应付款</option><option>固定资产</option><option>办公费</option></select></div>
+      <div class="field" id="apEntryRecurRow" style="display:none"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:22px"><input type="checkbox" id="apEntryRecur" style="accent-color:var(--pine)">🔁 周期性（每月）</label></div>
     </div>
     <!-- v21.5 阶段2：成本明细（按服务项 + 归属订单拆分） -->
     <div id="apCostBox" style="margin-top:12px;border:1.5px solid var(--line);border-radius:10px;padding:12px">
@@ -1621,7 +1634,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=33.0;
+const APP_VERSION=33.4;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2232,6 +2245,7 @@ function enterApp(){
   exportWarm();
   try{modalGuardInit();}catch(e){}
   try{hrCloudStart();}catch(e){}
+  try{bankCloudStart();}catch(e){}
   try{kbModal('apEntryOverlay','apEntrySave');kbModal('ordEditOverlay','ordEditSave');kbModal('payOverlay','paySave');kbModal('ariOverlay','ariSave');kbModal('ordInvOverlay','ordInvSave');}catch(e){}
   if($('agingBtn'))$('agingBtn').style.display=_ana?'':'none';
   if($('cashBtn'))$('cashBtn').style.display=_ana?'':'none';
@@ -3800,14 +3814,16 @@ async function apHandleUpload(file,attachTo,extra){
       const ordNo=(extra&&extra.orderNo)||'';
       const remark=(extra&&extra.remark)||'';
       const urg=(extra&&extra.urgent)||null;
+      const kind=(extra&&extra.kind==='ops'&&session.role==='finance')?'ops':'biz';
       apItems.push({
         id:'ap'+Date.now()+Math.random().toString(36).slice(2,7),
         files:[meta],uploadedBy:session.name,uploadedAt:Date.now(),
+        kind:kind,cat:kind==='ops'?((extra&&extra.cat)||''):'',recur:kind==='ops'&&!!(extra&&extra.recur),
         orderNo:ordNo,
         supplier:'',invNo:'',amount:null,currency:'EUR',invDate:'',term:null,due:'',note:'',
         payments:[],urgent:urg,
         comments:[{author:session.name,role:session.role,
-          text:'上传供应商发票：'+file.name+(ordNo?'（成单号 '+ordNo+'）':'')+(remark?'。'+remark:'')+(urg?('。⚡ 需立即付款，期望付款日 '+urg.due+(urg.note?('：'+urg.note):'')):''),time:Date.now()}]
+          text:(kind==='ops'?'上传运营类发票（'+((extra&&extra.cat)||'')+'）：':'上传供应商发票：')+file.name+(ordNo?'（成单号 '+ordNo+'）':'')+(remark?'。'+remark:'')+(urg?('。⚡ 需立即付款，期望付款日 '+urg.due+(urg.note?('：'+urg.note):'')):''),time:Date.now()}]
       });
     }
     await apSave();
@@ -3828,13 +3844,25 @@ function apUpBarRender(){
   const chip=(label,val,n)=>'<button type="button" class="own-chip'+(apFUp===val?' on':'')+'" data-up="'+esc(val)+'">'+esc(label)+(n!=null?' <span class="oc-n">'+n+'</span>':'')+'</button>';
   let h='<span style="font-size:12px;color:var(--ink-soft);font-weight:600">上传人</span>'+chip('全部','',base.length);
   for(const k of names)h+=chip(k,k,cnt[k]);
+
+  if(session&&session.role==='finance'){
+    const nOps=apVisible().filter(apIsOps).length,nBiz=apVisible().length-nOps;
+    const kchip=(label,val,n)=>'<button type="button" class="own-chip kind-chip'+(apFKind===val?' on':'')+'" data-kind="'+val+'">'+label+' <span class="oc-n">'+n+'</span></button>';
+    h+='<span style="margin-left:12px;font-size:12px;color:var(--ink-soft);font-weight:600">类型</span>'+kchip('全部','',nBiz+nOps)+kchip('📦 业务','biz',nBiz)+kchip('🏢 运营','ops',nOps);
+  }
   bar.innerHTML=h;
-  bar.querySelectorAll('.own-chip').forEach(b=>{b.onclick=()=>{apFUp=b.dataset.up;renderAP();};});
+  bar.querySelectorAll('.own-chip:not(.kind-chip)').forEach(b=>{b.onclick=()=>{apFUp=b.dataset.up;renderAP();};});
+  bar.querySelectorAll('.kind-chip').forEach(b=>{b.onclick=()=>{apFKind=b.dataset.kind;renderAP();};});
 }
+
+function apIsOps(x){return !!(x&&x.kind==='ops');}
+function apVisible(){const fin=session&&session.role==='finance';return apItems.filter(x=>!x.deleted&&(fin||!apIsOps(x)));}
+let apFKind='';window.apIsOps=apIsOps;window.apVisible=apVisible;
 function apFiltered(){
   const st=$('apFStatus').value, q=$('apFSearch').value.trim().toLowerCase();
   const m=$('apFMonth').value;
-  return apItems.filter(x=>!x.deleted)
+  return apVisible()
+    .filter(x=>!apFKind||(apFKind==='ops'?apIsOps(x):!apIsOps(x)))
     .filter(x=>{
       if(!m)return true;
 
@@ -3873,7 +3901,7 @@ let apSortDir='desc',apSortKey='date';
 
 function apPeriodStats(m){
   const P={m:m,sum:0,n:0,paid:0,open:0,openN:0,over:0,overN:0};
-  for(const it of apItems){
+  for(const it of apVisible()){
     if(it.deleted||it.currency!=='EUR'||(it.invDate||'').slice(0,7)!==m)continue;
     const s=apState(it);if(s==='new')continue;
     const g=Number(it.amount)||0,pd=apPaid(it),rest=g-pd;
@@ -3887,7 +3915,7 @@ window.apPeriodStats=apPeriodStats;
 function apRenderStats(){
   try{bulkBarUpdate();}catch(e){}
   let nNew=0,dueSum=0,nDue=0,nSoon=0,soonSum=0,nOver=0,overSum=0,nUrg=0,urgSum=0;
-  for(const it of apItems){
+  for(const it of apVisible()){
     if(it.deleted)continue;
     const s=apState(it);
     if(apUrgent(it)){nUrg++;if(it.currency==='EUR')urgSum+=(Number(it.amount)||0)-apPaid(it);}
@@ -4109,12 +4137,13 @@ function renderAP(){
       if(s==='overdue')dueTxt+=' <span style="color:var(--bad);font-weight:600">逾期'+Math.abs(dl)+'天</span>';
       else if(s!=='paid'&&dl!==null&&dl<=7)dueTxt+=' <span style="color:var(--warn);font-weight:600">剩'+dl+'天</span>';
     }
+    const opsBadge=apIsOps(it)?'<span class="badge" style="background:var(--info-bg);color:var(--info);font-size:10px;padding:1px 5px;margin-right:4px" title="运营类发票（仅财务可见）">🏢 '+esc(it.cat||'运营')+(it.recur?' 🔁':'')+'</span>':'';
     tr.innerHTML=
       (session.role==='finance'?'<td style="text-align:center">'+((it.amount&&apState(it)!=='paid')?'<input type="checkbox" class="ap-bulk-chk" data-id="'+it.id+'"'+(_bulkSel.has(it.id)?' checked':'')+' style="accent-color:var(--pine);width:15px;height:15px">':'')+'</td>':'<td></td>')+
 
       '<td style="font-family:var(--font-num);white-space:nowrap">'+esc(apEntryDate(it)||'—')+'</td>'+
       '<td style="font-family:var(--font-num);white-space:nowrap">'+esc(it.invDate||'—')+'</td>'+
-      '<td><b class="p360-lnk" data-kind="sup" data-name="'+esc(it.supplier||'')+'">'+esc(it.supplier||'（待录入）')+'</b></td>'+
+      '<td>'+opsBadge+'<b class="p360-lnk" data-kind="sup" data-name="'+esc(it.supplier||'')+'">'+esc(it.supplier||'（待录入）')+'</b></td>'+
       '<td style="font-family:var(--font-num);white-space:nowrap">'+esc(it.invNo||'—')+((it.files||[]).length?' <span title="'+((it.files||[]).length)+' 个附件" style="font-size:11px;color:var(--ink-soft)">'+ic('clip','ic-sm')+((it.files||[]).length>1?' '+(it.files||[]).length:'')+'</span>':'')+'</td>'+
       '<td style="font-family:var(--font-num)">'+esc(it.orderNo||'—')+'</td>'+
       '<td class="amount">'+(amt?fmt(amt)+'<span class="cur">'+esc(it.currency)+'</span>':'<span class="dash">—</span>')+'</td>'+
@@ -4802,13 +4831,19 @@ function cashCalc(useHabit){
   for(const fx of cfg.fixed){const amt=Number(fx.amount)||0;if(!amt)continue;const day=Math.min(28,Math.max(1,parseInt(fx.day,10)||1));
     const d=new Date(today+'T00:00:00');for(let m=0;m<4;m++){const dt=new Date(d.getFullYear(),d.getMonth()+m,day);const ds=ymdLocal(dt);if(ds<today)continue;const t=slot(ds);if(t&&t!=='beyond'&&t!==ov){t.out=Math.round((t.out+amt)*100)/100;t.outN++;t.fixed=Math.round((t.fixed+amt)*100)/100;t.fixedN++;}}}
 
+  let recurTot=0;const recurSeen={};
+  for(const it of apItems){if(it.deleted||it.kind!=='ops'||!it.recur||!it.invDate||(it.currency||'EUR')!=='EUR')continue;const k=(it.supplier||'')+'|'+(it.cat||'');if(!recurSeen[k]||it.invDate>recurSeen[k].invDate)recurSeen[k]=it;}
+  const have={};for(const it of apItems){if(it.deleted||it.kind!=='ops'||!it.invDate)continue;have[(it.supplier||'')+'|'+(it.cat||'')+'|'+it.invDate.slice(0,7)]=1;}
+  for(const k in recurSeen){const it=recurSeen[k];const amt=Number(it.amount)||0;if(!amt)continue;const day=Math.min(28,parseInt(it.invDate.slice(8,10),10)||1);
+    const d=new Date(today+'T00:00:00');for(let m=0;m<4;m++){const dt=new Date(d.getFullYear(),d.getMonth()+m,day);const ds=ymdLocal(dt);if(ds<today)continue;if(have[k+'|'+ds.slice(0,7)])continue;const t=slot(ds);if(t&&t!=='beyond'&&t!==ov){t.out=Math.round((t.out+amt)*100)/100;t.outN++;t.fixed=Math.round((t.fixed+amt)*100)/100;t.fixedN++;recurTot+=amt;}}}
+
   let prepaid=0;try{const bal=(typeof _alcBal!=='undefined'&&_alcBal)||{};for(const k in bal){if(/@EUR$/.test(k)&&bal[k]>0)prepaid+=bal[k];}}catch(e){}
   let cum=Math.round((ov.inn-ov.out)*100)/100;ov.net=cum;ov.cum=cum;
   for(const wk of weeks){wk.net=Math.round((wk.inn-wk.out)*100)/100;cum=Math.round((cum+wk.net)*100)/100;wk.cum=cum;}
   const tot={inn:Math.round((ov.inn+weeks.reduce(function(a,w){return a+w.inn;},0))*100)/100,out:Math.round((ov.out+weeks.reduce(function(a,w){return a+w.out;},0))*100)/100};
   tot.net=Math.round((tot.inn-tot.out)*100)/100;
   const fixedTot=Math.round(weeks.reduce(function(a,w){return a+w.fixed;},0)*100)/100;
-  return {today:today,w0:w0,overdue:ov,weeks:weeks,beyond:beyond,tot:tot,prepaid:Math.round(prepaid*100)/100,otherCur:otherCur,noDueIn:Math.round(noDueIn*100)/100,noDueOut:Math.round(noDueOut*100)/100,useHabit:useHabit,habitN:Object.keys(habit).length,fixedTot:fixedTot,cfg:cfg,minCum:Math.min.apply(null,weeks.map(function(w){return w.cum;}))};
+  return {today:today,w0:w0,overdue:ov,weeks:weeks,beyond:beyond,tot:tot,prepaid:Math.round(prepaid*100)/100,otherCur:otherCur,noDueIn:Math.round(noDueIn*100)/100,noDueOut:Math.round(noDueOut*100)/100,useHabit:useHabit,habitN:Object.keys(habit).length,fixedTot:fixedTot,recurTot:Math.round(recurTot*100)/100,cfg:cfg,minCum:Math.min.apply(null,weeks.map(function(w){return w.cum;}))};
 }
 window.cashCalc=cashCalc;
 function cashAoa(R,open){
@@ -4961,7 +4996,7 @@ function closeItems(m){
   let dup=0;try{const g={};for(const x of apItems){if(x.deleted||!x.invNo||!x.supplier)continue;const k=apSupNorm(x.supplier)+'|'+apInvNorm(x.invNo);(g[k]=g[k]||[]).push(x);}for(const k in g)if(g[k].length>1)dup++;}catch(e){}
   items.push({k:'dup',name:'重复发票号已清理',auto:dup===0,detail:dup?(dup+' 组重复（应付「🔍 重复发票号体检」）'):'无重复',manual:true});
   let apNoFile=0,apNoOrd=0;
-  for(const it of apItems){if(it.deleted||!it.invNo||!inM(it.invDate))continue;if(!(it.files||[]).length)apNoFile++;if(!(it.costLines||[]).length||it.costLines.some(function(l){return !l.ord;}))apNoOrd++;}
+  for(const it of apItems){if(it.deleted||!it.invNo||!inM(it.invDate))continue;if(!(it.files||[]).length)apNoFile++;if(it.kind!=='ops'&&(!(it.costLines||[]).length||it.costLines.some(function(l){return !l.ord;})))apNoOrd++;}
   items.push({k:'apfile',name:'本月应付发票附件齐全',auto:apNoFile===0,detail:apNoFile?(apNoFile+' 张无附件'):'齐全',manual:false});
   items.push({k:'apord',name:'本月应付成本明细均已归属订单',auto:apNoOrd===0,detail:apNoOrd?(apNoOrd+' 张缺成本明细或缺单号'):'齐全',manual:false});
   let arNoFile=0;for(const x of ariItems){if(x.deleted||!x.invNo||!inM(x.invDate))continue;if(!(x.files||[]).length)arNoFile++;}
@@ -5019,13 +5054,20 @@ function healthCalc(){
   add('cliCountry','客户档案缺「国家」',cli.filter(function(c){return !c.country&&!c.inactive;}).length,'warn','大表「客户国家」列依赖此字段','base');
   const arLive=ariItems.filter(function(x){return !x.deleted&&x.invNo&&!x.storno&&!x.cancelledBy;});
   add('arFile','应收发票无附件',arLive.filter(function(x){return !(x.files||[]).length;}).length,'warn','月度归档会缺凭证','arifiles');
-  const apEnt=apItems.filter(function(x){return !x.deleted&&x.invNo&&x.amount!==null&&x.amount!==undefined&&x.amount!=='';});
+  const apEnt=apItems.filter(function(x){return !x.deleted&&x.kind!=='ops'&&x.invNo&&x.amount!==null&&x.amount!==undefined&&x.amount!=='';});
 
   let dirtyNet=0;
   for(const x of apEnt)for(const l of (x.costLines||[]))if(!(Number(l.net)||0)&&(Number(l.gross)||0)>0)dirtyNet++;
   add('apNet0','成本明细行净额为0但含税有值',dirtyNet,'bad','该行成本会在大表里静默丢失（不进附录），请补净额','ap');
   const ordSet={};for(const o of ordItems)if(!o.deleted&&o.orderNo)ordSet[o.orderNo]=1;
   add('apNoLines','订单关联应付缺成本明细',apEnt.filter(function(x){return x.orderNo&&ordSet[x.orderNo]&&!(x.costLines||[]).length&&apNetOf(x)===null;}).length,'warn','订单毛利对这些票按含税口径回退（列表有 ≈ 标注），录明细后自动转净额','ap');
+
+  try{if(typeof bankStats==='function'&&canBank()){const bs=bankStats();
+    add('bankPending','银行流水待认领',bs.pending,'warn',bs.pending?('共 '+bs.total+' 笔流水，'+bs.pending+' 笔尚未归科目——总部月报导出前须处理'):'','bank');
+    add('bankMatched','银行流水已匹配未确认',bs.matched,'warn',bs.matched?('确认后才写入到账登记/应付付款'):'','bank');
+    add('bankMissing','上月银行流水未导入',bs.lastMonthMissing?1:0,'warn',bs.lastMonthMissing?('缺 '+bs.lastMonth+' 的流水——请从网银导出后在「银行」导入'):'','bank');}}catch(e){}
+
+  add('opsNoCat','运营类发票缺费用类别',apItems.filter(function(x){return !x.deleted&&x.kind==='ops'&&!x.cat;}).length,'warn','总部月报按科目汇总需要此字段','ap');
 
   try{const mm=arcMissingMonths();add('arcMissing','月度凭证包未归档',mm.length,'warn',mm.length?('缺：'+mm.join('、')+' —— 月结完成后系统会自动提示生成；也可在「📦 月度归档」手动生成'):'','arc');}catch(e){}
 
@@ -5608,6 +5650,7 @@ function apOpenEntry(it){
   apNetInfoRender(it);
   $('apEntryOverlay').classList.add('open');
   $('apSupplier').focus();
+  try{const ops=!!(it&&it.kind==='ops');const r1=$('apEntryCatRow'),r2=$('apEntryRecurRow'),box=$('apCostBox');if(r1)r1.style.display=ops?'':'none';if(r2)r2.style.display=ops?'':'none';if(box)box.style.display=ops?'none':'';if(ops){$('apEntryCat').value=it.cat||'';$('apEntryRecur').checked=!!it.recur;}const t=$('apEntryTitle');if(t)t.textContent=ops?'录入运营类发票（'+(it.cat||'费用')+'）':'录入发票信息';}catch(e){}
 }
 
 function apNetInfoRender(it){
@@ -6245,7 +6288,8 @@ async function apSaveEntry(dupReasonArg){
   const clOld=JSON.stringify((it.costLines||[]).map(x=>x.svc+':'+x.net+':'+x.vat+':'+(x.matchSvc||'')+':'+(x.matchInv||'')));
   if(clOld!==JSON.stringify(cl.map(x=>x.svc+':'+x.net+':'+x.vat+':'+(x.matchSvc||'')+':'+(x.matchInv||''))))
     changes.push('成本明细：'+((it.costLines||[]).length)+' 项 → '+cl.length+' 项');
-  it.costLines=cl;
+  if(it.kind==='ops'){const c=$('apEntryCat')?$('apEntryCat').value:'';if(!c){err.textContent='运营类发票请选择费用类别。';err.style.display='block';return;}it.cat=c;it.recur=!!($('apEntryRecur')&&$('apEntryRecur').checked);it.costLines=[];}
+  else it.costLines=cl;
   it.supplier=sup;it.invNo=no;it.amount=Math.round(amt*100)/100;
   it.currency=$('apCurrency').value;it.invDate=d;
   it.term=$('apTerm').value==='custom'?null:Number($('apTerm').value);
@@ -6368,6 +6412,7 @@ async function apRulesCheck(){
 }
 let _apUpFile=null;
 $('apUploadBtn').onclick=()=>{
+  try{_apUpKind='biz';apUpKindApply();}catch(e){}
   apPendingAttach=null;_apUpFile=null;_apUpToken++;
   $('apUpOrder').value='';$('apUpRemark').value='';
   $('apUpUrgent').checked=false;$('apUpUrgBox').style.display='none';$('apUpUrgDue').value=todayStr();$('apUpUrgNote').value='';
@@ -6410,10 +6455,27 @@ function apUpStatus(msg,kind){
   else{el.style.background='var(--n-soft)';el.style.color='var(--ink-soft)';el.style.border='1.5px solid var(--line)';}
 }
 $('apUpUrgent').onchange=function(){$('apUpUrgBox').style.display=this.checked?'':'none';if(this.checked&&!$('apUpUrgDue').value)$('apUpUrgDue').value=todayStr();};
+
+let _apUpKind='biz';
+function apUpKindApply(){
+  const fin=session&&session.role==='finance';
+  const row=$('apUpKindRow');if(row)row.style.display=fin?'':'none';
+  if(!fin)_apUpKind='biz';
+  const ops=_apUpKind==='ops';
+  if($('apUpOrderRow'))$('apUpOrderRow').style.display=ops?'none':'';
+  if($('apUpCatRow'))$('apUpCatRow').style.display=ops?'':'none';
+  if($('apUpRecurRow'))$('apUpRecurRow').style.display=ops?'':'none';
+  document.querySelectorAll('.ap-kind').forEach(function(b){b.classList.toggle('on',b.dataset.k===_apUpKind);b.style.borderColor=b.dataset.k===_apUpKind?'var(--pine)':'';b.style.fontWeight=b.dataset.k===_apUpKind?'700':'';});
+}
+document.querySelectorAll('.ap-kind').forEach(function(b){b.onclick=function(){_apUpKind=b.dataset.k;apUpKindApply();};});
+window.apUpKindSet=function(k){_apUpKind=k;apUpKindApply();};
 $('apUpSave').onclick=async()=>{
   const err=$('apUpErr');err.style.display='none';
-  const ordNo=$('apUpOrder').value.trim();
-  if(!ordNo){err.textContent='请填写对应的 IMG 成单号。';err.style.display='block';return;}
+  const kind=(_apUpKind==='ops'&&session.role==='finance')?'ops':'biz';
+  const ordNo=kind==='ops'?'':$('apUpOrder').value.trim();
+  const cat=kind==='ops'?$('apUpCat').value:'';
+  if(kind==='biz'&&!ordNo){err.textContent='请填写对应的 IMG 成单号。';err.style.display='block';return;}
+  if(kind==='ops'&&!cat){err.textContent='请选择费用类别（总部科目）。';err.style.display='block';return;}
   if(!_apUpFile){err.textContent='请选择发票文件。';err.style.display='block';return;}
   const btn=$('apUpSave');
   const token=++_apUpToken;
@@ -6426,7 +6488,7 @@ $('apUpSave').onclick=async()=>{
     if(!ud){$('apUpErr').textContent='勾选了立即付款，请填写期望付款日';return;}
     _urg={by:session.name,at:Date.now(),due:ud,note:$('apUpUrgNote').value.trim()};
   }
-  const ok=await apHandleUpload(_apUpFile,null,{orderNo:ordNo,remark:$('apUpRemark').value.trim(),urgent:_urg});
+  const ok=await apHandleUpload(_apUpFile,null,{orderNo:ordNo,remark:$('apUpRemark').value.trim(),urgent:_urg,kind:kind,cat:cat,recur:kind==='ops'&&$('apUpRecur').checked});
   if(token!==_apUpToken)return;
   if(ok){
 
@@ -9558,6 +9620,15 @@ function renderBASE(){
     }else if(card)card.remove();
   }catch(e){}
   try{
+    let bc=$('bankRuleCard');
+    if(session&&session.name==='Emma'){
+      if(!bc){bc=document.createElement('div');bc.className='base-card';bc.id='bankRuleCard';const host=$('fsCard')||$('migCard')||$('baseCards');if(host&&host.parentNode)host.parentNode.insertBefore(bc,host.nextSibling);}
+      const n=(typeof bankRules==='function')?bankRules().length:0;
+      bc.innerHTML='<h3>🏦 银行关键词规则</h3><div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">当前 <b style="color:var(--ink)">'+n+'</b> 条。流水导入时按户名/摘要/附言关键词自动归总部科目并生成摘要；发票号能对上的不走规则。规则越全，总部月报人工越少。</div><button class="btn-ghost" id="bankRuleOpenBtn" type="button">⚙ 打开规则表</button>';
+      const b=bc.querySelector('#bankRuleOpenBtn');if(b)b.onclick=function(){try{bankRulesOpen();}catch(e){}};
+    }else if(bc)bc.remove();
+  }catch(e){}
+  try{
     let fc=$('fsCard');
     if(session&&session.name==='Emma'&&USE_CLOUD&&rtdb){
       if(!fc){fc=document.createElement('div');fc.className='base-card';fc.id='fsCard';const host=$('migCard')||$('baseCards');if(host&&host.parentNode)host.parentNode.insertBefore(fc,host.nextSibling);}
@@ -9620,16 +9691,18 @@ async function ordExport(){
 function switchMod(id){
   if(id==='tabBASE'&&!canAnalytics())return;
   if(id==='tabHR'&&!(typeof canHR==='function'&&canHR()))return;
-  const map={tabHOME:'homeView',tabORD:'ordView',tabAR:'arView',tabAP:'apView',tabBASE:'baseView',tabHR:'hrView'};
+  if(id==='tabBANK'&&!(typeof canBank==='function'&&canBank()))return;
+  const map={tabHOME:'homeView',tabORD:'ordView',tabAR:'arView',tabAP:'apView',tabBASE:'baseView',tabHR:'hrView',tabBANK:'bankView'};
   for(const t in map){
     $(t).classList.toggle('active',t===id);
     $(map[t]).style.display=t===id?'':'none';
   }
-  try{document.body.dataset.mod={tabHOME:'home',tabORD:'ord',tabAR:'ar',tabAP:'ap',tabBASE:'base',tabHR:'hr'}[id]||'';}catch(e){}
+  try{document.body.dataset.mod={tabHOME:'home',tabORD:'ord',tabAR:'ar',tabAP:'ap',tabBASE:'base',tabHR:'hr',tabBANK:'bank'}[id]||'';}catch(e){}
   if(id==='tabHOME'){try{homeRender();}catch(e){}}
 }
 $('tabHOME').onclick=()=>switchMod('tabHOME');
 $('tabHR').onclick=()=>{if(!canHR())return;switchMod('tabHR');try{renderHR();}catch(e){}};
+$('tabBANK').onclick=()=>{if(!canBank())return;switchMod('tabBANK');try{renderBANK();}catch(e){}};
 $('tabORD').onclick=()=>{switchMod('tabORD');renderORD();};
 $('tabAR').onclick=()=>{switchMod('tabAR');};
 $('tabAP').onclick=()=>{switchMod('tabAP');renderAP();apRulesCheck();};
@@ -11197,7 +11270,9 @@ function mrData(month){
   for(const o of ordM){const pf=ordProfit(o);if(pf&&pf.cur==='EUR'){profit+=pf.v;profitN++;}}
   const invSum=_mEUR(ariItems.filter(x=>x.invNo),'invDate','gross',month);
   const paySum=_mEUR(payments,'date','amount',month);
-  const apSum=_mEUR(apItems.filter(x=>x.amount),'invDate','amount',month);
+  const apSum=_mEUR(apItems.filter(x=>x.amount&&x.kind!=='ops'),'invDate','amount',month);
+  const opsSum=_mEUR(apItems.filter(x=>x.amount&&x.kind==='ops'),'invDate','amount',month);
+  const opsByCat={};for(const x of apItems){if(x.deleted||x.kind!=='ops'||!x.amount||(x.currency||'EUR')!=='EUR'||String(x.invDate||'').slice(0,7)!==month)continue;opsByCat[x.cat||'未分类']=Math.round(((opsByCat[x.cat||'未分类']||0)+(Number(x.amount)||0))*100)/100;}
   const arOpen=ariItems.filter(x=>!x.deleted&&x.invNo&&x.currency==='EUR'&&ariState(x)!=='paid')
     .reduce((s,x)=>s+((Number(x.gross)||0)-ariPaid(x)),0);
   const arOver=ariItems.filter(x=>!x.deleted&&ariState(x)==='overdue').length;
@@ -11206,7 +11281,7 @@ function mrData(month){
   const apOver=apItems.filter(x=>!x.deleted&&apState(x)==='overdue').length;
   return {ordN:ordM.length,closedN:ordM.filter(o=>o.flag==='closed').length,
     toinvN:ariItems.filter(x=>!x.deleted&&ariState(x)==='toinv').length,
-    profit,profitN,invSum,paySum,apSum,arOpen,arOver,apOpen,apOver,ordM};
+    profit,profitN,invSum,paySum,apSum,opsSum,opsByCat,arOpen,arOver,apOpen,apOver,ordM};
 }
 function mrRender(){
   const m=$('mrMonth').value||todayStr().slice(0,7);
@@ -11216,7 +11291,7 @@ function mrRender(){
     cell('本月新订单',d.ordN+' 单')+
     cell('本月开票（含税）','€ '+fmt(d.invSum),'var(--pine)')+
     cell('本月回款','€ '+fmt(d.paySum),'var(--ok)')+
-    cell('本月供应商成本','€ '+fmt(d.apSum))+
+    cell('本月供应商成本','€ '+fmt(d.apSum))+cell('本月运营费用（含税）','€ '+fmt(d.opsSum),'var(--ink-soft)')+
     cell('本月毛利（'+d.profitN+'单可算）','€ '+fmt(d.profit),d.profit<0?'var(--bad)':'var(--pine)')+
     cell('应收未收（全量）','€ '+fmt(d.arOpen),d.arOpen>0?'var(--warn)':'var(--ink)')+
     cell('应付未付（全量）','€ '+fmt(d.apOpen),d.apOpen>0?'var(--warn)':'var(--ink)')+
@@ -11253,7 +11328,7 @@ async function mrExport(){
     const wb=XLSX.utils.book_new();
     const ov=[['IMG Europe 月度经营报表',m],[],
       ['本月新订单',d.ordN],['本月完结',d.closedN],['本月开票(含税EUR)',d.invSum],['本月回款(EUR)',d.paySum],
-      ['本月供应商成本(EUR)',d.apSum],['本月毛利(EUR)',d.profit],
+      ['本月供应商成本(EUR)',d.apSum],['本月运营费用(含税EUR)',d.opsSum],['本月毛利(EUR)',d.profit],
       ['应收未收(全量EUR)',d.arOpen],['应付未付(全量EUR)',d.apOpen],
       ['应收逾期张数',d.arOver],['应付逾期张数',d.apOver],['待开票张数',d.toinvN]];
     try{const cc=rcCostConfidence(m+'-01',m+'-31');ov.push(['成本来源可信度',cc.text]);}catch(e){}
@@ -11460,6 +11535,8 @@ function hmRows(items,empty){
       (r.amt!=null?'<span class="amt" style="color:'+(r.tone||'var(--ink)')+'">'+fmt(r.amt)+'</span>':'')+
     '</div>').join('')+'</div>';
 }
+
+window.mrData=mrData;
 
 const HR_PATH=DB_PREFIX+'img-hr/state';
 const HR_KEY='img-hr-state';
@@ -11871,6 +11948,343 @@ function hrCfgCardEnsure(){
   }catch(e){}
 }
 
+const BANK_PATH=DB_PREFIX+'img-bank/state';
+const BANK_KEY='img-bank-state';
+let bankItems=[];let _bankStarted=false;let bankFMonth='',bankFStatus='',bankFQ='';
+function canBank(){return !!session&&session.role==='finance';}
+function bankCloudStart(){
+  if(_bankStarted||!canBank())return;_bankStarted=true;
+  store.get(BANK_KEY).then(r=>{if(r&&r.value){try{bankItems=JSON.parse(r.value);}catch(e){}bankAlertUpdate();}}).catch(()=>{});
+  if(USE_CLOUD&&rtdb){rtdb.ref(BANK_PATH).on('value',s=>{const v=s.val();if(v&&v.json)bankApplyRemote(v);});}
+  bankAlertUpdate();
+}
+function bankMerge(arr){
+  try{const map={};for(const x of bankItems)if(x&&x.id)map[x.id]=x;
+    for(const x of (arr||[]))if(x&&x.id){const cur=map[x.id];if(!cur||(x.up||0)>=(cur.up||0))map[x.id]=x;}
+    bankItems=Object.values(map).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
+  }catch(e){}
+}
+async function bankSave(){
+  if(!canBank()){toast('银行模块仅财务可写');return false;}
+  try{
+    const _merged=await cloudReadMerge(BANK_PATH,BANK_KEY,bankMerge);
+    await store.set(BANK_KEY,JSON.stringify(bankItems));
+    if(USE_CLOUD&&rtdb){
+      const okTx=await cloudTxWrite(BANK_PATH,bankMerge,()=>JSON.stringify(bankItems));
+      cloudWriteGuard(okTx,_merged,'银行');
+      if(okTx!==true)await rtdb.ref(BANK_PATH).set({json:JSON.stringify(bankItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});
+      await store.set(BANK_KEY,JSON.stringify(bankItems));
+    }
+    bankAlertUpdate();return true;
+  }catch(e){console.error('bankSave:',e);throw e;}
+}
+function bankApplyRemote(s){
+  try{bankItems=JSON.parse(s.json||'[]');store.set(BANK_KEY,s.json||'[]');}catch(e){}
+  if(session){try{if(document.body.dataset.mod==='bank')renderBANK();}catch(e){}bankAlertUpdate();}
+}
+function bankAlertUpdate(){
+  const el=$('bankAlert'),tab=$('tabBANK');if(!tab)return;
+  tab.style.display=canBank()?'':'none';
+  if(!el)return;const n=bankItems.filter(x=>!x.deleted&&x.status==='pending').length;
+  el.textContent=n;el.style.display=n?'':'none';
+}
+
+function bankParseRows(rows){
+  const out=[];let hi=-1;
+  for(let i=0;i<Math.min(rows.length,10);i++){const r=rows[i]||[];if(String(r[0]||'').trim()==='交易流水号'){hi=i;break;}}
+  if(hi<0)throw new Error('未找到表头「交易流水号」——请确认是中国银行网银导出的流水文件');
+  const num=v=>{if(v==null||v==='')return 0;if(typeof v==='number')return v;return Number(String(v).replace(/,/g,'').replace(/\s/g,''))||0;};
+  const dt=v=>{let s=String(v||'').trim();if(typeof v==='number'){const d=XLSX.SSF?XLSX.SSF.parse_date_code(v):null;if(d)return {date:d.y+'-'+String(d.m).padStart(2,'0')+'-'+String(d.d).padStart(2,'0'),time:String(d.H).padStart(2,'0')+':'+String(d.M).padStart(2,'0')+':'+String(Math.floor(d.S)).padStart(2,'0')};}
+    const m=s.match(/(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);if(!m)return {date:'',time:''};
+    return {date:m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'),time:m[4]?(m[4].padStart(2,'0')+':'+m[5]+':'+(m[6]||'00')):''};};
+  for(let i=hi+1;i<rows.length;i++){const r=rows[i]||[];const txNo=String(r[0]||'').trim();if(!txNo)continue;
+    const d=dt(r[5]);const amt=Math.round(num(r[2])*100)/100;if(!amt)continue;
+    out.push({txNo:txNo,bizNo:String(r[1]||'').trim(),amount:amt,balance:Math.round(num(r[3])*100)/100,cur:(String(r[4]||'').includes('欧')||String(r[4]||'').toUpperCase()==='EUR')?'EUR':String(r[4]||'').trim(),
+      date:d.date,time:d.time,cpAcct:String(r[6]||'').trim(),cpName:String(r[7]||'').trim(),type:String(r[8]||'').trim(),memo:String(r[9]||'').trim(),note:String(r[10]||'').trim(),remark:String(r[11]||'').trim(),purpose:String(r[12]||'').trim()});}
+  return out;
+}
+async function bankImportFile(file){
+  if(!canBank()){toast('银行模块仅财务可写');return null;}
+  await ensureXLSX();
+  const buf=await new Promise((res,rej)=>{const rd=new FileReader();rd.onerror=()=>rej(new Error('read'));rd.onload=()=>res(rd.result);rd.readAsArrayBuffer(file);});
+  const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:false});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+  const parsed=bankParseRows(rows);
+  return bankImportParsed(parsed,file.name);
+}
+async function bankImportParsed(parsed,srcName){
+  const have=new Set(bankItems.map(x=>x.txNo));const now=Date.now();
+  const added=[];let dup=0;
+  for(const p of parsed){if(have.has(p.txNo)){dup++;continue;}
+    const rec=Object.assign({id:'bk'+p.txNo,status:'pending',match:null,importedAt:now,importedBy:session.name,src:srcName||'',up:now},p);
+    bankItems.push(rec);added.push(rec);have.add(p.txNo);}
+  let matched=0;for(const rec of added){try{if(bankMatchAuto(rec))matched++;}catch(e){}}
+  bankItems.sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
+  await bankSave();
+  return {total:parsed.length,added:added.length,dup:dup,matched:matched,pending:added.length-matched};
+}
+window.bankImportParsed=bankImportParsed;window.bankParseRows=bankParseRows;
+
+const BANK_ACCT_AR='应收账款',BANK_ACCT_AP='应付账款',BANK_ACCT_FEE='财务费用';
+function bankNorm(s){return String(s||'').toLowerCase().replace(/[\s\-_\.\/,;:#()（）]/g,'');}
+function bankTokens(s){return String(s||'').split(/[\s,;\/|，；]+/).map(t=>t.trim()).filter(t=>t.length>=4);}
+function bankRules(){return (meta&&Array.isArray(meta.bankRules))?meta.bankRules:[];}
+function bankRuleHit(tx){
+  const hay=(tx.cpName+' '+tx.memo+' '+tx.note+' '+tx.remark+' '+tx.purpose).toLowerCase();
+  for(const r of bankRules()){if(!r||!r.kw)continue;const kws=String(r.kw).toLowerCase().split('|').map(x=>x.trim()).filter(Boolean);if(kws.some(k=>hay.includes(k)))return r;}
+  return null;
+}
+function bankMatchAuto(tx){
+  tx.match=null;tx.status='pending';
+
+  if(/收费|手续费|费用/.test(tx.type)&&tx.amount<0){tx.match={kind:'fee',acct:BANK_ACCT_FEE,summary:'银行手续费',payee:'',refs:[],auto:true};tx.status='matched';return true;}
+  const hay=tx.memo+' '+tx.note+' '+tx.remark+' '+tx.purpose;
+  if(tx.amount>0){
+
+    const ords=[...new Set((hay.match(/IMG\d{6,}(?:_\d+)?/gi)||[]).map(x=>x.toUpperCase()))];
+    const invNos=[...new Set(hay.match(/\b20\d{7}\b/g)||[])];
+    let cands=ariItems.filter(x=>!x.deleted&&x.invNo&&ariState(x)!=='paid'&&(x.currency||'EUR')==='EUR'&&(ords.includes(String(x.orderNo||'').toUpperCase())||invNos.includes(String(x.invNo||''))));
+    if(!cands.length){const cp=bankNorm(tx.cpName);if(cp.length>=4)cands=ariItems.filter(x=>!x.deleted&&x.invNo&&ariState(x)!=='paid'&&(x.currency||'EUR')==='EUR'&&(bankNorm(x.customer).includes(cp)||cp.includes(bankNorm(x.customer))));}
+    const pick=bankPickByAmount(cands.map(x=>({id:x.id,no:x.invNo,open:Math.round(((Number(x.gross)||0)-ariPaid(x))*100)/100,cust:x.customer})),tx.amount);
+    if(pick){tx.match={kind:'ar',acct:BANK_ACCT_AR,summary:(pick[0].cust||tx.cpName)+'业务款 '+pick.map(p=>p.no).join(' '),payee:pick[0].cust||tx.cpName,refs:pick.map(p=>({id:p.id,no:p.no,amount:p.open})),auto:true};tx.status='matched';return true;}
+  }else{
+
+    const toks=bankTokens(hay).map(bankNorm);
+    let cands=apItems.filter(x=>!x.deleted&&x.invNo&&x.amount&&apState(x)!=='paid'&&(x.currency||'EUR')==='EUR'&&toks.includes(bankNorm(x.invNo)));
+    if(!cands.length){const cp=bankNorm(tx.cpName);if(cp.length>=4)cands=apItems.filter(x=>!x.deleted&&x.invNo&&x.amount&&apState(x)!=='paid'&&(x.currency||'EUR')==='EUR'&&(bankNorm(x.supplier).includes(cp)||cp.includes(bankNorm(x.supplier))));}
+    const pick=bankPickByAmount(cands.map(x=>({id:x.id,no:x.invNo,ord:x.orderNo||'',open:Math.round(((Number(x.amount)||0)-apPaidSum(x))*100)/100,sup:x.supplier,ops:x.kind==='ops',cat:x.cat})),-tx.amount);
+    if(pick){const ops=pick[0].ops;const ords=[...new Set(pick.map(p=>p.ord).filter(Boolean))];tx.match={kind:ops?'ops':'ap',acct:ops?(pick[0].cat||BANK_ACCT_AP):BANK_ACCT_AP,summary:(pick[0].sup||tx.cpName)+(ops?' '+(pick[0].cat||''):'业务款')+' '+(ords.length?ords.join(' '):pick.map(p=>p.no).join(' ')),payee:pick[0].sup||tx.cpName,refs:pick.map(p=>({id:p.id,no:p.no,ord:p.ord,amount:p.open})),auto:true};tx.status='matched';return true;}
+  }
+
+  const r=bankRuleHit(tx);
+  if(r){tx.match={kind:'rule',acct:r.acct||'',summary:bankRuleSummary(r,tx),payee:r.payee||tx.cpName,refs:[],auto:true,rule:r.kw};tx.status='matched';return true;}
+  return false;
+}
+function bankRuleSummary(r,tx){
+  const m=(tx.date||'').slice(5,7).replace(/^0/,'');
+  return String(r.summary||'').replace('{月}',m).replace('{户名}',tx.cpName||'').replace('{摘要}',tx.memo||'').replace('{附言}',tx.note||'')||tx.memo||tx.cpName;
+}
+
+function bankPickByAmount(c,amt){
+  amt=Math.round(amt*100)/100;if(!c.length)return null;
+  const eq=(a,b)=>Math.abs(a-b)<0.011;
+  const one=c.find(x=>eq(x.open,amt));if(one)return [one];
+  const n=Math.min(c.length,6);
+  for(let mask=1;mask<(1<<n);mask++){let s=0;const sel=[];for(let i=0;i<n;i++)if(mask&(1<<i)){s+=c[i].open;sel.push(c[i]);}if(sel.length>1&&eq(s,amt))return sel;}
+  if(c.length===1&&amt<c[0].open&&amt>0)return [Object.assign({},c[0],{open:amt,partial:true})];
+  return null;
+}
+
+async function bankConfirm(tx){
+  if(!canBank()||!tx||!tx.match)return false;
+  const m=tx.match;
+  if(m.kind==='ar'&&m.refs.length){
+    const alloc=m.refs.map(r=>({invId:r.id,invNo:r.no,amount:r.amount}));
+    payments.push({id:'pay'+Date.now()+Math.random().toString(36).slice(2,6),date:tx.date,customer:m.payee,amount:tx.amount,currency:'EUR',method:'转账',ref:m.refs.map(r=>r.no).join(' '),status:'confirmed',alloc:alloc,bankTx:tx.id,note:'银行流水自动核销 '+tx.txNo,owner:'',up:Date.now()});
+    try{alcInvalidate();}catch(e){}
+    await savePayments();
+  }else if((m.kind==='ap'||m.kind==='ops')&&m.refs.length){
+    for(const r of m.refs){const it=apItems.find(x=>x.id===r.id);if(!it)continue;(it.payments=it.payments||[]).push({amount:r.amount,date:tx.date,by:session.name,note:'银行流水 '+tx.txNo,time:Date.now()});it.up=Date.now();}
+    await apSave();
+  }
+  tx.status='confirmed';tx.match.confirmedBy=session.name;tx.match.confirmedAt=Date.now();tx.up=Date.now();
+  await bankSave();return true;
+}
+async function bankConfirmAll(){
+  let n=0;for(const tx of bankItems){if(tx.status==='matched'&&tx.match&&tx.match.auto){await bankConfirm(tx);n++;}}
+  return n;
+}
+async function bankSetManual(tx,m){
+  if(!canBank())return false;tx.match=Object.assign({auto:false,refs:[]},m);tx.status='matched';tx.up=Date.now();await bankSave();return true;
+}
+async function bankIgnore(tx,reason){if(!canBank())return false;tx.status='ignored';tx.match={kind:'ignore',acct:'',summary:reason||'',refs:[],auto:false};tx.up=Date.now();await bankSave();return true;}
+window.bankMatchAuto=bankMatchAuto;window.bankConfirm=bankConfirm;window.bankConfirmAll=bankConfirmAll;window.bankSetManual=bankSetManual;window.bankIgnore=bankIgnore;window.bankItemsGet=function(){return bankItems;};
+
+function bankFiltered(){
+  const q=bankFQ.toLowerCase();
+  return bankItems.filter(x=>!x.deleted).filter(x=>!bankFMonth||x.date.slice(0,7)===bankFMonth).filter(x=>!bankFStatus||x.status===bankFStatus)
+    .filter(x=>!q||[x.cpName,x.memo,x.note,x.txNo,x.match&&x.match.summary].some(v=>String(v||'').toLowerCase().includes(q)));
+}
+function renderBANK(){
+  const box=$('bankBody');if(!box||!canBank())return;
+  const all=bankItems.filter(x=>!x.deleted);const months=[...new Set(all.map(x=>x.date.slice(0,7)))].sort().reverse();
+  if(!bankFMonth&&months.length)bankFMonth=months[0];
+  const list=bankFiltered();
+  const inn=list.filter(x=>x.amount>0).reduce((s,x)=>s+x.amount,0),out=list.filter(x=>x.amount<0).reduce((s,x)=>s-x.amount,0);
+  const pend=all.filter(x=>x.status==='pending').length,mat=all.filter(x=>x.status==='matched').length;
+  const statusLabel={pending:'待认领',matched:'已匹配待确认',confirmed:'已确认',ignored:'已忽略'};
+  let h='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px"><div><div style="font-weight:700;font-size:15px">🏦 银行流水与对账 <span style="font-size:11.5px;color:var(--ink-soft);font-weight:400">中国银行杜塞分行 · EUR · 仅财务</span></div></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" style="width:auto" id="bankImportBtn" type="button">⬆ 导入流水（xls）</button><button class="btn-ghost" id="bankConfirmAllBtn" type="button"'+(mat?'':' disabled')+'>✓ 一键确认已匹配（'+mat+'）</button><button class="btn-ghost" id="bankRulesBtn" type="button">⚙ 关键词规则（'+bankRules().length+'）</button><button class="btn-ghost" id="bankHqBtn" type="button">📤 总部格式导出</button></div></div>';
+  h+='<div class="stat-strip"><div class="stat"><div class="s-label">本期流水</div><div class="s-value">'+list.length+'<span class="s-unit"> 笔</span></div></div><div class="stat good"><div class="s-label">收入</div><div class="s-value">€ '+fmt(inn)+'</div></div><div class="stat bad"><div class="s-label">支出</div><div class="s-value">€ '+fmt(out)+'</div></div><div class="stat warn"><div class="s-label">待认领（全量）</div><div class="s-value">'+pend+'<span class="s-unit"> 笔</span></div></div><div class="stat"><div class="s-label">已匹配待确认</div><div class="s-value">'+mat+'<span class="s-unit"> 笔</span></div></div></div>';
+  h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0"><select id="bankFMonth" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px"><option value="">全部月份</option>'+months.map(m=>'<option value="'+m+'"'+(bankFMonth===m?' selected':'')+'>'+m+'</option>').join('')+'</select>'+
+    '<select id="bankFStatus" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px"><option value="">全部状态</option>'+Object.keys(statusLabel).map(k=>'<option value="'+k+'"'+(bankFStatus===k?' selected':'')+'>'+statusLabel[k]+'</option>').join('')+'</select>'+
+    '<input id="bankFQ" type="search" placeholder="搜户名 / 摘要 / 附言 / 流水号" value="'+esc(bankFQ)+'" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;width:260px"></div>';
+  if(!all.length){h+='<div class="empty" style="padding:30px;text-align:center;color:var(--ink-soft)">还没有流水。点「导入流水」选择网银导出的 xls 文件（中国银行 → 交易明细查询 → 下载）。</div>';box.innerHTML=h;bankBind();return;}
+  h+='<div class="ledger"><table id="bankTable"><thead><tr><th>日期</th><th>对方户名</th><th class="amount">收入</th><th class="amount">支出</th><th>摘要 / 附言</th><th>科目</th><th>平台摘要</th><th>关联</th><th>状态</th><th></th></tr></thead><tbody id="bankBody">';
+  const stCol={pending:'var(--warn)',matched:'var(--info)',confirmed:'var(--ok)',ignored:'var(--muted)'};
+  for(const x of renderCap(list,{id:'bankBody',appendChild:function(){}},10)){
+    const m=x.match||{};
+    h+='<tr class="row" data-id="'+x.id+'"><td style="white-space:nowrap;font-family:var(--font-num)">'+esc(x.date)+'<div style="font-size:10.5px;color:var(--muted)">'+esc(x.time)+'</div></td><td title="'+esc(x.cpAcct)+'">'+esc(x.cpName||(x.type||'—'))+'</td>'+
+      '<td class="amount" style="color:var(--ok)">'+(x.amount>0?fmt(x.amount):'')+'</td><td class="amount" style="color:var(--bad)">'+(x.amount<0?fmt(-x.amount):'')+'</td>'+
+      '<td style="font-size:11.5px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(x.memo+' '+x.note)+'">'+esc(x.memo)+(x.note?' <span style="color:var(--ink-soft)">'+esc(x.note)+'</span>':'')+'</td>'+
+      '<td>'+esc(m.acct||'')+'</td><td style="font-size:11.5px">'+esc(m.summary||'')+'</td><td style="font-size:11px;color:var(--ink-soft)">'+((m.refs||[]).map(r=>esc(r.no)).join(' ')||(m.kind==='rule'?'规则：'+esc(m.rule||''):''))+'</td>'+
+      '<td><span class="badge" style="background:var(--n-wash);color:'+stCol[x.status]+';font-size:10.5px">'+(statusLabel[x.status]||x.status)+(m.auto===false?' ✎':'')+'</span></td>'+
+      '<td style="white-space:nowrap">'+(x.status==='matched'?'<button type="button" class="btn-sm bk-ok" data-id="'+x.id+'">确认</button> ':'')+(x.status!=='confirmed'?'<button type="button" class="btn-sm bk-edit" data-id="'+x.id+'">指定</button> ':'')+(x.status==='pending'?'<button type="button" class="btn-sm bk-ign" data-id="'+x.id+'">忽略</button>':'')+'</td></tr>';
+  }
+  h+='</tbody></table></div>';
+  if(list.length>(_winN['bankBody']||WIN_STEP))h+='<div style="text-align:center;padding:8px;font-size:12px;color:var(--ink-soft)">已显示 '+Math.min(list.length,_winN['bankBody']||WIN_STEP)+' / '+list.length+' 条 · <button type="button" class="btn-sm" id="bankMore">显示更多</button></div>';
+  box.innerHTML=h;bankBind();
+}
+WIN_RERENDER.bankBody=function(){renderBANK();};
+function bankBind(){
+  const box=$('bankBody');if(!box)return;
+  const q=id=>box.querySelector('#'+id);
+  if(q('bankImportBtn'))q('bankImportBtn').onclick=()=>{$('bankFileInput').value='';$('bankFileInput').click();};
+  const fi=$('bankFileInput');if(fi&&!fi._bound){fi._bound=true;fi.onchange=async function(){const f=this.files&&this.files[0];if(!f)return;toast('⏳ 解析流水…');try{const r=await bankImportFile(f);toast('导入完成：新增 '+r.added+' 笔（重复跳过 '+r.dup+'）· 自动匹配 '+r.matched+' · 待认领 '+r.pending);bankFMonth='';renderBANK();}catch(e){alert('导入失败：'+(e.message||e));}};}
+  if(q('bankConfirmAllBtn'))q('bankConfirmAllBtn').onclick=async()=>{if(!confirm('把全部「已匹配待确认」的流水写入到账登记 / 应付付款？（逐笔可追溯，流水号写入备注）'))return;const n=await bankConfirmAll();toast('已确认 '+n+' 笔');renderBANK();};
+  if(q('bankRulesBtn'))q('bankRulesBtn').onclick=bankRulesOpen;
+  if(q('bankHqBtn'))q('bankHqBtn').onclick=()=>{if(typeof bankHqExport==='function')bankHqExport(bankFMonth);else toast('总部格式导出在下一版');};
+  if(q('bankFMonth'))q('bankFMonth').onchange=function(){bankFMonth=this.value;renderBANK();};
+  if(q('bankFStatus'))q('bankFStatus').onchange=function(){bankFStatus=this.value;renderBANK();};
+  if(q('bankFQ')){let t=null;q('bankFQ').oninput=function(){clearTimeout(t);const v=this.value;t=setTimeout(()=>{bankFQ=v;renderBANK();const el=$('bankFQ');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},220);};}
+  if(q('bankMore'))q('bankMore').onclick=()=>{_winN['bankBody']=(_winN['bankBody']||WIN_STEP)+WIN_STEP;renderBANK();};
+  box.querySelectorAll('.bk-ok').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;await bankConfirm(tx);toast('已确认并写入台账');renderBANK();});
+  box.querySelectorAll('.bk-ign').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;const r=prompt('忽略原因（如：内部转账 / 退回）：');if(r===null)return;await bankIgnore(tx,r);renderBANK();});
+  box.querySelectorAll('.bk-edit').forEach(b=>b.onclick=()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(tx)bankEditOpen(tx);});
+}
+
+const BANK_ACCTS=['应收账款','应付账款','应付职工薪酬','管理费用','财务费用','应交税费','营业外收入','营业外支出','其他应收款','其他应付款','固定资产','办公费'];
+function bankEditOpen(tx){
+  const old=document.getElementById('bkOvl');if(old)old.remove();
+  const ovl=document.createElement('div');ovl.id='bkOvl';ovl.style.cssText='position:fixed;inset:0;background:rgba(20,28,26,.45);z-index:2400;display:flex;align-items:center;justify-content:center';
+  const card=document.createElement('div');card.style.cssText='background:var(--card,#fff);border-radius:14px;padding:20px 22px;width:min(620px,94vw);max-height:90vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px';
+  const m=tx.match||{};const isIn=tx.amount>0;
+  card.innerHTML='<div style="font-weight:700;font-size:15px;margin-bottom:8px">指定流水归属</div><div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">'+esc(tx.date)+' · '+esc(tx.cpName)+' · <b style="color:var(--ink)">€ '+fmt(Math.abs(tx.amount))+'</b> '+(isIn?'收入':'支出')+'<br>'+esc(tx.memo)+' '+esc(tx.note)+'</div>'+
+    '<div class="field"><label>会计科目</label><select id="bkAcct">'+BANK_ACCTS.map(a=>'<option'+((m.acct||(isIn?'应收账款':'应付账款'))===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'+
+    '<div class="field"><label>平台摘要（给总部）</label><input id="bkSum" value="'+esc(m.summary||'')+'" placeholder="例如：Globaltrans业务款 IMG261003 / 黄鸣鹿9月工资"></div>'+
+    '<div class="field"><label>户名（给总部）</label><input id="bkPayee" value="'+esc(m.payee||tx.cpName||'')+'"></div>'+
+    '<div class="field"><label>关联发票（可选，输入发票号/单号后回车，多张空格分隔；金额按未清自动分配）</label><input id="bkRefs" value="'+esc((m.refs||[]).map(r=>r.no).join(' '))+'" placeholder="'+(isIn?'应收发票号或 IMG 单号':'供应商发票号')+'"></div>'+
+    '<label style="display:flex;align-items:center;gap:6px;font-size:12px"><input type="checkbox" id="bkRule" style="accent-color:var(--pine)">同时存为关键词规则（按户名「'+esc(tx.cpName)+'」自动归到此科目/摘要模板）</label>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn-ghost" id="bkCancel" type="button">取消</button><button class="btn-sm" id="bkSave" type="button" style="border-color:var(--pine);color:var(--pine-ink);font-weight:700">保存指定</button></div>';
+  ovl.appendChild(card);document.body.appendChild(ovl);ovl.onclick=e=>{if(e.target===ovl)ovl.remove();};
+  card.querySelector('#bkCancel').onclick=()=>ovl.remove();
+  card.querySelector('#bkSave').onclick=async()=>{
+    const acct=card.querySelector('#bkAcct').value,sum=card.querySelector('#bkSum').value.trim(),payee=card.querySelector('#bkPayee').value.trim();
+    const nos=card.querySelector('#bkRefs').value.split(/[\s,;]+/).map(s=>s.trim()).filter(Boolean);
+    let refs=[],kind='rule';
+    if(nos.length){
+      if(isIn){const c=ariItems.filter(x=>!x.deleted&&x.invNo&&nos.some(n=>bankNorm(n)===bankNorm(x.invNo)||bankNorm(n)===bankNorm(x.orderNo)));
+        let rest=tx.amount;for(const x of c){const open=Math.round(((Number(x.gross)||0)-ariPaid(x))*100)/100;const a=Math.round(Math.min(open,rest)*100)/100;if(a<=0)continue;refs.push({id:x.id,no:x.invNo,amount:a});rest=Math.round((rest-a)*100)/100;}kind='ar';}
+      else{const c=apItems.filter(x=>!x.deleted&&x.invNo&&nos.some(n=>bankNorm(n)===bankNorm(x.invNo)));
+        let rest=-tx.amount;for(const x of c){const open=Math.round(((Number(x.amount)||0)-apPaidSum(x))*100)/100;const a=Math.round(Math.min(open,rest)*100)/100;if(a<=0)continue;refs.push({id:x.id,no:x.invNo,amount:a});rest=Math.round((rest-a)*100)/100;}kind=c.some(x=>x.kind==='ops')?'ops':'ap';}
+      if(!refs.length){toast('未找到匹配的发票号：'+nos.join(' '));return;}
+    }
+    await bankSetManual(tx,{kind:kind,acct:acct,summary:sum||(payee+(isIn?'业务款':'')),payee:payee,refs:refs});
+    if(card.querySelector('#bkRule').checked&&tx.cpName){meta.bankRules=bankRules().slice();meta.bankRules.push({kw:tx.cpName,acct:acct,summary:sum.replace(/\d{1,2}月/,'{月}月')||'',payee:payee,by:session.name,at:Date.now()});try{await metaSave();}catch(e){}}
+    ovl.remove();renderBANK();toast('已指定');
+  };
+}
+
+function bankRulesOpen(){
+  const old=document.getElementById('bkRuleOvl');if(old)old.remove();
+  const ovl=document.createElement('div');ovl.id='bkRuleOvl';ovl.style.cssText='position:fixed;inset:0;background:rgba(20,28,26,.45);z-index:2400;display:flex;align-items:center;justify-content:center';
+  const card=document.createElement('div');card.style.cssText='background:var(--card,#fff);border-radius:14px;padding:20px 22px;width:min(760px,95vw);max-height:90vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px';
+  const render=()=>{const rules=bankRules();
+    card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:700;font-size:15px">⚙ 关键词规则</div><button class="btn-ghost" id="bkrClose" type="button">关闭</button></div><div style="font-size:12px;color:var(--ink-soft);margin:6px 0 10px">户名/摘要/附言含关键词（多个用 | 分隔）→ 自动归科目并按模板生成摘要；模板可用 {月} {户名} {摘要} {附言}。例如：Finanzamt → 应交税费 / {月}月工资税</div>'+
+      '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--n-wash)"><th style="text-align:left;padding:5px">关键词</th><th style="text-align:left;padding:5px">科目</th><th style="text-align:left;padding:5px">摘要模板</th><th style="text-align:left;padding:5px">户名</th><th></th></tr></thead><tbody>'+rules.map((r,i)=>'<tr><td><input data-i="'+i+'" data-k="kw" value="'+esc(r.kw||'')+'" style="width:160px"></td><td><select data-i="'+i+'" data-k="acct">'+BANK_ACCTS.map(a=>'<option'+(r.acct===a?' selected':'')+'>'+a+'</option>').join('')+'</select></td><td><input data-i="'+i+'" data-k="summary" value="'+esc(r.summary||'')+'" style="width:180px"></td><td><input data-i="'+i+'" data-k="payee" value="'+esc(r.payee||'')+'" style="width:120px"></td><td><button type="button" class="btn-sm bkr-del" data-i="'+i+'">✕</button></td></tr>').join('')+'</tbody></table>'+
+      '<div style="margin-top:8px;display:flex;gap:8px"><button type="button" class="btn-sm" id="bkrAdd">＋ 加一条</button><button type="button" class="btn-sm" id="bkrSave" style="border-color:var(--pine);color:var(--pine-ink);font-weight:700">保存规则</button><button type="button" class="btn-sm" id="bkrRerun">↻ 对待认领流水重跑规则</button><button type="button" class="btn-sm" id="bkrDefaults">＋ 加载默认规则（税务局/保险/房租/工资/政府收费）</button></div>';
+    const read=()=>[...card.querySelectorAll('tbody tr')].map(tr=>{const g=k=>{const el=tr.querySelector('[data-k="'+k+'"]');return el?el.value.trim():'';};return {kw:g('kw'),acct:g('acct'),summary:g('summary'),payee:g('payee')};}).filter(r=>r.kw);
+    card.querySelector('#bkrClose').onclick=()=>ovl.remove();
+    card.querySelector('#bkrAdd').onclick=()=>{meta.bankRules=read();meta.bankRules.push({kw:'',acct:'管理费用',summary:'',payee:''});render();};
+    card.querySelector('#bkrDefaults').onclick=()=>{meta.bankRules=read();const n=bankRulesLoadDefaults();toast('已加入 '+n+' 条默认规则，请保存');render();};
+    card.querySelectorAll('.bkr-del').forEach(b=>b.onclick=()=>{const r=read();r.splice(parseInt(b.dataset.i,10),1);meta.bankRules=r;render();});
+    card.querySelector('#bkrSave').onclick=async()=>{meta.bankRules=read();try{await metaSave();toast('规则已保存');}catch(e){toast('保存失败：'+(e.message||''));}render();};
+    card.querySelector('#bkrRerun').onclick=async()=>{meta.bankRules=read();let n=0;for(const tx of bankItems){if(tx.status==='pending'){const r=bankRuleHit(tx);if(r){tx.match={kind:'rule',acct:r.acct||'',summary:bankRuleSummary(r,tx),payee:r.payee||tx.cpName,refs:[],auto:true,rule:r.kw};tx.status='matched';tx.up=Date.now();n++;}}}await bankSave();toast('规则命中 '+n+' 笔');renderBANK();};
+  };
+  render();ovl.appendChild(card);document.body.appendChild(ovl);ovl.onclick=e=>{if(e.target===ovl)ovl.remove();};
+}
+window.renderBANK=renderBANK;window.canBank=canBank;
+
+function bankChainOrder(arr){
+  const by=arr.slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)||(a.txNo||'').localeCompare(b.txNo||''));
+  const begin=x=>Math.round(((Number(x.balance)||0)-x.amount)*100)/100,end=x=>Math.round((Number(x.balance)||0)*100)/100;
+  const out=[];const rest=by.slice();let cur=null;
+  while(rest.length){
+    let idx=-1;
+    if(cur!==null)idx=rest.findIndex(x=>Math.abs(begin(x)-cur)<0.011);
+    if(idx<0){
+      const ends=new Set(rest.map(x=>end(x).toFixed(2)));
+      idx=rest.findIndex(x=>!ends.has(begin(x).toFixed(2)));if(idx<0)idx=0;}
+    const x=rest.splice(idx,1)[0];out.push(x);cur=end(x);
+  }
+  return out;
+}
+window.bankChainOrder=bankChainOrder;
+function bankHqRows(month){
+  const list=bankChainOrder(bankItems.filter(x=>!x.deleted&&(!month||x.date.slice(0,7)===month)));
+  const rows=[];let seq=0;
+  for(const x of list){
+    seq++;const m=x.match||{};
+    let acct=m.acct||'',sum=m.summary||'',payee=m.payee||x.cpName||'';
+    if(x.status==='pending'){acct=acct||(x.amount>0?'其他应收款':'其他应付款');sum=sum||(x.memo||x.note||x.cpName||'');}
+    if(x.status==='ignored'){acct=acct||(x.amount>0?'其他应收款':'其他应付款');sum=sum||'';}
+    const end=Math.round((Number(x.balance)||0)*100)/100;const begin=Math.round((end-x.amount)*100)/100;
+    rows.push({date:x.date,no:String(seq).padStart(4,'0'),acct:acct,summary:sum,begin:begin,inn:x.amount>0?x.amount:'',out:x.amount<0?-x.amount:'',end:end,payee:payee,status:x.status,txNo:x.txNo});
+  }
+  return rows;
+}
+function bankHqAoa(month){
+  const rows=bankHqRows(month);
+  const acctNo=(typeof BANK_ACCT_NO!=='undefined'&&BANK_ACCT_NO)||'';
+  const aoa=[['IMG Europe GmbH'+(acctNo?'-'+acctNo:'')],['日期','编号','会计科目','摘要','期初余额','收入金额','支出金额','期末余额','户名','状态']];
+  if(rows.length)aoa.push(['','','期初余额','',rows[0].begin,'','','','','']);
+  for(const r of rows)aoa.push([r.date,r.no,r.acct,r.summary,r.begin,r.inn,r.out,r.end,r.payee,r.status==='confirmed'?'':(r.status==='pending'?'⚠ 待认领':r.status==='matched'?'待确认':'已忽略')]);
+  const inn=rows.reduce((s,r)=>s+(Number(r.inn)||0),0),out=rows.reduce((s,r)=>s+(Number(r.out)||0),0);
+  aoa.push(['','','合计','',rows.length?rows[0].begin:'',Math.round(inn*100)/100,Math.round(out*100)/100,rows.length?rows[rows.length-1].end:'','','']);
+
+  const by={};for(const r of rows){const k=r.acct||'（待补科目）';by[k]=by[k]||{n:0,inn:0,out:0};by[k].n++;by[k].inn+=Number(r.inn)||0;by[k].out+=Number(r.out)||0;}
+  const sumAoa=[['会计科目','笔数','收入合计','支出合计','净额']];
+  for(const k of Object.keys(by).sort())sumAoa.push([k,by[k].n,Math.round(by[k].inn*100)/100,Math.round(by[k].out*100)/100,Math.round((by[k].inn-by[k].out)*100)/100]);
+  sumAoa.push(['合计',rows.length,Math.round(inn*100)/100,Math.round(out*100)/100,Math.round((inn-out)*100)/100]);
+  return {aoa:aoa,sum:sumAoa,rows:rows,pending:rows.filter(r=>r.status==='pending').length,matched:rows.filter(r=>r.status==='matched').length};
+}
+window.bankHqAoa=bankHqAoa;window.bankHqRows=bankHqRows;
+async function bankHqExport(month){
+  if(!canBank())return;
+  const R=bankHqAoa(month||'');
+  if(!R.rows.length){toast('该月份没有流水');return;}
+  if(R.pending||R.matched){if(!confirm((R.pending?('还有 '+R.pending+' 笔待认领（科目按收支方向暂记其他应收/应付款，摘要取银行原文）'):'')+(R.pending&&R.matched?'；':'')+(R.matched?(R.matched+' 笔已匹配未确认（科目/摘要按匹配结果，但尚未写入台账）'):'')+'。\n\n仍要导出吗？建议先处理完再导。'))return;}
+  await ensureXLSX();
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(R.aoa);ws['!cols']=[{wch:12},{wch:7},{wch:14},{wch:40},{wch:14},{wch:14},{wch:14},{wch:14},{wch:30},{wch:10}];
+  XLSX.utils.book_append_sheet(wb,ws,'IMG Europe-0360');
+  const ws2=XLSX.utils.aoa_to_sheet(R.sum);ws2['!cols']=[{wch:16},{wch:8},{wch:14},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws2,'汇总表');
+  XLSX.writeFile(wb,'IMG_Europe银行流水-'+(month||'全部')+'.xlsx');
+  toast('已导出 '+R.rows.length+' 笔（总部格式）');
+}
+window.bankHqExport=bankHqExport;
+const BANK_ACCT_NO='DE8251410700';
+
+const BANK_RULES_DEFAULT=[
+  {kw:'Finanzamt|STEUERVERWALTUNG|Steuer',acct:'应交税费',summary:'{月}月工资税/营业税',payee:'{户名}'},
+  {kw:'Allianz|Versicherung|Krankenkasse|DAK|AOK|Techniker',acct:'管理费用',summary:'{户名}保险',payee:'{户名}'},
+  {kw:'Bundesanzeiger|Mahngebühr|Säumnis',acct:'营业外支出',summary:'{户名}政府收费/罚金',payee:'{户名}'},
+  {kw:'Miete|Vermiet',acct:'管理费用',summary:'{月}月房租',payee:'{户名}'},
+  {kw:'Gehalt|Lohn|工资',acct:'应付职工薪酬',summary:'{户名}{月}月工资',payee:'{户名}'}
+];
+function bankRulesLoadDefaults(){const cur=bankRules().slice();const have=new Set(cur.map(r=>r.kw));let n=0;for(const r of BANK_RULES_DEFAULT){if(!have.has(r.kw)){cur.push(Object.assign({by:'默认',at:Date.now()},r));n++;}}meta.bankRules=cur;return n;}
+window.bankRulesLoadDefaults=bankRulesLoadDefaults;
+function bankStats(){
+  const all=bankItems.filter(x=>!x.deleted);
+  const now=new Date();const lastM=ymLocal(new Date(now.getFullYear(),now.getMonth()-1,1));const thisM=ymLocal(now);
+  const months={};for(const x of all)months[x.date.slice(0,7)]=(months[x.date.slice(0,7)]||0)+1;
+  return {total:all.length,pending:all.filter(x=>x.status==='pending').length,matched:all.filter(x=>x.status==='matched').length,confirmed:all.filter(x=>x.status==='confirmed').length,
+    lastMonth:lastM,lastMonthN:months[lastM]||0,thisMonthN:months[thisM]||0,lastMonthMissing:now.getDate()>=5&&!(months[lastM]>0)&&all.length>0,months:months};
+}
+window.bankStats=bankStats;
+
 function aoaWithTotal(aoa,headerRowIdx,numCols,label){
   try{
     if(!Array.isArray(aoa)||aoa.length<2)return aoa;
@@ -12275,6 +12689,11 @@ function homeRender(){
   if(fin){
     try{out+='<div class="hm-sec" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" data-act="db"><span>📊 经营驾驶舱</span><span style="font-size:11.5px;color:var(--ink-soft)">打开 ›</span></div>';}catch(e){}
     try{
+      if(typeof bankStats==='function'&&canBank()){const bs=bankStats();
+        if(bs.lastMonthMissing)out+='<div class="hm-sec" data-act="bank" style="cursor:pointer;background:var(--warn-bg);color:var(--warn);padding:8px 12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center"><span>🏦 上月（'+esc(bs.lastMonth)+'）银行流水未导入——总部月报前请先导入对账</span><span style="font-size:11.5px">打开 ›</span></div>';
+        else if(bs.pending)out+='<div class="hm-sec" data-act="bank" style="cursor:pointer;background:var(--info-bg);color:var(--info);padding:8px 12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center"><span>🏦 银行流水待认领 '+bs.pending+' 笔'+(bs.matched?('，已匹配待确认 '+bs.matched+' 笔'):'')+'</span><span style="font-size:11.5px">打开 ›</span></div>';}
+    }catch(e){}
+    try{
       const dd=new Date();const lastM=ymLocal(new Date(dd.getFullYear(),dd.getMonth()-1,1));
       if(dd.getDate()>=3&&!arcStatus(lastM)){out+='<div class="hm-sec" data-act="arc" style="cursor:pointer;background:var(--warn-bg);color:var(--warn);padding:8px 12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center"><span>📦 上月凭证未归档（'+esc(lastM)+'）——月结完成后生成归档包并存网盘</span><span style="font-size:11.5px">打开 ›</span></div>';}
     }catch(e){}
@@ -12404,6 +12823,7 @@ function homeAct(a){
   if(k==='tm'){try{tmOpen();}catch(e){}return;}
   if(k==='db'){try{dbOpen();}catch(e){}return;}
   if(k==='arc'){try{arcOpen();}catch(e){}return;}
+  if(k==='bank'){try{switchMod('tabBANK');renderBANK();}catch(e){}return;}
   if(k==='deputy'){switchMod('tabORD');setTimeout(()=>{try{ordSub('ord');ordFMine=false;ordFOwner='';const m=$('ordFMonth');if(m)m.value='';const f=$('ordFStatus');if(f)f.value='';$('ordFSearch').value='休假中';renderORD();}catch(e){}},120);return;}
   if(k==='gm'){try{gmOpen();}catch(e){}return;}
   if(k==='cash'){try{cashOpen();}catch(e){}return;}
@@ -12821,16 +13241,16 @@ function apPayList(it){
   return a.map(p=>({date:p.date||'',amount:Number(p.amount!=null?p.amount:p.amt)||0,by:p.by||'',note:p.note||'',time:p.time||null}));
 }
 function apPaidSum(it){return apPayList(it).reduce((s,p)=>s+p.amount,0);}
-const AP_HEAD=['供应商','发票号','发票日期','到期日','金额','已付','尚欠','币种','IMG成单号','状态','上传人','最近付款'];
+const AP_HEAD=['供应商','发票号','发票日期','到期日','金额','已付','尚欠','币种','IMG成单号','状态','上传人','最近付款','类型','费用类别'];
 function apDrillRows(list){
   return list.map(it=>{
     const paid=apPaidSum(it), amt=Number(it.amount)||0;
     return [it.supplier||'（待录入）',it.invNo||'',it.invDate||'',it.due||'',amt,paid,Math.round((amt-paid)*100)/100,
-      it.currency||'',it.orderNo||'',it.amount?(apState(it)==='paid'?'已付清':apState(it)==='overdue'?'已逾期':apState(it)==='soon'?'即将到期':'未付清'):'待录入',it.uploadedBy||it.upBy||'',(function(){const ps=apPayList(it).filter(p=>p.date);return ps.length?ps.map(p=>p.date).sort().pop():'';})()];
+      it.currency||'',it.orderNo||'',it.amount?(apState(it)==='paid'?'已付清':apState(it)==='overdue'?'已逾期':apState(it)==='soon'?'即将到期':'未付清'):'待录入',it.uploadedBy||it.upBy||'',(function(){const ps=apPayList(it).filter(p=>p.date);return ps.length?ps.map(p=>p.date).sort().pop():'';})(),it.kind==='ops'?'运营':'业务',it.cat||''];
   });
 }
 drillBind('apStNew',()=>{
-  const list=apItems.filter(x=>!x.deleted&&!x.amount);
+  const list=apVisible().filter(x=>!x.deleted&&!x.amount);
   drillOpen('应付-待财务录入',AP_HEAD,apDrillRows(list),'业务已上传、等待财务录入发票信息的附件');
 });
 function apGroupRows(list,extraFn){
@@ -12863,22 +13283,22 @@ function apGroupRows(list,extraFn){
   return rows;
 }
 drillBind('apStDue',()=>{
-  const list=apItems.filter(x=>!x.deleted&&x.amount&&apState(x)!=='paid');
+  const list=apVisible().filter(x=>!x.deleted&&x.amount&&apState(x)!=='paid');
   const sum=list.filter(x=>x.currency==='EUR').reduce((s,x)=>s+(Number(x.amount)||0)-apPaidSum(x),0);
   drillOpen('应付-未付清',AP_HEAD,apGroupRows(list),'按供应商分组 · EUR 尚欠合计 <b>€ '+fmt(sum)+'</b>（■ 行为该供应商小计）');
 });
 drillBind('apStSoon',()=>{
-  const list=apItems.filter(x=>!x.deleted&&apState(x)==='soon');
+  const list=apVisible().filter(x=>!x.deleted&&apState(x)==='soon');
   drillOpen('应付-7天内到期',[...AP_HEAD,'剩余天数'],apGroupRows(list,it=>daysLeft(it.due)),'按供应商分组 · 到期日在 7 天内、尚未付清');
 });
 drillBind('apStUrgCard',()=>{
-  const list=apItems.filter(x=>!x.deleted&&apUrgent(x)).sort((a,b)=>((a.urgent.due||'')<(b.urgent.due||''))?-1:1);
+  const list=apVisible().filter(x=>!x.deleted&&apUrgent(x)).sort((a,b)=>((a.urgent.due||'')<(b.urgent.due||''))?-1:1);
   const sum=list.filter(x=>x.currency==='EUR').reduce((s,x)=>s+(Number(x.amount)||0)-apPaidSum(x),0);
   const urgEx=x=>[x.urgent.due||'—',x.urgent.note||'—'];urgEx.cols=2;
   drillOpen('应付-⚡加急待付',[...AP_HEAD,'期望付款日','加急原因'],apGroupRows(list,urgEx),'业务标记需立即付款 · 按供应商分组（■ 行为该供应商小计）· EUR 净额合计 <b style="color:var(--bad)">€ '+fmt(sum)+'</b>');
 });
 drillBind('apStOver',()=>{
-  const list=apItems.filter(x=>!x.deleted&&apState(x)==='overdue');
+  const list=apVisible().filter(x=>!x.deleted&&apState(x)==='overdue');
   const sum=list.filter(x=>x.currency==='EUR').reduce((s,x)=>s+(Number(x.amount)||0)-apPaidSum(x),0);
   drillOpen('应付-已逾期',[...AP_HEAD,'逾期天数'],apGroupRows(list,it=>daysOverdue(it.due)),'按供应商分组 · EUR 逾期未付合计 <b style="color:var(--bad)">€ '+fmt(sum)+'</b>');
 });
@@ -13814,6 +14234,63 @@ Object.assign(I18N,{
 "🌏 立即补副本":{en:"🌏 Create mainland copies now",de:"🌏 Festland-Kopien jetzt erzeugen"},
 "✓ 全部附件中国端可下载":{en:"✓ All attachments downloadable from China",de:"✓ Alle Anhänge aus China abrufbar"},
 "个附件：数据库":{en:"attachments: database",de:"Anhänge: Datenbank"},
+"发票类型":{en:"Invoice type",de:"Rechnungsart"},
+"📦 业务（挂订单）":{en:"📦 Business (order-linked)",de:"📦 Geschäft (auftragsbezogen)"},
+"🏢 运营（费用类）":{en:"🏢 Operating (expense)",de:"🏢 Betrieb (Aufwand)"},
+"运营类=房租/保险/工资/税/银行费/报销等，不挂订单、不进订单成本；仅财务可见":{en:"Operating = rent/insurance/payroll/tax/bank fees/expenses; not order-linked, not in order cost; finance only",de:"Betrieb = Miete/Versicherung/Gehalt/Steuer/Bankgebühren/Spesen; ohne Auftrag, nicht in Auftragskosten; nur Buchhaltung"},
+"费用类别 *（总部科目）":{en:"Expense category * (HQ account)",de:"Kostenart * (Konto Zentrale)"},
+"— 选择 —":{en:"— select —",de:"— wählen —"},
+"🔁 周期性（房租/保险等每月固定，到期前 7 天提醒并进现金流预测）":{en:"🔁 Recurring (monthly, e.g. rent/insurance; reminder 7 days before due, included in cash forecast)",de:"🔁 Wiederkehrend (monatlich, z. B. Miete; Erinnerung 7 Tage vorher, im Cashflow)"},
+"🔁 周期性（每月）":{en:"🔁 Recurring (monthly)",de:"🔁 Wiederkehrend (monatlich)"},
+"类型":{en:"Type",de:"Art"},
+"📦 业务":{en:"📦 Business",de:"📦 Geschäft"},
+"🏢 运营":{en:"🏢 Operating",de:"🏢 Betrieb"},
+"运营类发票（仅财务可见）":{en:"Operating invoice (finance only)",de:"Betriebsrechnung (nur Buchhaltung)"},
+"本月运营费用（含税）":{en:"Operating expenses this month (gross)",de:"Betriebsaufwand Monat (brutto)"},
+"运营类发票缺费用类别":{en:"Operating invoices without category",de:"Betriebsrechnungen ohne Kostenart"},
+"总部月报按科目汇总需要此字段":{en:"Needed for the HQ monthly report by account",de:"Für den Monatsbericht an die Zentrale nach Konto nötig"},
+"管理费用":{en:"Admin expenses",de:"Verwaltungskosten"},
+"财务费用":{en:"Finance costs",de:"Finanzaufwand"},
+"应付职工薪酬":{en:"Payroll payable",de:"Löhne & Gehälter"},
+"应交税费":{en:"Taxes payable",de:"Steuern"},
+"营业外支出":{en:"Non-operating expenses",de:"Außerordentlicher Aufwand"},
+"其他应付款":{en:"Other payables",de:"Sonstige Verbindlichkeiten"},
+"固定资产":{en:"Fixed assets",de:"Anlagevermögen"},
+"办公费":{en:"Office expenses",de:"Bürokosten"},
+"费用类别":{en:"Expense category",de:"Kostenart"},
+"银行":{en:"Bank",de:"Bank"},
+"🏦 银行流水与对账":{en:"🏦 Bank statements & reconciliation",de:"🏦 Kontoauszüge & Abgleich"},
+"中国银行杜塞分行 · EUR · 仅财务":{en:"Bank of China Düsseldorf · EUR · finance only",de:"Bank of China Düsseldorf · EUR · nur Buchhaltung"},
+"⬆ 导入流水（xls）":{en:"⬆ Import statement (xls)",de:"⬆ Auszug importieren (xls)"},
+"📤 总部格式导出":{en:"📤 Export in HQ format",de:"📤 Export im Zentralen-Format"},
+"本期流水":{en:"Transactions in period",de:"Buchungen im Zeitraum"},
+"待认领（全量）":{en:"Unassigned (all)",de:"Nicht zugeordnet (gesamt)"},
+"已匹配待确认":{en:"Matched, to confirm",de:"Zugeordnet, zu bestätigen"},
+"全部月份":{en:"All months",de:"Alle Monate"},
+"待认领":{en:"Unassigned",de:"Nicht zugeordnet"},
+"已确认":{en:"Confirmed",de:"Bestätigt"},
+"已忽略":{en:"Ignored",de:"Ignoriert"},
+"搜户名 / 摘要 / 附言 / 流水号":{en:"Search name / memo / note / ref",de:"Name / Verwendungszweck / Referenz suchen"},
+"对方户名":{en:"Counterparty",de:"Gegenpartei"},
+"摘要 / 附言":{en:"Memo / note",de:"Verwendungszweck"},
+"科目":{en:"Account",de:"Konto"},
+"平台摘要":{en:"Summary",de:"Zusammenfassung"},
+"关联":{en:"Linked",de:"Verknüpft"},
+"确认":{en:"Confirm",de:"Bestätigen"},
+"指定":{en:"Assign",de:"Zuordnen"},
+"忽略":{en:"Ignore",de:"Ignorieren"},
+"显示更多":{en:"Show more",de:"Mehr anzeigen"},
+"还没有流水。点「导入流水」选择网银导出的 xls 文件（中国银行 → 交易明细查询 → 下载）。":{en:"No transactions yet. Click \"Import statement\" and pick the xls exported from online banking.",de:"Noch keine Buchungen. „Auszug importieren\" und die xls aus dem Online-Banking wählen."},
+"该月份没有流水":{en:"No transactions in that month",de:"Keine Buchungen in diesem Monat"},
+"🏦 银行关键词规则":{en:"🏦 Bank keyword rules",de:"🏦 Bank-Schlüsselwortregeln"},
+"⚙ 打开规则表":{en:"⚙ Open rules",de:"⚙ Regeln öffnen"},
+"银行流水待认领":{en:"Bank transactions unassigned",de:"Bankbuchungen nicht zugeordnet"},
+"银行流水已匹配未确认":{en:"Bank transactions matched, unconfirmed",de:"Bankbuchungen zugeordnet, unbestätigt"},
+"上月银行流水未导入":{en:"Last month's bank statement not imported",de:"Kontoauszug des Vormonats nicht importiert"},
+"确认后才写入到账登记/应付付款":{en:"Written to receipts/payments only after confirmation",de:"Erst nach Bestätigung in Eingänge/Zahlungen"},
+"＋ 加载默认规则（税务局/保险/房租/工资/政府收费）":{en:"+ Load default rules (tax office/insurance/rent/payroll/fees)",de:"+ Standardregeln laden (Finanzamt/Versicherung/Miete/Gehalt/Gebühren)"},
+"当前":{en:"Currently",de:"Aktuell"},
+"条。流水导入时按户名/摘要/附言关键词自动归总部科目并生成摘要；发票号能对上的不走规则。规则越全，总部月报人工越少。":{en:"rules. On import, keywords in name/memo/note assign the HQ account and build the summary; invoice-number matches take precedence. More rules = less manual work on the HQ report.",de:"Regeln. Beim Import ordnen Schlüsselwörter in Name/Verwendungszweck das Konto zu und bilden die Zusammenfassung; Rechnungsnummern-Treffer haben Vorrang."},
 "本期开票 = 所选月份（默认当月）开票日的正票 含税金额合计（EUR）；冲销票与待开票存根不计":{en:"Invoiced in period = gross total (EUR) of positive invoices dated in the selected month (default: current); cancellations and stubs excluded",de:"Berechnet im Zeitraum = Bruttosumme (EUR) der positiven Rechnungen im gewählten Monat (Standard: aktuell); Stornos und Platzhalter ausgeschlossen"},
 "本期已收 = 本期发票已到账部分（按核销）；回款率 = 已收 ÷ 本期开票":{en:"Received in period = allocated receipts on this period's invoices; rate = received ÷ invoiced",de:"Eingegangen = zugeordnete Zahlungen auf Rechnungen des Zeitraums; Quote = Eingang ÷ berechnet"},
 "本期未收 = 本期发票 含税金额 − 已核销到账":{en:"Open in period = gross of period invoices − allocated receipts",de:"Offen im Zeitraum = brutto − zugeordnete Zahlungen"},
@@ -13998,6 +14475,9 @@ I18N_RULES.push(
 [/^⚠\ (\d+(?:[.,]\d+)?)\ 个附件尚无大陆副本（中国端暂不可下载）$/,{en:"⚠ $1 attachments without mainland copy (not downloadable from China yet)",de:"⚠ $1 Anhänge ohne Festland-Kopie (aus China noch nicht abrufbar)"}],
 [/^（(\d+(?:[.,]\d+)?)\ MB）。规则：≤(\d+(?:[.,]\d+)?)\ MB\ 存数据库（中国大陆直读），更大的走\ Storage\ 并由德国端自动生成大陆副本。$/,{en:"($1 MB). Rule: ≤$2 MB in the database (readable from mainland China); larger files go to Storage and the German side auto-creates a mainland copy.",de:"($1 MB). Regel: ≤$2 MB in der Datenbank (aus China lesbar); größere nach Storage, deutsche Seite erzeugt automatisch eine Festland-Kopie."}],
 [/^）。规则：≤(\d+(?:[.,]\d+)?)\ MB\ 存数据库（中国大陆直读），更大的走\ Storage\ 并由德国端自动生成大陆副本。$/,{en:"). Rule: ≤$1 MB in the database (readable from mainland China); larger files go to Storage and the German side auto-creates a mainland copy.",de:"). Regel: ≤$1 MB in der Datenbank (aus China lesbar); größere nach Storage, deutsche Seite erzeugt automatisch eine Festland-Kopie."}],
+[/^✓\ 一键确认已匹配（(\d+(?:[.,]\d+)?)）$/,{en:"✓ Confirm all matched ($1)",de:"✓ Alle Treffer bestätigen ($1)"}],
+[/^⚙\ 关键词规则（(\d+(?:[.,]\d+)?)）$/,{en:"⚙ Keyword rules ($1)",de:"⚙ Schlüsselwort-Regeln ($1)"}],
+[/^已导出\ (\d+(?:[.,]\d+)?)\ 笔（总部格式）$/,{en:"Exported $1 rows (HQ format)",de:"$1 Zeilen exportiert (Zentralen-Format)"}],
 [/^休假中 · 代办 (.+)$/,{en:"On leave · deputy $1",de:"Abwesend · Vertretung $1"}],
 [/^默认 (.+)$/,{en:"Default $1",de:"Standard $1"}],
 [/^代办中（(.+) 休假）$/,{en:"Covering ($1 on leave)",de:"Vertretung ($1 abwesend)"}],
