@@ -985,7 +985,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.1</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.2</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1634,7 +1634,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=34.1;
+const APP_VERSION=34.2;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -12039,7 +12039,7 @@ async function bankImportParsed(parsed,srcName){
 window.bankImportParsed=bankImportParsed;window.bankParseRows=bankParseRows;
 
 const BANK_ACCT_AR='应收账款',BANK_ACCT_AP='应付账款',BANK_ACCT_FEE='财务费用';
-function bankNorm(s){return String(s||'').toLowerCase().replace(/[\s\-_\.\/,;:#()（）]/g,'');}
+function bankNorm(s){return String(s||'').toLowerCase().replace(/[\s\-_\.\/,;:#()（）&+]/g,'').replace(/\b(and|und)\b/g,'');}
 function bankTokens(s){return String(s||'').split(/[\s,;\/|，；]+/).map(t=>t.trim()).filter(t=>t.length>=4);}
 function bankRules(){return (meta&&Array.isArray(meta.bankRules))?meta.bankRules:[];}
 function bankRuleHit(tx){
@@ -12473,7 +12473,8 @@ function bankDupReceiptsScan(){
   const out=[];
   const bank=payments.filter(p=>!p.deleted&&p.bankTx&&/银行流水自动核销/.test(p.note||''));
   for(const b of bank){
-    const twins=payments.filter(p=>!p.deleted&&p.id!==b.id&&p.bankTx!==b.bankTx&&!/银行流水自动核销/.test(p.note||'')&&bankNorm(p.customer)===bankNorm(b.customer)&&Math.abs((Number(p.amount)||0)-(Number(b.amount)||0))<0.011&&Math.abs(new Date(p.date)-new Date(b.date))<=3*86400000);
+    const bRefs=new Set(String(b.ref||'').split(/[^0-9A-Za-z_-]+/).filter(t=>t.length>=5));
+    const twins=payments.filter(p=>!p.deleted&&p.id!==b.id&&p.bankTx!==b.bankTx&&!/银行流水自动核销/.test(p.note||'')&&(bankNorm(p.customer)===bankNorm(b.customer)||String(p.ref||'').split(/[^0-9A-Za-z_-]+/).some(t=>t.length>=5&&bRefs.has(t)))&&Math.abs((Number(p.amount)||0)-(Number(b.amount)||0))<0.011&&Math.abs(new Date(p.date)-new Date(b.date))<=3*86400000);
     if(twins.length)out.push({bank:b,manual:twins[0]});
   }
   return out;
