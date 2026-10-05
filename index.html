@@ -985,7 +985,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.0</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.1</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1634,7 +1634,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=34.0;
+const APP_VERSION=34.1;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -12110,21 +12110,36 @@ function bankPickByAmount(c,amt){
 async function bankConfirm(tx){
   if(!canBank()||!tx||!tx.match)return false;
   const m=tx.match;
-  if(m.kind==='ar'&&m.refs.length&&m.refs.every(r=>r.linkOnly)){
-    const ids=new Set(m.refs.map(r=>r.id));let hit=0;
-    for(const p of payments){if(p.deleted||p.bankTx)continue;if((p.alloc||[]).some(a=>ids.has(a.invId))){p.bankTx=tx.id;p.bankTxNo=tx.txNo;p.up=Date.now();hit++;}}
-    if(hit){try{alcInvalidate();}catch(e){}await savePayments();}
-  }else if(m.kind==='ar'&&m.refs.length){
-    const alloc=m.refs.filter(r=>!r.linkOnly).map(r=>({invId:r.id,invNo:r.no,amount:r.amount}));
-    payments.push({id:'pay'+Date.now()+Math.random().toString(36).slice(2,6),date:tx.date,customer:m.payee,amount:tx.amount,currency:'EUR',method:'转账',ref:m.refs.map(r=>r.no).join(' '),status:'confirmed',alloc:alloc,bankTx:tx.id,note:'银行流水自动核销 '+tx.txNo,owner:'',up:Date.now()});
+
+  if(m.kind==='ar'&&m.refs.length){
+    const ids=new Set(m.refs.map(r=>r.id));let linked=0;
+    try{alcInvalidate();}catch(e){}
+
+    const refNos=new Set(m.refs.map(r=>String(r.no)));
+    for(const p of payments){if(p.deleted||p.bankTx)continue;const byLink=(p.linkIds||[]).some(id=>ids.has(id))||(p.alloc||[]).some(a=>ids.has(a.invId));const byRef=String(p.ref||'').split(/[^0-9A-Za-z_-]+/).some(t=>refNos.has(t))&&bankNorm(p.customer)===bankNorm(m.payee);if(byLink||byRef){p.bankTx=tx.id;p.bankTxNo=tx.txNo;p.up=Date.now();linked++;}}
+
+    const alloc=[];let rest=Math.round(tx.amount*100)/100;
+    for(const r of m.refs){const x=ariItems.find(i=>i.id===r.id);if(!x)continue;const open=Math.round(((Number(x.gross)||0)-ariPaid(x))*100)/100;const a=Math.round(Math.min(open,rest)*100)/100;if(a<=0.005)continue;alloc.push({invId:x.id,invNo:x.invNo,amount:a});rest=Math.round((rest-a)*100)/100;}
+    const amt=Math.round(alloc.reduce((s2,a)=>s2+a.amount,0)*100)/100;
+    if(amt>0.005){
+      const own=(function(){try{const x=ariItems.find(i=>i.id===alloc[0].invId);return (typeof ariOwnerOf==='function')?ariOwnerOf(x):'';}catch(e){return '';}})();
+      payments.push({id:'pay'+Date.now()+Math.random().toString(36).slice(2,6),date:tx.date,customer:m.payee,amount:amt,currency:'EUR',method:'银行转账',ref:alloc.map(a=>a.invNo).join(' / '),status:'received',alloc:alloc,linkIds:alloc.map(a=>a.invId),bankTx:tx.id,bankTxNo:tx.txNo,
+        verify:{result:'ok',by:session.name,time:Date.now(),self:true},booking:{by:session.name,time:Date.now()},
+        note:'银行流水自动核销 '+tx.txNo+(amt<tx.amount?('（流水 '+fmt(tx.amount)+'，其余已登记）'):''),owner:own||'',createdBy:session.name,createdAt:Date.now(),comments:[{author:session.name,role:'finance',text:'由银行流水 '+tx.txNo+' 自动生成并核销，已清。',time:Date.now()}],up:Date.now()});
+    }
+    m.applied={linked:linked,created:amt>0.005?amt:0,linkOnly:amt<=0.005};
     try{alcInvalidate();}catch(e){}
     await savePayments();
   }else if((m.kind==='ap'||m.kind==='ops')&&m.refs.length){
+    let linked=0,created=0;
     for(const r of m.refs){const it=apItems.find(x=>x.id===r.id);if(!it)continue;
-      if(r.linkOnly){
-        const ps=(it.payments||[]).filter(p=>!p.bankTx);if(ps.length){ps.sort((a,b)=>Math.abs(new Date(a.date||0)-new Date(tx.date))-Math.abs(new Date(b.date||0)-new Date(tx.date)));ps[0].bankTx=tx.id;ps[0].bankTxNo=tx.txNo;}
-      }else{(it.payments=it.payments||[]).push({amount:r.amount,date:tx.date,by:session.name,note:'银行流水 '+tx.txNo,time:Date.now(),bankTx:tx.id,bankTxNo:tx.txNo}); }
+
+      const open=Math.round(((Number(it.amount)||0)-apPaidSum(it))*100)/100;
+      if(r.linkOnly||open<=0.005){
+        const ps=(it.payments||[]).filter(p=>!p.bankTx);if(ps.length){ps.sort((a,b)=>Math.abs(new Date(a.date||0)-new Date(tx.date))-Math.abs(new Date(b.date||0)-new Date(tx.date)));ps[0].bankTx=tx.id;ps[0].bankTxNo=tx.txNo;linked++;}
+      }else{const a=Math.round(Math.min(open,r.amount||open)*100)/100;(it.payments=it.payments||[]).push({amount:a,date:tx.date,by:session.name,note:'银行流水 '+tx.txNo,time:Date.now(),bankTx:tx.id,bankTxNo:tx.txNo});created+=a;}
       it.up=Date.now();}
+    m.applied={linked:linked,created:Math.round(created*100)/100,linkOnly:created<=0.005};
     await apSave();
   }
   tx.status='confirmed';tx.match.confirmedBy=session.name;tx.match.confirmedAt=Date.now();tx.up=Date.now();
@@ -12155,7 +12170,7 @@ function renderBANK(){
   const pend=all.filter(x=>x.status==='pending').length,mat=all.filter(x=>x.status==='matched').length;
   const statusLabel={pending:'待认领',matched:'已匹配待确认',confirmed:'已确认',ignored:'已忽略'};
   let h=(_bankPermErr?'<div class="hm-sec" style="background:var(--bad-bg);color:var(--bad);padding:8px 12px;border-radius:8px;margin-bottom:10px">⛔ 数据库规则未开放节点「img-bank」（PERMISSION_DENIED）：请在 Firebase 控制台 Realtime Database → Rules 加 "img-bank": {".read": true, ".write": true}，发布后刷新页面。</div>':'')+'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px"><div><div style="font-weight:700;font-size:15px">🏦 银行流水与对账 <span style="font-size:11.5px;color:var(--ink-soft);font-weight:400">中国银行杜塞分行 · EUR · 仅财务</span></div></div>'+
-    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" style="width:auto" id="bankImportBtn" type="button">⬆ 导入流水（xls）</button><button class="btn-ghost" id="bankConfirmAllBtn" type="button"'+(mat?'':' disabled')+'>✓ 一键确认已匹配（'+mat+'）</button><button class="btn-ghost" id="bankRulesBtn" type="button">⚙ 关键词规则（'+bankRules().length+'）</button><button class="btn-ghost" id="bankHqBtn" type="button">📤 总部格式导出</button><button class="btn-ghost" id="bankZipBtn" type="button" title="总部格式 Excel（含关联发票与附件路径）+ 按编号建文件夹存放对应发票 PDF">📦 导出流水+发票包</button><label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="checkbox" id="bankZipOnly" style="accent-color:var(--pine)">仅已确认</label></div></div>';
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" style="width:auto" id="bankImportBtn" type="button">⬆ 导入流水（xls）</button><button class="btn-ghost" id="bankConfirmAllBtn" type="button"'+(mat?'':' disabled')+'>✓ 一键确认已匹配（'+mat+'）</button><button class="btn-ghost" id="bankRulesBtn" type="button">⚙ 关键词规则（'+bankRules().length+'）</button><button class="btn-ghost" id="bankHqBtn" type="button">📤 总部格式导出</button>'+((typeof bankDupReceiptsScan==='function'&&bankDupReceiptsScan().length)?'<button class="btn-ghost" id="bankDupBtn" type="button" style="border-color:var(--warn);color:var(--warn)">🧹 清理重复到账（'+bankDupReceiptsScan().length+'）</button>':'')+'<button class="btn-ghost" id="bankZipBtn" type="button" title="总部格式 Excel（含关联发票与附件路径）+ 按编号建文件夹存放对应发票 PDF">📦 导出流水+发票包</button><label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="checkbox" id="bankZipOnly" style="accent-color:var(--pine)">仅已确认</label></div></div>';
   h+='<div class="stat-strip"><div class="stat"><div class="s-label">本期流水</div><div class="s-value">'+list.length+'<span class="s-unit"> 笔</span></div></div><div class="stat good"><div class="s-label">收入</div><div class="s-value">€ '+fmt(inn)+'</div></div><div class="stat bad"><div class="s-label">支出</div><div class="s-value">€ '+fmt(out)+'</div></div><div class="stat warn"><div class="s-label">待认领（全量）</div><div class="s-value">'+pend+'<span class="s-unit"> 笔</span></div></div><div class="stat"><div class="s-label">已匹配待确认</div><div class="s-value">'+mat+'<span class="s-unit"> 笔</span></div></div></div>';
   h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0"><select id="bankFMonth" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px"><option value="">全部月份</option>'+months.map(m=>'<option value="'+m+'"'+(bankFMonth===m?' selected':'')+'>'+m+'</option>').join('')+'</select>'+
     '<select id="bankFStatus" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px"><option value="">全部状态</option>'+Object.keys(statusLabel).map(k=>'<option value="'+k+'"'+(bankFStatus===k?' selected':'')+'>'+statusLabel[k]+'</option>').join('')+'</select>'+
@@ -12184,6 +12199,10 @@ function bankBind(){
   const fi=$('bankFileInput');if(fi&&!fi._bound){fi._bound=true;fi.onchange=async function(){const f=this.files&&this.files[0];if(!f)return;toast('⏳ 解析流水…');try{const r=await bankImportFile(f);toast('导入完成：新增 '+r.added+' 笔（重复跳过 '+r.dup+'）· 自动匹配 '+r.matched+' · 待认领 '+r.pending);bankFMonth='';renderBANK();}catch(e){alert('导入失败：'+(e.message||e));}};}
   if(q('bankConfirmAllBtn'))q('bankConfirmAllBtn').onclick=async()=>{if(!confirm('把全部「已匹配待确认」的流水写入到账登记 / 应付付款？（逐笔可追溯，流水号写入备注）'))return;const n=await bankConfirmAll();toast('已确认 '+n+' 笔');renderBANK();};
   if(q('bankRulesBtn'))q('bankRulesBtn').onclick=bankRulesOpen;
+  if(q('bankDupBtn'))q('bankDupBtn').onclick=async()=>{const pairs=bankDupReceiptsScan();if(!pairs.length)return;
+    const preview=pairs.slice(0,15).map(p=>p.bank.date+' '+p.bank.customer+' € '+fmt(p.bank.amount)+' → 保留手工登记 '+p.manual.date).join('\n');
+    if(!confirm('发现 '+pairs.length+' 条由银行确认产生的重复到账：\n\n'+preview+(pairs.length>15?'\n…':'')+'\n\n处理：软删银行生成的那条，把流水号挂到手工登记的那条。执行？'))return;
+    const n=await bankDupReceiptsFix();toast('已清理 '+n+' 条重复到账');renderBANK();try{render();}catch(e){}};
   if(q('bankHqBtn'))q('bankHqBtn').onclick=()=>{if(typeof bankHqExport==='function')bankHqExport(bankFMonth);else toast('总部格式导出在下一版');};
   if(q('bankZipBtn'))q('bankZipBtn').onclick=async()=>{const only=!!(q('bankZipOnly')&&q('bankZipOnly').checked);const b=q('bankZipBtn');b.disabled=true;const t0=b.textContent;try{await bankZipExport(bankFMonth,only,{onProgress:n=>{b.textContent='打包中… '+n;}});}catch(e){toast('打包失败：'+(e.message||e));}finally{b.disabled=false;b.textContent=t0;}};
   box.querySelectorAll('.bk-prev').forEach(b=>b.onclick=e=>{e.stopPropagation();const tx=bankItems.find(x=>x.id===b.dataset.id);if(tx)bankPreview(tx,parseInt(b.dataset.i,10),b.closest('td'));});
@@ -12191,7 +12210,7 @@ function bankBind(){
   if(q('bankFStatus'))q('bankFStatus').onchange=function(){bankFStatus=this.value;renderBANK();};
   if(q('bankFQ')){let t=null;q('bankFQ').oninput=function(){clearTimeout(t);const v=this.value;t=setTimeout(()=>{bankFQ=v;renderBANK();const el=$('bankFQ');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},220);};}
   if(q('bankMore'))q('bankMore').onclick=()=>{_winN['bankBody']=(_winN['bankBody']||WIN_STEP)+WIN_STEP;renderBANK();};
-  box.querySelectorAll('.bk-ok').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;await bankConfirm(tx);toast('已确认并写入台账');renderBANK();});
+  box.querySelectorAll('.bk-ok').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;await bankConfirm(tx);const ap=(tx.match&&tx.match.applied)||{};toast(ap.linkOnly?'已确认：发票已登记过，仅挂流水号（未新建记录）':('已确认并写入台账'+(ap.linked?'，另 '+ap.linked+' 条已有记录挂上流水号':'')));renderBANK();});
   box.querySelectorAll('.bk-ign').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;const r=prompt('忽略原因（如：内部转账 / 退回）：');if(r===null)return;await bankIgnore(tx,r);renderBANK();});
   box.querySelectorAll('.bk-edit').forEach(b=>b.onclick=()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(tx)bankEditOpen(tx);});
   box.querySelectorAll('.bk-undo').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;const m=tx.match||{};
@@ -12449,6 +12468,28 @@ async function bankUnconfirm(tx,reason){
   return {removed:removed,unlinked:unlinked};
 }
 window.bankUnconfirm=bankUnconfirm;
+
+function bankDupReceiptsScan(){
+  const out=[];
+  const bank=payments.filter(p=>!p.deleted&&p.bankTx&&/银行流水自动核销/.test(p.note||''));
+  for(const b of bank){
+    const twins=payments.filter(p=>!p.deleted&&p.id!==b.id&&p.bankTx!==b.bankTx&&!/银行流水自动核销/.test(p.note||'')&&bankNorm(p.customer)===bankNorm(b.customer)&&Math.abs((Number(p.amount)||0)-(Number(b.amount)||0))<0.011&&Math.abs(new Date(p.date)-new Date(b.date))<=3*86400000);
+    if(twins.length)out.push({bank:b,manual:twins[0]});
+  }
+  return out;
+}
+async function bankDupReceiptsFix(){
+  if(!canBank())return null;
+  const pairs=bankDupReceiptsScan();let n=0;
+  for(const {bank:b,manual:mo} of pairs){
+    if(!mo.bankTx){mo.bankTx=b.bankTx;mo.bankTxNo=b.bankTxNo||'';}else{(mo.comments=mo.comments||[]).push({author:session.name,role:'finance',text:'另一笔银行流水 '+(b.bankTxNo||b.bankTx)+' 亦指向本到账（原重复记录已删）',time:Date.now()});}mo.up=Date.now();
+    b.deleted=true;b.deletedBy=session.name;b.deletedAt=Date.now();b.deleteReason='银行确认产生的重复到账，流水号已挂到手工登记';(b.comments=b.comments||[]).push({author:session.name,role:'finance',text:'🗑 删除重复到账：与 '+mo.date+' 手工登记重复，流水号已挂到该条',time:Date.now()});b.up=Date.now();
+    n++;
+  }
+  if(n){try{alcInvalidate();}catch(e){}await savePayments();}
+  return n;
+}
+window.bankDupReceiptsScan=bankDupReceiptsScan;window.bankDupReceiptsFix=bankDupReceiptsFix;
 
 function aoaWithTotal(aoa,headerRowIdx,numCols,label){
   try{
@@ -14474,6 +14515,7 @@ Object.assign(I18N,{
 "恢复":{en:"Restore",de:"Wiederherstellen"},
 "原路回滚由这笔流水写入的付款/到账，流水回到待认领":{en:"Roll back the payment/receipt written by this transaction; it returns to unassigned",de:"Zahlung/Eingang dieser Buchung zurücknehmen; Buchung wird wieder nicht zugeordnet"},
 "总部格式 Excel（含关联发票与附件路径）+ 按编号建文件夹存放对应发票 PDF":{en:"HQ-format Excel (with linked invoices and file paths) + one folder per line number holding its invoice PDFs",de:"Excel im Zentralen-Format (mit Rechnungen/Pfaden) + je Nummer ein Ordner mit den Rechnungs-PDFs"},
+"已确认：发票已登记过，仅挂流水号（未新建记录）":{en:"Confirmed: already recorded, bank ref attached only (no new record)",de:"Bestätigt: bereits erfasst, nur Bankreferenz angehängt (kein neuer Datensatz)"},
 "本期开票 = 所选月份（默认当月）开票日的正票 含税金额合计（EUR）；冲销票与待开票存根不计":{en:"Invoiced in period = gross total (EUR) of positive invoices dated in the selected month (default: current); cancellations and stubs excluded",de:"Berechnet im Zeitraum = Bruttosumme (EUR) der positiven Rechnungen im gewählten Monat (Standard: aktuell); Stornos und Platzhalter ausgeschlossen"},
 "本期已收 = 本期发票已到账部分（按核销）；回款率 = 已收 ÷ 本期开票":{en:"Received in period = allocated receipts on this period's invoices; rate = received ÷ invoiced",de:"Eingegangen = zugeordnete Zahlungen auf Rechnungen des Zeitraums; Quote = Eingang ÷ berechnet"},
 "本期未收 = 本期发票 含税金额 − 已核销到账":{en:"Open in period = gross of period invoices − allocated receipts",de:"Offen im Zeitraum = brutto − zugeordnete Zahlungen"},
@@ -14665,6 +14707,7 @@ I18N_RULES.push(
 [/^已跳过\ (\d+(?:[.,]\d+)?)\ 笔「按户名\+金额」匹配的流水，请逐笔核对后确认$/,{en:"Skipped $1 name+amount matches; verify and confirm them individually",de:"$1 Treffer nach Name+Betrag übersprungen; bitte einzeln prüfen und bestätigen"}],
 [/^平台未录入这些发票号：(\d+(?:[.,]\d+)?)——请先在应收\/应付录入$/,{en:"These invoice numbers are not in the platform: $1 — enter them under AR/AP first",de:"Diese Rechnungsnummern fehlen in der Plattform: $1 — zuerst unter Debitoren/Kreditoren erfassen"}],
 [/^(\d+(?:[.,]\d+)?)\ 张已付清\/已收讫，确认时仅关联流水号、不再重复记账$/,{en:"$1 already settled; confirming attaches the bank ref only, no duplicate booking",de:"$1 bereits beglichen; Bestätigen verknüpft nur die Bankreferenz, keine Doppelbuchung"}],
+[/^🧹\ 清理重复到账（(\d+(?:[.,]\d+)?)）$/,{en:"🧹 Clean duplicate receipts ($1)",de:"🧹 Doppelte Eingänge bereinigen ($1)"}],
 [/^休假中 · 代办 (.+)$/,{en:"On leave · deputy $1",de:"Abwesend · Vertretung $1"}],
 [/^默认 (.+)$/,{en:"Default $1",de:"Standard $1"}],
 [/^代办中（(.+) 休假）$/,{en:"Covering ($1 on leave)",de:"Vertretung ($1 abwesend)"}],
