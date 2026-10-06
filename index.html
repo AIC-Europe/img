@@ -985,7 +985,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.2</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.3</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1070,7 +1070,7 @@ td{font-size:12.5px}
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="oType" id="oTypeOrd" value="ord" checked style="accent-color:var(--pine)">正式成单 (IMG)</label>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="oType" id="oTypeInq" value="inq" style="accent-color:var(--brass)">询价单 (F)</label>
         </div></div>
-      <div class="field"><label for="oCustomer">客户名称 *</label><input id="oCustomer" placeholder="例如：AISWEI B.V."></div>
+      <div class="field"><label for="oCustomer">客户名称 *</label><div style="display:flex;gap:6px"><input id="oCustomer" placeholder="例如：AISWEI B.V." style="flex:1"><button type="button" class="btn-sm" id="oCustNew" title="客户不在档案里？在这里新建，保存后立即可选" style="white-space:nowrap;display:none">＋ 新建客户</button></div></div>
       <div class="field"><label for="oSale">客户售价</label><input type="number" id="oSale" step="0.01" placeholder="可稍后补充"></div>
       <div class="field"><label for="oSaleCur">币种</label>
         <select id="oSaleCur"><option>EUR</option><option>USD</option><option>GBP</option><option>CNY</option></select>
@@ -1204,7 +1204,7 @@ td{font-size:12.5px}
   <div class="modal" style="max-width:1000px">
     <h2>操作日志</h2>
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
-      <select id="logFMod" style="max-width:150px"><option value="">全部模块</option><option value="ord">订单</option><option value="ari">应收发票</option><option value="pay">到账</option><option value="ap">应付</option></select>
+      <select id="logFMod" style="max-width:150px"><option value="">全部模块</option><option value="ord">订单</option><option value="ari">应收发票</option><option value="pay">到账</option><option value="ap">应付</option><option value="base">主数据</option></select>
       <select id="logFWho" style="max-width:150px"><option value="">全部人员</option></select><select id="logFType" style="max-width:130px" title="按变更类型筛选"><option value="">全部类型</option><option value="del">🗑 删除</option><option value="amt">💶 金额</option><option value="st">🔁 状态</option><option value="own">👤 负责人</option><option value="oth">其他</option></select>
       <input type="date" id="logFrom" style="max-width:150px" title="起始日期">
       <input type="date" id="logTo" style="max-width:150px" title="截止日期">
@@ -1634,7 +1634,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=34.2;
+const APP_VERSION=34.3;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -5068,6 +5068,8 @@ function healthCalc(){
     add('bankMissing','上月银行流水未导入',bs.lastMonthMissing?1:0,'warn',bs.lastMonthMissing?('缺 '+bs.lastMonth+' 的流水——请从网银导出后在「银行」导入'):'','bank');
     const na=bankNoAttCount();add('bankNoAtt','已确认流水关联发票缺附件',na,'warn',na?'导出流水+发票包时这些行没有 PDF，请在应收/应付补传附件':'','bank');}}catch(e){}
 
+  try{const pc=(typeof basePendingCount==='function')?basePendingCount():0;add('baseReview','业务新建的客户/供应商待确认',pc,'warn',pc?'基础资料里点「确认」或「合并到…」；确认前名称可能与已有档案重复':'','base');}catch(e){}
+
   add('opsNoCat','运营类发票缺费用类别',apItems.filter(function(x){return !x.deleted&&x.kind==='ops'&&!x.cat;}).length,'warn','总部月报按科目汇总需要此字段','ap');
 
   try{const mm=arcMissingMonths();add('arcMissing','月度凭证包未归档',mm.length,'warn',mm.length?('缺：'+mm.join('、')+' —— 月结完成后系统会自动提示生成；也可在「📦 月度归档」手动生成'):'','arc');}catch(e){}
@@ -7563,6 +7565,10 @@ function metaMerge(remote){
     const have=new Set((meta.archives||[]).map(x=>x.id));
     for(const x of (remote.archives||[])){if(x&&x.id&&!have.has(x.id)){(meta.archives=meta.archives||[]).push(x);have.add(x.id);}}
   }
+  {
+    const have=new Set((meta.baseLog||[]).map(x=>x.time+'|'+x.author));for(const x of (remote.baseLog||[])){if(x&&!have.has(x.time+'|'+x.author)){(meta.baseLog=meta.baseLog||[]).push(x);have.add(x.time+'|'+x.author);}}
+    if(meta.baseLog)meta.baseLog.sort((a,b)=>(a.time||0)-(b.time||0));
+  }
   for(const k of ['clients','suppliers','svcLib']){
     const del=new Set([].concat(meta[k+'Del']||[],remote[k+'Del']||[]));
     if(del.size)meta[k+'Del']=[...del];
@@ -8649,6 +8655,7 @@ function ordDetail(o){
       const addRow=document.createElement('div');
       addRow.style.cssText='display:flex;gap:6px;margin-top:6px;flex-wrap:wrap';
       const iS=document.createElement('input');iS.placeholder='供应商名称';iS.setAttribute('list','supplierList');iS.style.flex='2';iS.style.minWidth='140px';
+      const iNew=document.createElement('button');iNew.type='button';iNew.className='btn-sm';iNew.textContent='＋ 新建供应商';iNew.title='供应商不在档案里？新建后立即可选（IBAN 由财务填）';iNew.style.display=(typeof canBaseCreate==='function'&&canBaseCreate())?'':'none';iNew.onclick=function(){baseQuickCreateOpen('suppliers',iS,iS.value.trim());};
       const iP=document.createElement('input');iP.type='number';iP.step='0.01';iP.placeholder='报价';iP.style.flex='1';iP.style.minWidth='90px';
       const iC=document.createElement('select');for(const cc of ['EUR','USD','GBP','CNY']){const op=document.createElement('option');op.textContent=cc;iC.appendChild(op);}
       const iN=document.createElement('input');iN.placeholder='备注(可选)';iN.style.flex='2';iN.style.minWidth='120px';
@@ -8668,7 +8675,7 @@ function ordDetail(o){
             meta.suppliers.push({id:'su'+Date.now()+Math.random().toString(36).slice(2,5),name:sup,at:Date.now()});
             metaSave().catch(function(){});
           }},'报价已添加');};
-      addRow.append(iS,iP,iC,iN,bAdd);
+      addRow.append(iS,iNew,iP,iC,iN,bAdd);
       addRow.onclick=e=>e.stopPropagation();
       qBox.appendChild(addRow);
     }
@@ -9104,6 +9111,7 @@ function ordOpenEdit(o){
   if(!dl){dl=document.createElement('datalist');dl.id='clientList';document.body.appendChild(dl);$('oCustomer').setAttribute('list','clientList');}
   dl.innerHTML='';
   for(const c of meta.clients){if(c.inactive)continue;const op=document.createElement('option');op.value=c.name;dl.appendChild(op);}
+  try{const nb=$('oCustNew');if(nb){nb.style.display=(typeof canBaseCreate==='function'&&canBaseCreate())?'':'none';nb.onclick=function(){baseQuickCreateOpen('clients',$('oCustomer'),$('oCustomer').value.trim());};}}catch(e){}
   $('oTypeRow').style.display='none';
   const preInq=!o&&ordSubView==='inq';
   $('oTypeOrd').checked=!preInq;$('oTypeInq').checked=preInq;
@@ -9427,7 +9435,7 @@ function baseCard(title,key,fields){
   const chk=document.createElement('label');chk.style.cssText='font-size:11.5px;color:var(--ink-soft);white-space:nowrap;display:flex;align-items:center;gap:4px';
   chk.innerHTML='<input type="checkbox" '+(showIn?'checked':'')+' style="accent-color:var(--pine)">显示停用（'+nIn+'）';
   chk.querySelector('input').onchange=function(){_baseShowInactive[key]=this.checked;renderBASE();};sBar.appendChild(chk);
-  const all=(meta[key]||[]).slice().filter(x=>showIn||!x.inactive).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  const all=(meta[key]||[]).slice().filter(x=>showIn||!x.inactive).sort((a,b)=>((b.pendingReview?1:0)-(a.pendingReview?1:0))||(a.name||'').localeCompare(b.name||''));
   const list=q?all.filter(function(x){
     if(svcNorm(x.name).includes(q))return true;
     for(const f of fields)if(svcNorm(x[f.k]||'').includes(q))return true;
@@ -9460,6 +9468,15 @@ function baseCard(title,key,fields){
     const row=document.createElement('div');row.className='base-row';
     row.innerHTML='<b style="flex:2;min-width:0" class="clamp2" title="'+esc(it.name)+'">'+esc(it.name)+'</b>'+
       fields.map(f=>'<span style="flex:'+(f.k==='addr'?3:2)+';min-width:0;color:var(--ink-soft)" class="clamp2" title="'+esc(it[f.k]||'')+'">'+esc(it[f.k]||'')+'</span>').join('');
+    if(it.pendingReview){const pb=document.createElement('span');pb.className='badge';pb.style.cssText='background:var(--warn-bg);color:var(--warn);font-size:10px;padding:1px 6px;margin-right:6px';pb.textContent='待财务确认';pb.title='由 '+(it.createdBy||'业务')+' 新建，财务确认或合并后标记消失';row.insertBefore(pb,row.firstChild);
+      if(session&&session.role==='finance'&&(key==='clients'||key==='suppliers')){
+        const okb=document.createElement('button');okb.className='btn-sm';okb.style.cssText='padding:1px 8px;font-size:11px;border-color:var(--ok);color:var(--ok)';okb.textContent='确认';okb.title='确认为正式档案';
+        okb.onclick=async()=>{await baseReviewOk(key,it.id);toast('已确认「'+it.name+'」');renderBASE();};
+        const mg=document.createElement('button');mg.className='btn-sm';mg.style.cssText='padding:1px 8px;font-size:11px';mg.textContent='合并到…';mg.title='与已有档案是同一家：并入并改写订单/发票上的名称';
+        mg.onclick=async()=>{const sim=baseFindSimilar(key,it.name).filter(x=>x.id!==it.id);const t=prompt('并入哪条已有档案？输入其准确名称'+(sim.length?('\n近似：'+sim.map(x=>x.name).join(' | ')):''),sim[0]?sim[0].name:'');if(t===null||!t.trim())return;const r=await baseMergeInto(key,it.id,t.trim());if(!r){toast('未找到目标档案：'+t);return;}toast('已合并到「'+r.to+'」，改写 '+r.renamed+' 条记录');renderBASE();};
+        row.append(okb,mg);
+      }
+    }
     if(it.inactive){row.classList.add('base-inactive');row.title='已停用：不进下拉建议与健康检查；历史单据不受影响';const bd=document.createElement('span');bd.className='badge';bd.style.cssText='background:var(--muted-bg);color:var(--muted);font-size:10px;padding:1px 6px;margin-right:6px';bd.textContent='停用';row.insertBefore(bd,row.firstChild);}
     const tg=document.createElement('button');tg.className='btn-sm';tg.style.cssText='padding:1px 8px;font-size:11px';tg.textContent=it.inactive?'启用':'停用';tg.title=it.inactive?'恢复到下拉建议与检查':'停用：不再出现在下拉建议与健康检查，历史单据保留';
     tg.onclick=async()=>{it.inactive=!it.inactive;it.up=Date.now();try{await metaSave();toast(it.inactive?'已停用「'+it.name+'」':'已启用「'+it.name+'」');renderBASE();}catch(e){toast('保存失败：'+(e.message||''));}};
@@ -12492,6 +12509,90 @@ async function bankDupReceiptsFix(){
 }
 window.bankDupReceiptsScan=bankDupReceiptsScan;window.bankDupReceiptsFix=bankDupReceiptsFix;
 
+const BASE_CREATORS=['Christina','Minglu','Bowen','Teri'];
+function canBaseCreate(){return !!session&&(session.role==='finance'||BASE_CREATORS.includes(session.name));}
+
+function baseNameKey(s){
+  return String(s||'').toLowerCase()
+    .replace(/\b(gmbh|ag|kg|ug|e\.?k\.?|ohg|gbr|ltd\.?|limited|llc|inc\.?|co\.?|corp\.?|b\.?v\.?|s\.?r\.?o\.?|sp\.? ?z ?o\.? ?o\.?|s\.?a\.?|srl|sas|sarl|oy|ab|as|plc|company|international|logistics?|trading|group)\b/g,' ')
+    .replace(/\b(and|und)\b/g,' ')
+    .replace(/[\s\-_\.\/,;:#()（）&+'"’]/g,'');
+}
+function baseFindSimilar(key,name){
+  const k=baseNameKey(name);if(!k)return [];
+  return (meta[key]||[]).filter(x=>x&&x.name&&!x.inactive).map(x=>({x:x,k:baseNameKey(x.name)})).filter(o=>o.k===k||(o.k.length>=4&&k.length>=4&&(o.k.includes(k)||k.includes(o.k)))).map(o=>o.x);
+}
+function baseExactExists(key,name){const n=String(name||'').trim().toLowerCase();return (meta[key]||[]).some(x=>x&&String(x.name||'').trim().toLowerCase()===n);}
+window.baseNameKey=baseNameKey;window.baseFindSimilar=baseFindSimilar;window.canBaseCreate=canBaseCreate;
+function baseLogAdd(txt){(meta.baseLog=meta.baseLog||[]).push({author:session.name,role:session.role,text:txt,time:Date.now()});if(meta.baseLog.length>500)meta.baseLog=meta.baseLog.slice(-500);}
+
+async function baseCreate(key,data){
+  if(!canBaseCreate())throw new Error('无新建权限');
+  const name=String(data.name||'').trim();
+  if(!name||!String(data.country||'').trim()||!String(data.contact||'').trim()||!String(data.email||'').trim())throw new Error('客户名、国家、联系人、邮箱为必填');
+  if(baseExactExists(key,name))throw new Error('已存在同名记录：'+name);
+  const rec={id:(key==='clients'?'cl':'su')+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:name,country:String(data.country).trim(),contact:String(data.contact).trim(),email:String(data.email).trim(),vat:String(data.vat||'').trim(),addr:String(data.addr||'').trim(),at:Date.now(),createdBy:session.name,createdAt:Date.now()};
+  if(session.role!=='finance')rec.pendingReview=true;
+  (meta[key]=meta[key]||[]).push(rec);
+  baseLogAdd((key==='clients'?'新建客户「':'新建供应商「')+name+'」'+(rec.pendingReview?'（待财务确认）':''));
+  await metaSave();return rec;
+}
+async function baseReviewOk(key,id){
+  if(!session||session.role!=='finance')return false;const x=(meta[key]||[]).find(r=>r.id===id);if(!x)return false;
+  delete x.pendingReview;x.reviewedBy=session.name;x.reviewedAt=Date.now();x.at=Date.now();baseLogAdd('确认'+(key==='clients'?'客户':'供应商')+'「'+x.name+'」');await metaSave();return true;
+}
+
+async function baseMergeInto(key,srcId,targetName){
+  if(!session||session.role!=='finance')return null;
+  const src=(meta[key]||[]).find(r=>r.id===srcId);const tgt=(meta[key]||[]).find(r=>r.id!==srcId&&String(r.name||'').trim().toLowerCase()===String(targetName||'').trim().toLowerCase());
+  if(!src||!tgt)return null;
+  let n=0;const from=src.name,to=tgt.name;
+  if(key==='clients'){
+    for(const o of ordItems){if(!o.deleted&&o.customer===from){o.customer=to;o.up=Date.now();logAdd(o,'客户档案合并：'+from+' → '+to);n++;}}
+    for(const x of ariItems){if(!x.deleted&&x.customer===from){x.customer=to;x.up=Date.now();n++;}}
+    for(const p of payments){if(!p.deleted&&p.customer===from){p.customer=to;p.up=Date.now();n++;}}
+  }else{
+    for(const it of apItems){if(!it.deleted&&it.supplier===from){it.supplier=to;it.up=Date.now();n++;}}
+    for(const o of ordItems){let ch=false;for(const q of (o.quotes||[])){if(q.supplier===from){q.supplier=to;ch=true;}}if(ch){o.up=Date.now();logAdd(o,'供应商档案合并：'+from+' → '+to);n++;}}
+  }
+  for(const f of ['contact','email','vat','addr','country'])if(src[f]&&!tgt[f])tgt[f]=src[f];
+  (meta[key+'Del']=meta[key+'Del']||[]).push(src.id);meta[key]=(meta[key]||[]).filter(r=>r.id!==src.id);tgt.at=Date.now();
+  baseLogAdd('合并'+(key==='clients'?'客户':'供应商')+'「'+from+'」→「'+to+'」，改写 '+n+' 条记录');
+  if(key==='clients'){try{await ordSave();}catch(e){}try{await ariSaveAll();}catch(e){}try{alcInvalidate();await savePayments();}catch(e){}}
+  else{try{await apSave();}catch(e){}try{await ordSave();}catch(e){}}
+  await metaSave();return {renamed:n,to:to};
+}
+window.baseCreate=baseCreate;window.baseReviewOk=baseReviewOk;window.baseMergeInto=baseMergeInto;
+function basePendingCount(){return ((meta.clients||[]).filter(x=>x.pendingReview).length)+((meta.suppliers||[]).filter(x=>x.pendingReview).length);}
+window.basePendingCount=basePendingCount;
+
+function baseQuickCreateOpen(key,input,preName){
+  if(!canBaseCreate()){toast('仅业务同事与财务可新建');return;}
+  const old=document.getElementById('bqOvl');if(old)old.remove();
+  const isC=key==='clients';
+  const ovl=document.createElement('div');ovl.id='bqOvl';ovl.style.cssText='position:fixed;inset:0;background:rgba(20,28,26,.45);z-index:2600;display:flex;align-items:center;justify-content:center';
+  const card=document.createElement('div');card.style.cssText='background:var(--card,#fff);border-radius:14px;padding:20px 22px;width:min(560px,94vw);max-height:90vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px';
+  card.innerHTML='<div style="font-weight:700;font-size:15px;margin-bottom:6px">＋ 新建'+(isC?'客户':'供应商')+'</div><div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">'+(session.role==='finance'?'财务新建直接生效。':'保存后立即可用，财务会在基础资料里确认或合并（带「待财务确认」标记）。')+'</div>'+
+    '<div class="field"><label>'+(isC?'客户名':'供应商名')+' *</label><input id="bqName" value="'+esc(preName||'')+'" placeholder="公司全称，与发票上一致"><div id="bqSim" style="font-size:11.5px;color:var(--warn);margin-top:4px"></div></div>'+
+    '<div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div class="field"><label>国家 *</label><input id="bqCountry" placeholder="例如：德国 / 波兰"></div><div class="field"><label>联系人 *</label><input id="bqContact"></div><div class="field"><label>邮箱 *</label><input id="bqEmail" type="email"></div><div class="field"><label>VAT 号（可选）</label><input id="bqVat"></div></div>'+
+    '<div class="field"><label>地址（可选）</label><input id="bqAddr"></div>'+
+    (isC?'':'<div style="font-size:11.5px;color:var(--ink-soft)">IBAN 等付款信息仅财务可填。</div>')+
+    '<div id="bqErr" style="color:var(--bad);font-size:12px;display:none;margin-top:6px"></div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn-ghost" id="bqCancel" type="button">取消</button><button class="btn-sm" id="bqSave" type="button" style="border-color:var(--pine);color:var(--pine-ink);font-weight:700">保存并选用</button></div>';
+  ovl.appendChild(card);document.body.appendChild(ovl);ovl.onclick=e=>{if(e.target===ovl)ovl.remove();};
+  const q=id=>card.querySelector('#'+id);
+  const sim=()=>{const list=baseFindSimilar(key,q('bqName').value);const box=q('bqSim');if(!list.length){box.innerHTML='';return;}box.innerHTML='⚠ 已有近似记录：'+list.slice(0,3).map(x=>'<button type="button" class="btn-sm bq-use" data-n="'+esc(x.name)+'" style="font-size:11px;padding:0 6px">'+esc(x.name)+'</button>').join(' ')+' —— 是同一家请直接选用';box.querySelectorAll('.bq-use').forEach(b=>b.onclick=()=>{if(input){input.value=b.dataset.n;input.dispatchEvent(new Event('input'));}ovl.remove();toast('已选用「'+b.dataset.n+'」');});};
+  q('bqName').oninput=sim;sim();
+  q('bqCancel').onclick=()=>ovl.remove();
+  q('bqSave').onclick=async()=>{const err=q('bqErr');err.style.display='none';
+    try{const rec=await baseCreate(key,{name:q('bqName').value,country:q('bqCountry').value,contact:q('bqContact').value,email:q('bqEmail').value,vat:q('bqVat').value,addr:q('bqAddr').value});
+      if(input){input.value=rec.name;input.dispatchEvent(new Event('input'));input.dispatchEvent(new Event('change'));}
+      ovl.remove();toast('已新建并选用「'+rec.name+'」'+(rec.pendingReview?'，待财务确认':''));
+    }catch(e){err.textContent=e.message||String(e);err.style.display='block';}};
+  setTimeout(()=>q('bqName').focus(),50);
+}
+window.baseQuickCreateOpen=baseQuickCreateOpen;
+
 function aoaWithTotal(aoa,headerRowIdx,numCols,label){
   try{
     if(!Array.isArray(aoa)||aoa.length<2)return aoa;
@@ -13206,6 +13307,7 @@ function logCollect(){
   };
 
   const delEntry=function(mod,ref,obj,cust){if(obj.deleted)out.push({mod:mod,ref:ref||'—',cust:cust||'',who:obj.deletedBy||'—',role:'del',time:Number(obj.deletedAt)||0,text:'🗑 删除记录'+(obj.deletedAt?'':'（旧数据，无删除人/时间）'),del:true});};
+  for(const c of ((meta&&meta.baseLog)||[]))push('base','主数据',c,'');
   for(const o of ordItems){for(const c of (o.comments||[]))push('ord',o.orderNo,c,o.customer);for(const l of (o.log||[]))push('ord',o.orderNo,{author:l.by,role:'log',time:l.time,text:l.txt},o.customer);delEntry('ord',o.orderNo,o,o.customer);}
   for(const x of ariItems){for(const c of (x.comments||[]))push('ari',x.invNo||x.orderNo,c,x.customer);delEntry('ari',x.invNo||x.orderNo,x,x.customer);}
   for(const p of payments){for(const c of (p.comments||[]))push('pay',p.ref||p.orderNo,c,p.customer);delEntry('pay',p.ref||p.orderNo,p,p.customer);}
@@ -13214,7 +13316,7 @@ function logCollect(){
   out.sort((a,b)=>b.time-a.time);
   return out;
 }
-const LOG_MOD={ord:'订单',ari:'应收发票',pay:'到账',ap:'应付'};
+const LOG_MOD={ord:'订单',ari:'应收发票',pay:'到账',ap:'应付',base:'主数据'};
 const AUDIT_TYPE={del:'删除',amt:'金额',st:'状态',own:'负责人',oth:'其他'};
 function auditType(t){t=String(t||'');if(/删除|🗑|冲销|撤回/.test(t))return 'del';if(/金额|售价|成本|报价|付款|到账|登记付款|核销|结清|余额|修改发票信息|已录入发票信息|开票金额|不含税|含税/.test(t))return 'amt';if(/推进|阶段|状态|确认|标记|待确认|已到账|已清|锁定|归档|重开/.test(t))return 'st';if(/负责人|认领/.test(t))return 'own';return 'oth';}
 function auditDel(obj,what,reason){try{obj.deletedBy=session.name;obj.deletedAt=Date.now();if(reason)obj.deleteReason=reason;(obj.comments=obj.comments||[]).push({author:session.name,role:session.role,text:'🗑 删除'+(what||'记录')+(reason?('：'+reason):''),time:Date.now()});}catch(e){}}
@@ -14517,6 +14619,22 @@ Object.assign(I18N,{
 "原路回滚由这笔流水写入的付款/到账，流水回到待认领":{en:"Roll back the payment/receipt written by this transaction; it returns to unassigned",de:"Zahlung/Eingang dieser Buchung zurücknehmen; Buchung wird wieder nicht zugeordnet"},
 "总部格式 Excel（含关联发票与附件路径）+ 按编号建文件夹存放对应发票 PDF":{en:"HQ-format Excel (with linked invoices and file paths) + one folder per line number holding its invoice PDFs",de:"Excel im Zentralen-Format (mit Rechnungen/Pfaden) + je Nummer ein Ordner mit den Rechnungs-PDFs"},
 "已确认：发票已登记过，仅挂流水号（未新建记录）":{en:"Confirmed: already recorded, bank ref attached only (no new record)",de:"Bestätigt: bereits erfasst, nur Bankreferenz angehängt (kein neuer Datensatz)"},
+"＋ 新建客户":{en:"+ New customer",de:"+ Neuer Kunde"},
+"＋ 新建供应商":{en:"+ New supplier",de:"+ Neuer Lieferant"},
+"待财务确认":{en:"Pending finance review",de:"Prüfung durch Buchhaltung ausstehend"},
+"合并到…":{en:"Merge into…",de:"Zusammenführen in…"},
+"业务新建的客户/供应商待确认":{en:"New customers/suppliers created by sales awaiting review",de:"Von Vertrieb angelegte Kunden/Lieferanten zur Prüfung"},
+"客户不在档案里？在这里新建，保存后立即可选":{en:"Customer not on file? Create it here; usable right away",de:"Kunde nicht angelegt? Hier anlegen, sofort wählbar"},
+"供应商不在档案里？新建后立即可选（IBAN 由财务填）":{en:"Supplier not on file? Create it; IBAN is entered by finance",de:"Lieferant nicht angelegt? Anlegen; IBAN trägt die Buchhaltung ein"},
+"保存并选用":{en:"Save & use",de:"Speichern & verwenden"},
+"公司全称，与发票上一致":{en:"Full company name as on the invoice",de:"Vollständiger Firmenname wie auf der Rechnung"},
+"保存后立即可用，财务会在基础资料里确认或合并（带「待财务确认」标记）。":{en:"Usable immediately; finance will confirm or merge it under Master data (marked \"Pending finance review\").",de:"Sofort nutzbar; Buchhaltung bestätigt oder führt unter Stammdaten zusammen (markiert)."},
+"财务新建直接生效。":{en:"Created by finance takes effect immediately.",de:"Von der Buchhaltung angelegt gilt sofort."},
+"IBAN 等付款信息仅财务可填。":{en:"Payment details (IBAN) are entered by finance only.",de:"Zahlungsdaten (IBAN) trägt nur die Buchhaltung ein."},
+"VAT 号（可选）":{en:"VAT no. (optional)",de:"USt-IdNr. (optional)"},
+"地址（可选）":{en:"Address (optional)",de:"Adresse (optional)"},
+"例如：德国 / 波兰":{en:"e.g. Germany / Poland",de:"z. B. Deutschland / Polen"},
+"主数据":{en:"Master data",de:"Stammdaten"},
 "本期开票 = 所选月份（默认当月）开票日的正票 含税金额合计（EUR）；冲销票与待开票存根不计":{en:"Invoiced in period = gross total (EUR) of positive invoices dated in the selected month (default: current); cancellations and stubs excluded",de:"Berechnet im Zeitraum = Bruttosumme (EUR) der positiven Rechnungen im gewählten Monat (Standard: aktuell); Stornos und Platzhalter ausgeschlossen"},
 "本期已收 = 本期发票已到账部分（按核销）；回款率 = 已收 ÷ 本期开票":{en:"Received in period = allocated receipts on this period's invoices; rate = received ÷ invoiced",de:"Eingegangen = zugeordnete Zahlungen auf Rechnungen des Zeitraums; Quote = Eingang ÷ berechnet"},
 "本期未收 = 本期发票 含税金额 − 已核销到账":{en:"Open in period = gross of period invoices − allocated receipts",de:"Offen im Zeitraum = brutto − zugeordnete Zahlungen"},
