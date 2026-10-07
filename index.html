@@ -985,7 +985,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.3</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.4</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1634,7 +1634,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=34.3;
+const APP_VERSION=34.4;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2011,7 +2011,7 @@ function mergeRemote(remote){
   }
 }
 
-const ACCT_LIST=['Emma','Steven','Minglu','Teri','Bowen','Lucy','Peter','Christina'];
+const ACCT_LIST=['Emma','Steven','Minglu','Teri','Bowen','Lucy','Peter','Christina','Man'];
 const AUTH_DOMAIN_SUFFIX='@img-europe.local';
 
 const AUTH_PROXY='https://img-auth.b-zhang.workers.dev';
@@ -2020,7 +2020,7 @@ const PROXY_KEY='img-auth-proxy-on';
 let _proxyOn=false;
 
 const FB_SALT='img-europe-2026-fallback';
-const ACCT_HASH={'Emma':'867ebedfa81afd5fd4d7754d486d35d207eaa861654c9a110cff28cde0338a24','Steven':'005ad6acd11542fa2d73eb82386158c5d758bd9d11aacf4240da78fdbb1667f1','Minglu':'28bd4d5c53c75dafd28a7febf0c545acec7babc7fa3c33e705d62ed074da2024','Teri':'7dfa5ccb1cc2f6f98f4d8421f58b64088f1b779441e8b24331f47bf9fd1a5bb1','Bowen':'fd6799724957625584b2b19b792703bffa9de4c07c15eff4ce674b5e1f770003','Lucy':'1a431a30178a64137bffb91591d06a757d6eb65528749adae84ec24709571a2e','Peter':'532f14cc0e8d789c19ae733b0024abe43f93106514a04a7917416de29a22ab0d','Christina':'7d0f49167053e34f6111881ff134546f39e8b95fbe875f4a035956b756330f30'};
+const ACCT_HASH={'Emma':'867ebedfa81afd5fd4d7754d486d35d207eaa861654c9a110cff28cde0338a24','Steven':'005ad6acd11542fa2d73eb82386158c5d758bd9d11aacf4240da78fdbb1667f1','Minglu':'28bd4d5c53c75dafd28a7febf0c545acec7babc7fa3c33e705d62ed074da2024','Teri':'7dfa5ccb1cc2f6f98f4d8421f58b64088f1b779441e8b24331f47bf9fd1a5bb1','Bowen':'fd6799724957625584b2b19b792703bffa9de4c07c15eff4ce674b5e1f770003','Lucy':'1a431a30178a64137bffb91591d06a757d6eb65528749adae84ec24709571a2e','Peter':'532f14cc0e8d789c19ae733b0024abe43f93106514a04a7917416de29a22ab0d','Christina':'7d0f49167053e34f6111881ff134546f39e8b95fbe875f4a035956b756330f30','Man':'1d6cdc61a02a24561aab6fea78361323acea529f9ac5704f4c446e1f1a381774'};
 let AUTH_DEGRADED=false;
 function sha256Sync(msg){
   function rr(x,n){return (x>>>n)|(x<<(32-n));}
@@ -2105,6 +2105,9 @@ try{if(localStorage.getItem(PROXY_KEY)==='1')proxyEnable(false);}catch(e){}
 function acctEmail(name){return String(name||'').trim().toLowerCase()+AUTH_DOMAIN_SUFFIX;}
 const FIN_ACCTS=['Emma','Steven'];
 const RO_ACCTS=['Peter'];
+const MGMT_VIEW_ACCTS=['Man'];
+function hasMgmtView(){return !!session&&(session.role==='finance'||session.role==='readonly'||MGMT_VIEW_ACCTS.includes(session.name));}
+window.hasMgmtView=hasMgmtView;
 const LOG_ACCTS=['Emma'];
 const REMEMBER_KEY='img-login-remember';
 function loginPrefill(){
@@ -2225,7 +2228,7 @@ function enterApp(){
   if($('apUploadBtn'))$('apUploadBtn').style.display=isRO()?'none':'';
   if(isRO()){for(const id of ['ariDunBtn','ariArchBtn','ariOvdBtn2'])if($(id)&&id==='ariDunBtn')$(id).style.display='none';}
   $('ordAddBtn').style.display=isRO()?'none':'';
-  const _ana=(session.role==='finance'||session.name==='Peter');
+  const _ana=(session.role==='finance'||session.name==='Peter'||MGMT_VIEW_ACCTS.includes(session.name));
   for(const id of ['ordMrBtn','ordCaBtn','ordSupBtn','ordStatsBtn'])$(id).style.display=_ana?'':'none';
   if($('ariRcBigBtn'))$('ariRcBigBtn').style.display=_ana?'':'none';
   if($('apDupScanBtn'))$('apDupScanBtn').style.display=(session.role==='finance')?'':'none';
@@ -11432,7 +11435,7 @@ function caRender(){
   h+='</table>';
   $('caBody').innerHTML=h;
 }
-function canAnalytics(){return !!session&&(session.role==='finance'||session.role==='readonly');}
+function canAnalytics(){return !!session&&(session.role==='finance'||session.role==='readonly'||(typeof hasMgmtView==='function'&&hasMgmtView()));}
 function isRO(){return !!session&&session.role==='readonly';}
 function canLog(){return !!session&&LOG_ACCTS.includes(session.name);}
 
@@ -11564,10 +11567,11 @@ function hmRows(items,empty){
 }
 
 window.mrData=mrData;
+window.canAnalytics=canAnalytics;window.isRO=isRO;
 
 const HR_PATH=DB_PREFIX+'img-hr/state';
 const HR_KEY='img-hr-state';
-const HR_STAFF=['Minglu','Christina','Bowen'];
+const HR_STAFF=['Minglu','Christina','Bowen','Man'];
 const HR_APPROVER='Peter';
 const HR_TYPES={vac:'年假',sick:'病假',comp:'调休（折加班）',ot:'加班登记'};
 let hrItems=[];let _hrStarted=false;
@@ -11840,7 +11844,7 @@ function renderHR(){
 }
 
 const HR_CFG_PATH=DB_PREFIX+'img-hr/config';
-const HR_CFG_DEFAULT={_hoursPerDay:8,Minglu:{quota:26,entry:'2026-01-01',carry:0,quotaYear:null},Bowen:{quota:26,entry:'2026-01-01',carry:0,quotaYear:null},Christina:{quota:24,entry:'2026-07-20',carry:0,quotaYear:null}};
+const HR_CFG_DEFAULT={_hoursPerDay:8,Minglu:{quota:26,entry:'2026-01-01',carry:0,quotaYear:null},Bowen:{quota:26,entry:'2026-01-01',carry:0,quotaYear:null},Christina:{quota:24,entry:'2026-07-20',carry:0,quotaYear:null},Man:{quota:25,entry:'2026-10-01',carry:0,quotaYear:null}};
 let hrCfg=null;let _hrCalYM=null;
 function hrCfgGet(){const c=hrCfg||HR_CFG_DEFAULT;const out={_hoursPerDay:Number(c._hoursPerDay)||8};for(const n of HR_STAFF)out[n]=Object.assign({},HR_CFG_DEFAULT[n],c[n]||{});return out;}
 function hrQuotaSuggest(p,Y){
@@ -11974,6 +11978,7 @@ function hrCfgCardEnsure(){
     }else if(card)card.remove();
   }catch(e){}
 }
+window.hrBalance=hrBalance;window.HR_APPROVER=HR_APPROVER;window.canHR=canHR;
 
 const BANK_PATH=DB_PREFIX+'img-bank/state';
 const BANK_KEY='img-bank-state';
@@ -12509,7 +12514,7 @@ async function bankDupReceiptsFix(){
 }
 window.bankDupReceiptsScan=bankDupReceiptsScan;window.bankDupReceiptsFix=bankDupReceiptsFix;
 
-const BASE_CREATORS=['Christina','Minglu','Bowen','Teri'];
+const BASE_CREATORS=['Christina','Minglu','Bowen','Teri','Man'];
 function canBaseCreate(){return !!session&&(session.role==='finance'||BASE_CREATORS.includes(session.name));}
 
 function baseNameKey(s){
@@ -13092,6 +13097,7 @@ function homeRender(){
       }
     }catch(e){}
     out+='<div class="hm-hero">'+cards.map(c=>c.html).join('')+'</div>';
+    if(!fin&&!isRO()&&typeof hasMgmtView==='function'&&hasMgmtView())out+='<div class="hm-sec" data-act="db" style="cursor:pointer;background:var(--n-wash);padding:8px 12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span>📊 经营驾驶舱（管理视角）</span><span style="font-size:11.5px">打开 ›</span></div>';
     out+='<div class="hm-sec">'+ic('warn','ic-sm')+'我的超期未开票（前 5）</div>';
     out+=hmRows(noInv.slice(0,5).map(o=>({
       no:o.orderNo,who:o.customer||'',act:'ord2:'+o.orderNo,
@@ -14827,6 +14833,7 @@ I18N_RULES.push(
 [/^平台未录入这些发票号：(\d+(?:[.,]\d+)?)——请先在应收\/应付录入$/,{en:"These invoice numbers are not in the platform: $1 — enter them under AR/AP first",de:"Diese Rechnungsnummern fehlen in der Plattform: $1 — zuerst unter Debitoren/Kreditoren erfassen"}],
 [/^(\d+(?:[.,]\d+)?)\ 张已付清\/已收讫，确认时仅关联流水号、不再重复记账$/,{en:"$1 already settled; confirming attaches the bank ref only, no duplicate booking",de:"$1 bereits beglichen; Bestätigen verknüpft nur die Bankreferenz, keine Doppelbuchung"}],
 [/^🧹\ 清理重复到账（(\d+(?:[.,]\d+)?)）$/,{en:"🧹 Clean duplicate receipts ($1)",de:"🧹 Doppelte Eingänge bereinigen ($1)"}],
+[/^(\d+(?:[.,]\d+)?)\ 额度\(建议\ (\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)\)$/,{en:"$1 quota (suggested $2/$3/$4/$5)",de:"$1 Anspruch (Vorschlag $2/$3/$4/$5)"}],
 [/^休假中 · 代办 (.+)$/,{en:"On leave · deputy $1",de:"Abwesend · Vertretung $1"}],
 [/^默认 (.+)$/,{en:"Default $1",de:"Standard $1"}],
 [/^代办中（(.+) 休假）$/,{en:"Covering ($1 on leave)",de:"Vertretung ($1 abwesend)"}],
