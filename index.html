@@ -985,7 +985,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.5</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.6</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1635,7 +1635,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=34.5;
+const APP_VERSION=34.6;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -9342,21 +9342,25 @@ function dunLetterBuild(customer){
   '</body></html>');
   return {docHtml:docHtml,invs:invs,sum:Math.round(sum*100)/100,cur:cur};
 }
-async function dunArchiveAdd(customer,docHtml,extra){
-  const meta2=await docArchive('Reminder-'+customer.replace(/[^\w\u4e00-\u9fa5-]+/g,'_')+'-'+todayStr()+'.html',docHtml);
+async function dunArchiveAdd(customer,content,extra){
+  const base='Reminder-'+customer.replace(/[^\w\u4e00-\u9fa5-]+/g,'_')+'-'+todayStr();
+  const meta2=await docArchive(base+((content instanceof Blob)?'.pdf':'.html'),content);
   (meta.dunArch=meta.dunArch||[]).push(Object.assign({id:'da'+Date.now()+Math.random().toString(36).slice(2,5),customer:customer,fid:meta2.fid,name:meta2.name,at:Date.now(),by:session.name},extra||{}));
   await metaSave();
 }
-function dunningLetter(customer){
-  const B=dunLetterBuild(customer);const docHtml=B.docHtml;
-  const w=window.open('','_blank');
-  if(!w){toast('浏览器拦截了弹窗，请允许后重试');return;}
-  w.document.write(docHtml);
-  w.document.close();
-  (async function(){
-    try{await dunArchiveAdd(customer,docHtml,{});toast('催款函已生成并归档');}
-    catch(e){console.error('催款函归档失败:',e&&e.message);toast('提示：函件归档未成功（'+((e&&e.message)||'')+'），打印不受影响');}
-  })();
+async function dunningLetter(customer,opts){
+  opts=opts||{};
+  const B=dunLetterBuild(customer);const base='Reminder-'+customer.replace(/[^\w\u4e00-\u9fa5-]+/g,'_')+'-'+todayStr();
+  toast('⏳ 正在生成 PDF…');
+  let pdf=null;
+  try{pdf=await htmlToPdfBlob(B.docHtml,base+'.pdf');}
+  catch(e){
+    const w=window.open('','_blank');if(!w){toast('PDF 生成失败且弹窗被拦截：'+(e.message||e));return null;}
+    w.document.write(B.docHtml);w.document.close();toast('PDF 组件不可用，已改为打印窗口（可另存为 PDF）');return null;}
+  if(!opts.noSave)saveBlob(pdf,base+'.pdf');
+  try{await dunArchiveAdd(customer,pdf,{});toast('催款函 PDF 已生成并归档');}
+  catch(e){console.error('催款函归档失败:',e&&e.message);toast('提示：函件归档未成功（'+((e&&e.message)||'')+'），下载不受影响');}
+  return pdf;
 }
 
 async function dunPackExport(customer,opts){
@@ -9365,7 +9369,8 @@ async function dunPackExport(customer,opts){
   if(!B.invs.length){toast('该客户没有未收讫的应收发票');return null;}
   await ensureJSZip();
   const zip=new JSZip();const base='Reminder-'+customer.replace(/[^\w\u4e00-\u9fa5-]+/g,'_')+'-'+todayStr();
-  zip.file(base+'.html',B.docHtml);
+  let pdf=null;try{pdf=await htmlToPdfBlob(B.docHtml,base+'.pdf');}catch(e){}
+  if(pdf)zip.file(base+'.pdf',pdf);else zip.file(base+'.html',B.docHtml);
   const fails=[],noAtt=[];let n=0;
   for(const x of B.invs){
     const files=(x.files||[]).filter(Boolean);
@@ -9380,11 +9385,11 @@ async function dunPackExport(customer,opts){
   if(fails.length)zip.file('_未能打包.txt',fails.join('\n'));
   const blob=await zip.generateAsync({type:'blob'});
   if(!opts.noSave)saveBlob(blob,base+'.zip');
-  try{await dunArchiveAdd(customer,B.docHtml,{pack:true,invN:B.invs.length,fileN:n,sum:B.sum,cur:B.cur});}catch(e){}
+  try{await dunArchiveAdd(customer,pdf||B.docHtml,{pack:true,invN:B.invs.length,fileN:n,sum:B.sum,cur:B.cur});}catch(e){}
   toast('已导出：催款函 + '+n+' 个发票文件'+(noAtt.length?('（'+noAtt.length+' 张缺附件）'):''));
-  return {invN:B.invs.length,files:n,noAtt:noAtt.length,fails:fails.length,sum:B.sum,bytes:blob.size||0};
+  return {invN:B.invs.length,files:n,noAtt:noAtt.length,fails:fails.length,sum:B.sum,bytes:blob.size||0,letterPdf:!!pdf};
 }
-window.dunPackExport=dunPackExport;window.dunLetterBuild=dunLetterBuild;
+window.dunPackExport=dunPackExport;window.dunLetterBuild=dunLetterBuild;window.dunningLetter=dunningLetter;
 
 function baseExport(key,title,fields){
   ensureXLSX().then(()=>{
@@ -11543,11 +11548,26 @@ $('ordCaBtn').onclick=()=>{if(!canAnalytics())return;caRender();$('caOverlay').c
 $('caClose').onclick=()=>$('caOverlay').classList.remove('open');
 $('caOverlay').addEventListener('click',e=>{if(e.target===$('caOverlay'))$('caOverlay').classList.remove('open');});
 
-async function docArchive(name,htmlStr){
+async function htmlToPdfBlob(docHtml,filename){
+  await ensureHtml2Pdf();
+  const host=document.createElement('div');host.style.cssText='position:fixed;left:-10000px;top:0;width:794px;background-color:rgb(255,255,255);color:#1B2B27';
+  const body=(docHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i)||[,docHtml])[1].replace(/<div class="noprint"[\s\S]*?<\/div>/,'');
+  const style=(docHtml.match(/<style>([\s\S]*?)<\/style>/i)||[,''])[1];
+  host.innerHTML='<style>'+style.replace(/body\{/,'.dunpdf{')+'</style><div class="dunpdf" style="padding:30px 40px">'+body+'</div>';
+  document.body.appendChild(host);
+  try{
+    const blob=await window.html2pdf().set({margin:[8,8,8,8],filename:filename||'reminder.pdf',image:{type:'jpeg',quality:0.95},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy']}}).from(host.firstElementChild.nextElementSibling).outputPdf('blob');
+    return blob;
+  }finally{host.remove();}
+}
+window.htmlToPdfBlob=htmlToPdfBlob;
+async function docArchive(name,content,type){
   const fid='f'+Date.now()+Math.random().toString(36).slice(2,7);
-  const data=btoa(unescape(encodeURIComponent(htmlStr)));
-  await apStoreFile(fid,{name:name,type:'text/html',data:data,size:htmlStr.length,at:Date.now(),by:session.name});
-  return {fid:fid,name:name,type:'text/html',size:htmlStr.length};
+  let data,size;
+  if(content instanceof Blob){size=content.size;data=await new Promise((res,rej)=>{const rd=new FileReader();rd.onerror=()=>rej(new Error('read'));rd.onload=()=>{const raw=String(rd.result||'');res(raw.includes(',')?raw.split(',')[1]:'');};rd.readAsDataURL(content);});type=type||content.type||'application/pdf';}
+  else{data=btoa(unescape(encodeURIComponent(content)));size=content.length;type=type||'text/html';}
+  await apStoreFile(fid,{name:name,type:type,data:data,size:size,at:Date.now(),by:session.name});
+  return {fid:fid,name:name,type:type,size:size};
 }
 function dunArchRender(){
   const list=(meta.dunArch||[]).slice().sort((a,b)=>(b.at||0)-(a.at||0));
@@ -11564,7 +11584,7 @@ function dunArchRender(){
   }
   $('dunArchBody').innerHTML=h;
   for(const b of $('dunArchBody').querySelectorAll('button.ap-file')){
-    b.onclick=()=>apDownload({fid:b.dataset.fid,name:b.dataset.name,type:'text/html'});
+    b.onclick=()=>apDownload({fid:b.dataset.fid,name:b.dataset.name,type:/\.pdf$/i.test(b.dataset.name||'')?'application/pdf':'text/html'});
   }
   for(const b of $('dunArchBody').querySelectorAll('button[data-del]')){
     b.onclick=async()=>{
@@ -14685,6 +14705,9 @@ Object.assign(I18N,{
 "催款函 HTML + 该客户全部未收讫发票 PDF 打包为 ZIP":{en:"ZIP with the reminder letter and all open invoice PDFs of this customer",de:"ZIP mit Mahnschreiben und allen offenen Rechnungs-PDFs dieses Kunden"},
 "该客户没有未收讫的应收发票":{en:"This customer has no open invoices",de:"Dieser Kunde hat keine offenen Rechnungen"},
 "打包中…":{en:"Packing…",de:"Wird gepackt…"},
+"⏳ 正在生成 PDF…":{en:"⏳ Generating PDF…",de:"⏳ PDF wird erstellt…"},
+"催款函 PDF 已生成并归档":{en:"Reminder PDF generated and archived",de:"Mahnung als PDF erstellt und archiviert"},
+"PDF 组件不可用，已改为打印窗口（可另存为 PDF）":{en:"PDF component unavailable; opened print window instead (save as PDF there)",de:"PDF-Komponente nicht verfügbar; Druckfenster geöffnet (dort als PDF speichern)"},
 "本期开票 = 所选月份（默认当月）开票日的正票 含税金额合计（EUR）；冲销票与待开票存根不计":{en:"Invoiced in period = gross total (EUR) of positive invoices dated in the selected month (default: current); cancellations and stubs excluded",de:"Berechnet im Zeitraum = Bruttosumme (EUR) der positiven Rechnungen im gewählten Monat (Standard: aktuell); Stornos und Platzhalter ausgeschlossen"},
 "本期已收 = 本期发票已到账部分（按核销）；回款率 = 已收 ÷ 本期开票":{en:"Received in period = allocated receipts on this period's invoices; rate = received ÷ invoiced",de:"Eingegangen = zugeordnete Zahlungen auf Rechnungen des Zeitraums; Quote = Eingang ÷ berechnet"},
 "本期未收 = 本期发票 含税金额 − 已核销到账":{en:"Open in period = gross of period invoices − allocated receipts",de:"Offen im Zeitraum = brutto − zugeordnete Zahlungen"},
