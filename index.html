@@ -985,7 +985,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.4</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v34.5</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1468,6 +1468,7 @@ td{font-size:12.5px}
     <div id="dunPickInfo" style="font-size:12.5px;color:var(--ink-soft);margin:-4px 0 12px"></div>
     <div class="modal-actions">
       <button class="btn-cancel" id="dunPickCancel" type="button">取消</button>
+      <button class="btn-ghost" id="dunPickZip" type="button" title="催款函 HTML + 该客户全部未收讫发票 PDF 打包为 ZIP">📦 催款函 + 发票 PDF</button>
       <button class="btn-add" id="dunPickGo" type="button">生成催款函</button>
     </div>
   </div>
@@ -1634,7 +1635,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=34.4;
+const APP_VERSION=34.5;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2105,6 +2106,9 @@ try{if(localStorage.getItem(PROXY_KEY)==='1')proxyEnable(false);}catch(e){}
 function acctEmail(name){return String(name||'').trim().toLowerCase()+AUTH_DOMAIN_SUFFIX;}
 const FIN_ACCTS=['Emma','Steven'];
 const RO_ACCTS=['Peter'];
+const DUN_ACCTS=['Minglu','Bowen','Christina','Teri','Man'];
+function canDun(){return !!session&&!isRO()&&(session.role==='finance'||DUN_ACCTS.includes(session.name));}
+window.canDun=canDun;
 const MGMT_VIEW_ACCTS=['Man'];
 function hasMgmtView(){return !!session&&(session.role==='finance'||session.role==='readonly'||MGMT_VIEW_ACCTS.includes(session.name));}
 window.hasMgmtView=hasMgmtView;
@@ -2262,8 +2266,8 @@ function enterApp(){
     document.body.appendChild(rb);document.body.style.paddingTop='26px';
   }
   if($('ordInqSaBtn'))$('ordInqSaBtn').style.display='none';
-  $('ariDunBtn').style.display=session.role==='finance'?'':'none';
-  $('ariArchBtn').style.display=session.role==='finance'?'':'none';
+  $('ariDunBtn').style.display=(typeof canDun==='function'&&canDun())?'':'none';
+  $('ariArchBtn').style.display=(typeof canDun==='function'&&canDun())?'':'none';
   $('fMonth').value=todayStr().slice(0,7);
   $('loadingBox').style.display='none';
   updateBadge();
@@ -9286,7 +9290,7 @@ function statsRender(){
   $('statsBody').innerHTML=h;
 }
 
-function dunningLetter(customer){
+function dunLetterBuild(customer){
 
   const invs=ariItems.filter(x=>{
     if(x.deleted||!x.invNo||x.customer!==customer)return false;
@@ -9336,19 +9340,51 @@ function dunningLetter(customer){
   '<p style="margin-top:26px">'+DUN_L.sign+'<br><b>IMG Europe GmbH · Finance</b></p>'+
   '<div class="noprint" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="padding:10px 26px;background:#0E3B33;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer">'+(LANG==='de'?'🖨️ Drucken / Als PDF speichern':LANG==='en'?'🖨️ Print / Save as PDF':'🖨️ 打印 / 另存为 PDF')+'</button></div>'+
   '</body></html>');
+  return {docHtml:docHtml,invs:invs,sum:Math.round(sum*100)/100,cur:cur};
+}
+async function dunArchiveAdd(customer,docHtml,extra){
+  const meta2=await docArchive('Reminder-'+customer.replace(/[^\w\u4e00-\u9fa5-]+/g,'_')+'-'+todayStr()+'.html',docHtml);
+  (meta.dunArch=meta.dunArch||[]).push(Object.assign({id:'da'+Date.now()+Math.random().toString(36).slice(2,5),customer:customer,fid:meta2.fid,name:meta2.name,at:Date.now(),by:session.name},extra||{}));
+  await metaSave();
+}
+function dunningLetter(customer){
+  const B=dunLetterBuild(customer);const docHtml=B.docHtml;
   const w=window.open('','_blank');
   if(!w){toast('浏览器拦截了弹窗，请允许后重试');return;}
   w.document.write(docHtml);
   w.document.close();
   (async function(){
-    try{
-      const meta2=await docArchive('Reminder-'+customer.replace(/[^\w\u4e00-\u9fa5-]+/g,'_')+'-'+todayStr()+'.html',docHtml);
-      (meta.dunArch=meta.dunArch||[]).push({id:'da'+Date.now()+Math.random().toString(36).slice(2,5),customer:customer,fid:meta2.fid,name:meta2.name,at:Date.now(),by:session.name});
-      await metaSave();
-      toast('催款函已生成并归档');
-    }catch(e){console.error('催款函归档失败:',e&&e.message);toast('提示：函件归档未成功（'+((e&&e.message)||'')+'），打印不受影响');}
+    try{await dunArchiveAdd(customer,docHtml,{});toast('催款函已生成并归档');}
+    catch(e){console.error('催款函归档失败:',e&&e.message);toast('提示：函件归档未成功（'+((e&&e.message)||'')+'），打印不受影响');}
   })();
 }
+
+async function dunPackExport(customer,opts){
+  opts=opts||{};
+  const B=dunLetterBuild(customer);
+  if(!B.invs.length){toast('该客户没有未收讫的应收发票');return null;}
+  await ensureJSZip();
+  const zip=new JSZip();const base='Reminder-'+customer.replace(/[^\w\u4e00-\u9fa5-]+/g,'_')+'-'+todayStr();
+  zip.file(base+'.html',B.docHtml);
+  const fails=[],noAtt=[];let n=0;
+  for(const x of B.invs){
+    const files=(x.files||[]).filter(Boolean);
+    if(!files.length){noAtt.push(x.invNo);continue;}
+    for(let i=0;i<files.length;i++){const f=files[i];
+      try{const blob=await packBlob(f);if(!blob){fails.push(x.invNo);continue;}
+        const ext=(String(f.name||'').match(/\.[a-z0-9]{2,5}$/i)||['.pdf'])[0];
+        zip.file('Invoices/'+String(x.invNo).replace(/[\/\\:*?"<>|]/g,'_')+(x.due?('_due-'+x.due):'')+(files.length>1?('_'+(i+1)):'')+ext,blob);n++;}
+      catch(e){fails.push(x.invNo);}}
+  }
+  if(noAtt.length)zip.file('_缺附件发票.txt','以下未收讫发票在平台上没有 PDF，请在应收页补传后再发：\n'+noAtt.join('\n'));
+  if(fails.length)zip.file('_未能打包.txt',fails.join('\n'));
+  const blob=await zip.generateAsync({type:'blob'});
+  if(!opts.noSave)saveBlob(blob,base+'.zip');
+  try{await dunArchiveAdd(customer,B.docHtml,{pack:true,invN:B.invs.length,fileN:n,sum:B.sum,cur:B.cur});}catch(e){}
+  toast('已导出：催款函 + '+n+' 个发票文件'+(noAtt.length?('（'+noAtt.length+' 张缺附件）'):''));
+  return {invN:B.invs.length,files:n,noAtt:noAtt.length,fails:fails.length,sum:B.sum,bytes:blob.size||0};
+}
+window.dunPackExport=dunPackExport;window.dunLetterBuild=dunLetterBuild;
 
 function baseExport(key,title,fields){
   ensureXLSX().then(()=>{
@@ -11281,6 +11317,10 @@ $('dunPickGo').onclick=function(){
   if(!c)return;
   $('dunPickOverlay').classList.remove('open');
   dunningLetter(c);
+};
+$('dunPickZip').onclick=async function(){
+  const c=$('dunPickSel').value;if(!c)return;const b=$('dunPickZip');b.disabled=true;const t0=b.textContent;b.textContent='打包中…';
+  try{await dunPackExport(c);$('dunPickOverlay').classList.remove('open');}catch(e){toast('打包失败：'+(e.message||e));}finally{b.disabled=false;b.textContent=t0;}
 };
 
 function _mEUR(list,dateKey,amtKey,month){
@@ -14641,6 +14681,10 @@ Object.assign(I18N,{
 "地址（可选）":{en:"Address (optional)",de:"Adresse (optional)"},
 "例如：德国 / 波兰":{en:"e.g. Germany / Poland",de:"z. B. Deutschland / Polen"},
 "主数据":{en:"Master data",de:"Stammdaten"},
+"📦 催款函 + 发票 PDF":{en:"📦 Reminder + invoice PDFs",de:"📦 Mahnung + Rechnungs-PDFs"},
+"催款函 HTML + 该客户全部未收讫发票 PDF 打包为 ZIP":{en:"ZIP with the reminder letter and all open invoice PDFs of this customer",de:"ZIP mit Mahnschreiben und allen offenen Rechnungs-PDFs dieses Kunden"},
+"该客户没有未收讫的应收发票":{en:"This customer has no open invoices",de:"Dieser Kunde hat keine offenen Rechnungen"},
+"打包中…":{en:"Packing…",de:"Wird gepackt…"},
 "本期开票 = 所选月份（默认当月）开票日的正票 含税金额合计（EUR）；冲销票与待开票存根不计":{en:"Invoiced in period = gross total (EUR) of positive invoices dated in the selected month (default: current); cancellations and stubs excluded",de:"Berechnet im Zeitraum = Bruttosumme (EUR) der positiven Rechnungen im gewählten Monat (Standard: aktuell); Stornos und Platzhalter ausgeschlossen"},
 "本期已收 = 本期发票已到账部分（按核销）；回款率 = 已收 ÷ 本期开票":{en:"Received in period = allocated receipts on this period's invoices; rate = received ÷ invoiced",de:"Eingegangen = zugeordnete Zahlungen auf Rechnungen des Zeitraums; Quote = Eingang ÷ berechnet"},
 "本期未收 = 本期发票 含税金额 − 已核销到账":{en:"Open in period = gross of period invoices − allocated receipts",de:"Offen im Zeitraum = brutto − zugeordnete Zahlungen"},
