@@ -758,6 +758,7 @@ td{font-size:12.5px}
         <input type="search" id="ariFSearch" placeholder="搜索客户 / 发票号 / 成单号…">
         <span class="spacer"></span>
         <button class="btn-ghost" id="ariDunBtn" type="button" style="display:none"><svg class="ic" aria-hidden="true"><use href="#i-mail"/></svg> 催款函</button>
+        <button class="btn-ghost" id="ariNetBtn" type="button" style="display:none;border-color:var(--bad);color:var(--bad)" title="发票净额与锁定明细不一致的正式发票：一键按明细修正（财务）">🧮 净额≠明细</button>
         <button class="btn-ghost" id="ariArchBtn" type="button" style="display:none"><svg class="ic" aria-hidden="true"><use href="#i-folder"/></svg> 函件归档</button>
         <button class="dens-btn" id="ariDensBtn" type="button" title="切换行高：紧凑 / 舒适"><svg class="ic" aria-hidden="true"><use href="#i-rows"/></svg> 紧凑</button><button class="btn-ghost" id="ariExportBtn" type="button">导出 Excel</button><button class="btn-ghost" id="ariOvdBtn2" type="button"><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg> 导出逾期发票</button><button class="btn-ghost" id="ariRcBigBtn" type="button" style="display:none">📊 收入成本大表</button><button class="btn-ghost" id="gmBtn" type="button" style="display:none" title="毛利趋势（月/客户/服务分类/负责人）+ 低毛利/负毛利预警（只读，大表口径）">📈 毛利预警</button><button class="btn-ghost" id="blBtn" type="button" style="display:none" title="清提派 vs 卡车派送：收入/毛利率/单均毛利/DSO（只读，大表口径）">🏁 业务线对比</button><button class="btn-ghost" id="cpBtn" type="button" style="display:none" title="按客户：收入/毛利/毛利率/DSO/回款天数/逾期率/冲销率（只读）">👥 客户盈利画像</button><button class="btn-ghost" id="tmBtn" type="button" style="display:none" title="按制作人：建单/完结/SOP周期/滞留率/开票延迟/询价转化（只读，公平口径）">🧭 团队效率</button><button class="btn-ghost" id="cashBtn" type="button" style="display:none" title="未来13周现金流预测：应收到期流入 − 应付到期流出（只读分析）">💧 现金流预测</button><button class="btn-ghost" id="agingBtn" type="button" style="display:none" title="AR/AP 账龄分桶 + DSO/DPO + 近6个月趋势（只读分析）">📅 账龄分析</button><button class="btn-ghost" id="ariBulkBtn" type="button" style="display:none" title="对当前筛选结果批量操作（催收标记）">🧰 批量操作</button><button class="btn-ghost" id="closeBtn" type="button" style="display:none" title="月结清单：自动检测项自动打勾，人工项勾选后保存（财务）">✅ 月结清单</button><button class="btn-ghost" id="ariArcBtn" type="button" style="display:none" title="生成整月凭证包（大表 Excel + 全部收入/成本发票 PDF）并登记归档记录，请另存到公司网盘作为第二副本">📦 月度归档</button>
         <button class="btn-add" id="ariAddBtn" type="button" style="display:none">＋ 登记发票</button>
@@ -986,7 +987,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.2</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.4</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1137,6 +1138,10 @@ td{font-size:12.5px}
       <div id="aiRevRows"></div>
       <div id="aiRevSum" style="display:flex;justify-content:flex-end;gap:14px;font-size:12.5px;font-family:var(--font-num);padding-top:8px;margin-top:6px;border-top:1px dashed var(--line)"></div>
       <div id="aiRevWarn" style="display:none;margin-top:8px;padding:7px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:12px;font-weight:600"></div>
+      <div id="aiNetOverrideBox" style="display:none;margin-top:8px;padding:8px 10px;border:1.5px dashed var(--warn);border-radius:8px;font-size:12px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600"><input type="checkbox" id="aiNetOverride" style="accent-color:var(--warn)"> 以 sevdesk 实开金额为准（明细合计与净额不一致，我已核对）</label>
+        <input id="aiNetReason" placeholder="原因 *（例如：剔除代垫 / 客户协商减免 / 部分开票）" style="margin-top:6px;width:100%;border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12px">
+      </div>
       <div id="aiRevLock" style="display:none;margin-top:8px;font-size:11.5px;color:var(--ink-soft)"></div>
     </div>
     <div class="login-err" id="ariErr"></div>
@@ -1636,7 +1641,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=35.2;
+const APP_VERSION=35.4;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -5088,6 +5093,9 @@ function healthCalc(){
 
   add('stubDated','待开票存根带日期或金额',ariItems.filter(function(x){return !x.deleted&&!x.invNo&&!x.storno&&!x.cancelledBy&&(x.invDate||(Number(x.gross)||0)||(Number(x.net)||0));}).length,'warn','存根应无日期与金额；请核对是否漏填发票号（报表已排除存根）','ari');
 
+  try{const nl=(typeof ariNetLineScan==='function')?ariNetLineScan().length:0;add('arNetLine','应收发票净额与服务项明细不一致',nl,'bad',nl?'发票金额与锁定明细不符（开票预填曾取过期售价字段）；应收页「🧮 净额≠明细」按明细修正，或在该发票编辑里勾选以 sevdesk 实开为准':'','arinet');}catch(e){}
+  try{const sm=(typeof ordSaleMisScan==='function')?ordSaleMisScan().length:0;add('ordSaleMis','在途订单售价字段与服务项合计不一致',sm,'warn',sm?'下次改服务项或对接财务时自动对齐；也可在订单详情点「设为客户售价」':'','ord');}catch(e){}
+
   try{const K=kpCalc();add('keyPerson','关键人依赖（单人占比 ≥ '+K.threshold+'%）',K.risky.length,'warn',K.text,'tm');}catch(e){}
   add('apFile','应付发票无附件',apEnt.filter(function(x){return !(x.files||[]).length;}).length,'warn','月度归档会缺凭证','apall');
   add('apOrd','应付成本明细缺单号/未拆分',apEnt.filter(function(x){return !(x.costLines||[]).length||x.costLines.some(function(l){return !l.ord;});}).length,'bad','大表无法匹配成本','apall');
@@ -7888,15 +7896,33 @@ function ariLineDiff(x){
   const d=Math.round((ariLineNet(x)-net)*100)/100;
   return Math.abs(d)<=0.01?0:d;
 }
+
+function ordSvcSum(o){
+  const sums={};
+  for(const s of ((o&&o.svc)||[])){if(s.price==null)continue;const c=s.cur||'EUR';sums[c]=Math.round(((sums[c]||0)+(Number(svcLineNet(s))||0))*100)/100;}
+  const ks=Object.keys(sums);
+  if(ks.length===1)return {v:sums[ks[0]],cur:ks[0],multi:false};
+  return {v:null,cur:'',multi:ks.length>1};
+}
+function ordSaleRef(o){const s=ordSvcSum(o);return (s.v!=null&&Math.abs(s.v)>0.005)?s.v:(o.salePrice||null);}
+function ordSaleSync(o){
+  const s=ordSvcSum(o);if(s.v==null||Math.abs(s.v)<=0.005)return false;
+  if(Math.abs((Number(o.salePrice)||0)-s.v)<=0.005&&(o.saleCur||'EUR')===s.cur)return false;
+  const old=o.salePrice;o.salePrice=s.v;o.saleCur=s.cur;
+  logAdd(o,'客户售价按服务项合计自动更新：'+(old!=null&&old!==''?fmt(old):'—')+' → '+fmt(s.v)+' '+s.cur);
+  return true;
+}
+window.ordSvcSum=ordSvcSum;window.ordSaleRef=ordSaleRef;window.ordSaleSync=ordSaleSync;
 function ordFinStubSyncLines(o){
 
+  try{ordSaleSync(o);}catch(e){}
   try{
     const stubs=ariItems.filter(x=>!x.deleted&&x.orderNo===o.orderNo&&!x.invNo);
     if(!stubs.length)return;
     for(const stub of stubs){
       if(stub.linesLocked)continue;
       stub.lines=ordSvcLines(o);
-      if(!stub.extra)stub.refSale=o.salePrice||stub.refSale;
+      if(!stub.extra)stub.refSale=ordSaleRef(o)||stub.refSale;
       stub._up=Date.now();
     }
     ariSaveAll().catch(function(){});
@@ -7948,12 +7974,14 @@ async function ordFinStubCreate(o,term){
   let stub=ariItems.find(x=>!x.deleted&&x.orderNo===o.orderNo&&!x.invNo);
   const done=ariItems.find(x=>!x.deleted&&x.orderNo===o.orderNo&&x.invNo);
   if(done)return;
-  if(stub){stub.term=t;stub.lines=ordSvcLines(o);stub._up=Date.now();await ariSaveAll();return;}
+  try{ordSaleSync(o);}catch(e){}
+  const _ref=ordSaleRef(o),_sv=ordSvcSum(o);
+  if(stub){stub.term=t;stub.lines=ordSvcLines(o);if(!stub.extra)stub.refSale=_ref||stub.refSale;stub._up=Date.now();await ariSaveAll();return;}
   ariItems.push({
     id:'ai'+Date.now()+Math.random().toString(36).slice(2,7),
     customer:o.customer,orderNo:o.orderNo,currency:o.saleCur||'EUR',term:t,
-    vatRate:o.vatRate??19,refSale:o.salePrice||null,lines:ordSvcLines(o),fromOrder:true,_up:Date.now(),
-    comments:[{author:bizName(),role:session.role,text:'订单 '+o.orderNo+' 服务完成，待财务开票。账期：'+(TERM_LABEL[t]||t+' 天')+'。'+(o.salePrice?'参考售价 '+fmt(o.salePrice)+' '+(o.saleCur||'EUR')+'。':''),time:Date.now()}],
+    vatRate:o.vatRate??19,refSale:_ref,lines:ordSvcLines(o),fromOrder:true,_up:Date.now(),
+    comments:[{author:bizName(),role:session.role,text:'订单 '+o.orderNo+' 服务完成，待财务开票。账期：'+(TERM_LABEL[t]||t+' 天')+'。'+(_ref?((_sv.v!=null?'服务项合计 ':'参考售价 ')+fmt(_ref)+' '+(o.saleCur||'EUR')+'。'):'')+(_sv.multi?'（多币种明细，请分币种核对。）':''),time:Date.now()}],
     createdBy:bizName(),createdAt:Date.now()
   });
   await ariSaveAll();
@@ -9168,7 +9196,7 @@ async function ordSaveEdit(){
       try{
         const stub=ariItems.find(x=>!x.deleted&&(x.orderNo===oldNo||x.orderNo===no)&&!x.invNo);
         if(stub){
-          stub.orderNo=no;stub.customer=cust;stub.refSale=sale;stub.lines=ordSvcLines(o);
+          stub.orderNo=no;stub.customer=cust;stub.refSale=(typeof ordSaleRef==='function'?ordSaleRef(o):sale);stub.lines=ordSvcLines(o);
           stub.currency=$('oSaleCur').value;stub.vatRate=parseFloat($('oVatRate').value)||0;
           stub._up=Date.now();
           await ariSaveAll();
@@ -10238,6 +10266,7 @@ function statGoBind(){
 }
 function renderARI(){
   setTimeout(stickyAll,0);
+  try{const nb=$('ariNetBtn');if(nb){const n=(session&&session.role==='finance'&&typeof ariNetLineScan==='function')?ariNetLineScan().length:0;nb.style.display=n?'':'none';nb.textContent='🧮 净额≠明细（'+n+'）';}}catch(e){}
   try{statGoBind();}catch(e){}
   if(!$('ariBody'))return;
   try{ariChipsRender();}catch(e){}
@@ -10638,7 +10667,7 @@ $('stornoOk').onclick=async function(){
           id:'ai'+Date.now()+Math.random().toString(36).slice(2,7),
           customer:x.customer,orderNo:x.orderNo||'',currency:x.currency||'EUR',
           term:x.term!=null?x.term:14,vatRate:x.vatRate??19,
-          refSale:o2?(o2.salePrice||null):null,
+          refSale:o2?(typeof ordSaleRef==='function'?ordSaleRef(o2):(o2.salePrice||null)):null,
           lines:o2?ordSvcLines(o2):(x.lines||[]),
           extra:true,fromOrder:true,
           note:'🔁 冲销重开（原发票 '+x.invNo+'）：'+(x.reopenReq.note||''),
@@ -10811,7 +10840,61 @@ function aiRevSum(){
   const d=Math.round((net-inv)*100)/100;
   if(Math.abs(d)<=0.01)w.style.display='none';
   else{w.style.display='';w.innerHTML=ic('warn','ic-sm')+' 收入明细净额合计 '+fmt(net)+' 与发票不含税金额 '+fmt(inv)+' 相差 '+fmt(Math.abs(d))+'，请核对';}
+  try{const ob=$('aiNetOverrideBox');if(ob)ob.style.display=(Math.abs(d)>0.01&&($('aiInvNo').value||'').trim())?'':'none';}catch(e){}
 }
+
+function ariNetOvRespected(x){return !!(x.netOverride&&Math.abs((Number(x.netOverride.net)||0)-(Number(x.net)||0))<=0.01);}
+function ariNetLineScan(){
+  return ariItems.filter(x=>!x.deleted&&x.invNo&&!x.storno&&!x.cancelledBy&&!x.fromImport&&!x.extra&&ariLineDiff(x)&&!ariNetOvRespected(x));
+}
+async function ariNetLineFix(ids){
+  let n=0,ordTouched=false;
+  for(const x of ariNetLineScan()){
+    if(ids&&ids.length&&!ids.includes(x.id))continue;
+    const old=Number(x.net)||0,ln=ariLineNet(x),rate=Number(x.vatRate)||0;
+    const vat=Math.round(ln*rate)/100,gross=Math.round((ln+vat)*100)/100;
+    x.net=ln;x.vat=vat;x.gross=gross;x._up=Date.now();
+    (x.comments=x.comments||[]).push({author:session.name,role:'finance',text:'🧮 净额按锁定明细修正：'+fmt(old)+' → '+fmt(ln)+'（含税 '+fmt(gross)+' '+(x.currency||'EUR')+'）。原因：开票时预填取了过期的订单售价字段（v35.3 修复）。',time:Date.now()});
+    try{const o=ordItems.find(oo=>!oo.deleted&&oo.orderNo===x.orderNo);if(o&&o.inv&&o.inv.no===x.invNo){o.inv.amount=ln;o.inv.gross=gross;o.inv.vatRate=rate;logAdd(o,'发票 '+x.invNo+' 净额按明细修正 '+fmt(old)+' → '+fmt(ln));o.up=Date.now();ordTouched=true;}}catch(e){}
+    n++;
+  }
+  if(n){await ariSaveAll();if(ordTouched){try{await ordSave();}catch(e){}}}
+  return n;
+}
+function ordSaleMisScan(){
+  if(typeof ordSvcSum!=='function')return [];
+  return ordItems.filter(o=>{if(o.deleted||o.type==='inq'||o.flag||(o.step||1)>=7)return false;const s=ordSvcSum(o);return s.v!=null&&Math.abs(s.v)>0.005&&Math.abs((Number(o.salePrice)||0)-s.v)>0.005;});
+}
+window.ariNetLineScan=ariNetLineScan;window.ariNetLineFix=ariNetLineFix;window.ordSaleMisScan=ordSaleMisScan;
+function ariNetFixOpen(){
+  const old=document.getElementById('ariNetOvl');if(old)old.remove();
+  const list=ariNetLineScan();
+  const ovl=document.createElement('div');ovl.id='ariNetOvl';
+  ovl.style.cssText='position:fixed;inset:0;background:rgba(20,28,26,.45);z-index:2400;display:flex;align-items:center;justify-content:center';
+  const card=document.createElement('div');
+  card.style.cssText='background:var(--card,#fff);border-radius:14px;padding:20px 22px;width:min(860px,95vw);max-height:90vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px';
+  let h='<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:700;font-size:15px">🧮 发票净额 ≠ 服务项明细（'+list.length+'）</div><button class="btn-ghost" id="ariNetClose" type="button">关闭</button></div>';
+  h+='<div style="font-size:11.5px;color:var(--ink-soft);margin:6px 0 10px">这些发票的净额与锁定明细合计不一致（v35.3 根因：财务开票时预填取了过期的订单售价字段）。勾选后「按明细修正」会重算净额/税额/含税并回写订单、留痕；若 sevdesk 实开金额确实与明细不同，请到该发票「编辑」勾选「以 sevdesk 实开为准」并填原因。</div>';
+  if(!list.length)h+='<div style="color:var(--ok);padding:12px">✓ 全部一致</div>';
+  else{
+    h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--n-wash)"><th style="padding:5px"><input type="checkbox" id="ariNetAll" checked></th><th style="text-align:left">发票号</th><th style="text-align:left">客户</th><th style="text-align:left">成单号</th><th class="amount">净额</th><th class="amount">明细合计</th><th class="amount">相差</th></tr></thead><tbody>';
+    for(const x of list){const ln=ariLineNet(x),d=Math.round((ln-(Number(x.net)||0))*100)/100;
+      h+='<tr><td style="padding:4px 5px;text-align:center"><input type="checkbox" class="ari-net-ck" data-id="'+esc(x.id)+'" checked></td><td style="font-weight:600">'+esc(x.invNo)+'</td><td>'+esc(x.customer||'—')+'</td><td>'+esc(x.orderNo||'—')+'</td><td class="amount">'+fmt(Number(x.net)||0)+'</td><td class="amount">'+fmt(ln)+'</td><td class="amount" style="color:var(--bad);font-weight:700">'+(d>0?'+':'')+fmt(d)+'</td></tr>';}
+    h+='</tbody></table><div style="margin-top:12px;display:flex;justify-content:flex-end"><button class="btn btn-primary" style="width:auto" id="ariNetFixBtn" type="button">✓ 按明细修正所选</button></div>';
+  }
+  card.innerHTML=h;ovl.appendChild(card);document.body.appendChild(ovl);
+  ovl.onclick=function(e){if(e.target===ovl)ovl.remove();};
+  document.getElementById('ariNetClose').onclick=function(){ovl.remove();};
+  const all=document.getElementById('ariNetAll');if(all)all.onchange=function(){card.querySelectorAll('.ari-net-ck').forEach(function(c){c.checked=all.checked;});};
+  const fb=document.getElementById('ariNetFixBtn');if(fb)fb.onclick=async function(){
+    const ids=[...card.querySelectorAll('.ari-net-ck')].filter(c=>c.checked).map(c=>c.dataset.id);
+    if(!ids.length){toast('未选择发票');return;}
+    if(!confirm('将 '+ids.length+' 张发票的净额改为锁定明细合计（税额/含税同步重算，订单开票信息同步，留痕）。执行？'))return;
+    fb.disabled=true;const n=await ariNetLineFix(ids);toast('已修正 '+n+' 张发票净额');ovl.remove();try{renderARI();}catch(e){}try{ariAlertUpdate();}catch(e){}
+  };
+}
+window.ariNetFixOpen=ariNetFixOpen;
+if($('ariNetBtn'))$('ariNetBtn').onclick=ariNetFixOpen;
 function aiRevPull(){
   if(_aiRevLocked){toast('明细已锁定，如需修改请走冲销重开');return;}
   const no=($('aiOrderNo').value||'').trim();
@@ -10834,6 +10917,7 @@ function aiRevPull(){
   aiRevRender();
   toast(add?('已带出 '+add+' 项'):'服务项均已带出');
 }
+let _ariNetOverridePending=null;
 function ariOpenEdit(x){
   ariEditingId=x?x.id:null;
   $('ariTitle').textContent=x?'编辑应收发票':'登记应收发票';
@@ -10857,11 +10941,15 @@ function ariOpenEdit(x){
   const lb=$('aiLinesBox');
   let lh='';
   if(x&&x.extra&&x.note)lh='<div style="font-size:12.5px;color:var(--bad);font-weight:700;margin-bottom:8px;padding:6px 10px;border:1.5px solid var(--bad);border-radius:8px;background:#FDF2F0">'+esc(x.note)+'</div>'+lh;
+
+  const _preNet=(x&&x.net==null&&_aiRevLines.length)?ariLineNet({lines:_aiRevLines.map(function(l){return {qty:l.qty,unit:l.price,disc:l.disc};})}):null;
+  if(x&&x.net==null&&x.refSale!=null&&_preNet!=null&&Math.abs(Number(x.refSale)-_preNet)>0.01)lh+='<div id="aiRefHint" style="font-size:11.5px;color:var(--ink-soft);margin-bottom:8px">订单售价字段 '+fmt(x.refSale)+' '+esc(x.currency||'EUR')+'（仅供对照）· 净额已按服务项合计 '+fmt(_preNet)+' 预填，请以 sevdesk 实开为准核对</div>';
   if(lh){lb.innerHTML=lh;lb.style.display='';}else{lb.style.display='none';}
   $('aiInvNo').value=x?x.invNo||'':'';
   $('aiInvDate').value=x?x.invDate||todayStr():todayStr();
   $('aiOrderNo').value=x?x.orderNo||'':'';
-  $('aiNet').value=x?(x.net!=null?x.net:(x.refSale!=null?x.refSale:'')):'';
+  $('aiNet').value=x?(x.net!=null?x.net:(_preNet!=null&&_preNet!==0?_preNet:(x.refSale!=null?x.refSale:''))):'';
+  {const ov=$('aiNetOverride'),rs=$('aiNetReason');if(ov){ov.checked=false;}if(rs){rs.value='';}const ob=$('aiNetOverrideBox');if(ob)ob.style.display='none';}
   $('aiVatRate').value=x?String(x.vatRate??19):'19';
   $('aiCur').value=x?x.currency||'EUR':'EUR';
   $('aiTerm').value=x?String(x.term??30):'14';
@@ -10881,6 +10969,25 @@ async function ariSaveEdit(){
   const dup=ariItems.find(x=>!x.deleted&&x.invNo&&String(x.invNo).replace(/\s+/g,'').toLowerCase()===_nn&&x.id!==ariEditingId);
   if(dup){err.textContent='发票号已存在：'+(dup.customer||'—')+' · '+(dup.invDate||'—')+' · '+fmt(dup.gross||0)+' '+(dup.currency||'EUR')+'（自家发票号全局唯一，不可重复登记；如需补附件请到该记录追加）';err.style.display='block';return;}
   const c=ariCalcShow();
+
+  {
+    const _x=ariEditingId?ariItems.find(y=>y.id===ariEditingId):null;
+    const _lsrc=(_x&&_x.linesLocked&&_x.linesLocked.length)?_x.linesLocked:_aiRevLines.filter(function(l){return (l.name||'').trim()&&(Number(l.price)||0)!==0;}).map(function(l){return {qty:l.qty,unit:l.price,disc:l.disc};});
+    const _ln=_lsrc.length?ariLineNet({lines:_lsrc}):null;
+    const _netR=Math.round(net*100)/100;
+    const _diff=(_ln==null)?0:Math.round((_ln-_netR)*100)/100;
+
+    if(no&&Math.abs(_diff)>0.01&&!(_x&&_x.extra)){
+      const ov=$('aiNetOverride'),rs=$('aiNetReason');
+      const prior=_x&&_x.netOverride&&Math.abs((Number(_x.netOverride.net)||0)-_netR)<=0.01;
+      if(!prior&&!(ov&&ov.checked)){
+        const ob=$('aiNetOverrideBox');if(ob)ob.style.display='';
+        err.textContent='服务项合计 '+fmt(_ln)+' 与不含税金额 '+fmt(_netR)+' 相差 '+fmt(Math.abs(_diff))+'：请把净额改为明细合计；若 sevdesk 实开金额确实不同，请勾选「以 sevdesk 实开为准」并填写原因后再保存。';err.style.display='block';return;
+      }
+      if(!prior&&ov&&ov.checked&&!(rs&&rs.value.trim())){err.textContent='请填写「以 sevdesk 实开为准」的原因（例如：剔除代垫 / 客户协商减免）。';err.style.display='block';return;}
+      if(!prior)_ariNetOverridePending={net:_netR,lineNet:_ln,diff:_diff,reason:rs.value.trim(),by:session.name,at:Date.now()};
+    }else{_ariNetOverridePending=null;}
+  }
   const btn=$('ariSave');btn.disabled=true;btn.textContent='保存中…';
   try{
 
@@ -10924,6 +11031,7 @@ async function ariSaveEdit(){
       if(fileMeta)(x.files=x.files||[]).push(fileMeta);
       (x.comments=x.comments||[]).push({author:session.name,role:'finance',
         text:wasToinv?('已在开票系统开出发票 '+no+'（含税 '+fmt(c.gross)+' '+$('aiCur').value+'，到期 '+c.due+'）'+(fileMeta?'，发票 PDF 已上传，请业务下载发送客户。':'。')):'✎ 财务修改发票信息。',time:Date.now()});
+      if(_ariNetOverridePending){x.netOverride=_ariNetOverridePending;x.comments.push({author:session.name,role:'finance',text:'⚠ 财务确认以 sevdesk 实开金额为准：净额 '+fmt(_ariNetOverridePending.net)+'，服务项合计 '+fmt(_ariNetOverridePending.lineNet)+'，相差 '+fmt(Math.abs(_ariNetOverridePending.diff))+'。原因：'+_ariNetOverridePending.reason,time:Date.now()});}
       savedRec=x;
       await ariSaveAll();toast(wasToinv?'开票信息已录入':'发票已更新');
       try{clearTimeout(window._acT);window._acT=setTimeout(ordAutoClose,700);}catch(e){}
@@ -10934,6 +11042,7 @@ async function ariSaveEdit(){
         createdBy:session.name,createdAt:Date.now()
       },data);
       if(fileMeta)savedRec.files=[fileMeta];
+      if(_ariNetOverridePending){savedRec.netOverride=_ariNetOverridePending;savedRec.comments.push({author:session.name,role:'finance',text:'⚠ 财务确认以 sevdesk 实开金额为准：净额 '+fmt(_ariNetOverridePending.net)+'，服务项合计 '+fmt(_ariNetOverridePending.lineNet)+'，相差 '+fmt(Math.abs(_ariNetOverridePending.diff))+'。原因：'+_ariNetOverridePending.reason,time:Date.now()});}
       if(revLines.length){
         savedRec.lines=revLines;
 
@@ -12685,7 +12794,8 @@ async function expSave(){
   if(USE_CLOUD&&rtdb){const okTx=await cloudTxWrite(EXP_PATH,expMerge,()=>JSON.stringify(expItems));cloudWriteGuard(okTx,_merged,'报销');if(okTx!==true)await rtdb.ref(EXP_PATH).set({json:JSON.stringify(expItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});await store.set(EXP_KEY,JSON.stringify(expItems));}
   return true;
 }
-function expApplyRemote(s){try{expItems=JSON.parse(s.json||'[]');store.set(EXP_KEY,s.json||'[]');}catch(e){}try{if(document.getElementById('expOvl'))expRenderList();}catch(e){}try{if(session&&document.body.dataset.mod==='home')homeRender();}catch(e){}}
+
+function expApplyRemote(s){try{expMerge(JSON.parse(s.json||'[]'));store.set(EXP_KEY,JSON.stringify(expItems));}catch(e){}try{if(document.getElementById('expOvl'))expRenderList();}catch(e){}try{if(session&&document.body.dataset.mod==='home')homeRender();}catch(e){}}
 function expNextNo(){const d=new Date();const ym=String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0');let n=0;for(const x of expItems){const m=String(x.no||'').match(new RegExp('^EXP-'+ym+'-(\\d+)$'));if(m)n=Math.max(n,parseInt(m[1],10));}return 'EXP-'+ym+'-'+String(n+1).padStart(3,'0');}
 function expTotal(x){return Math.round((x.lines||[]).reduce((s,l)=>s+(Number(l.amount)||0),0)*100)/100;}
 function expStatus(x){if(x.status==='approved'&&x.apId){const it=apItems.find(a=>a.id===x.apId);if(it&&apState(it)==='paid')return 'paid';}return x.status||'draft';}
@@ -12702,24 +12812,39 @@ async function expCreate(data){
   expItems.unshift(x);await expSave();return x;
 }
 function expLineNorm(l){return {id:l.id||('el'+Date.now().toString(36)+Math.random().toString(36).slice(2,5)),date:l.date||'',cat:l.cat||'',vendor:String(l.vendor||'').trim(),amount:Math.round((Number(l.amount)||0)*100)/100,note:String(l.note||'').trim(),files:(l.files||[]).filter(Boolean)};}
+function expStamp(x){x.up=Math.max(Date.now(),(x.up||0)+1);}
+function expLive(x){const cur=x&&expItems.find(i=>i.id===x.id);if(!cur)throw new Error('报销单已不存在，请刷新列表');return cur;}
+window.expLive=expLive;
 async function expUpdate(x,data){
+  x=expLive(x);
   if(!(canExpReview()||(x.user===session.name&&['draft','rejected'].includes(x.status))))throw new Error('当前状态不可修改');
   if(data.date)x.date=data.date;if(data.lines)x.lines=data.lines.map(expLineNorm);
   if(canExpReview()&&data.user&&data.user!==x.user&&['draft','submitted','rejected'].includes(x.status)){if(!EXP_STAFF.includes(data.user))throw new Error(data.user+' 不在报销名单');expLog(x,'归属员工由 '+x.user+' 改为 '+data.user+'（财务 '+session.name+'）');x.user=data.user;x.onBehalf=x.createdBy!==data.user;}
-  x.up=Date.now();await expSave();return x;
+  expStamp(x);await expSave();return x;
 }
 async function expSubmit(x){
+  x=expLive(x);
   if(!(canExpReview()||x.user===session.name))throw new Error('只能提交自己的报销单');
   if(!['draft','rejected'].includes(x.status))throw new Error('当前状态不可提交');
   if(!x.lines.length)throw new Error('至少录入一行');
   for(const l of x.lines){if(!l.date||!l.cat||!l.vendor||!(l.amount>0))throw new Error('每行需填 日期/类别/商家/金额');if(!l.files.length)throw new Error('每笔必须上传票据：'+l.vendor);}
-  x.status='submitted';x.submittedAt=Date.now();x.rejectReason='';x.up=Date.now();expLog(x,'提交审核，合计 € '+fmt(expTotal(x)));await expSave();return x;
+  x.status='submitted';x.submittedAt=Date.now();x.rejectReason='';expStamp(x);expLog(x,'提交审核，合计 € '+fmt(expTotal(x)));await expSave();return x;
 }
 async function expReject(x,reason){
+  x=expLive(x);
   if(!canExpReview())throw new Error('仅财务可审核');if(x.status!=='submitted')throw new Error('当前状态不可驳回');
-  x.status='rejected';x.rejectReason=reason||'';x.reviewedBy=session.name;x.reviewedAt=Date.now();x.up=Date.now();expLog(x,'驳回：'+(reason||''));await expSave();
+  x.status='rejected';x.rejectReason=reason||'';x.reviewedBy=session.name;x.reviewedAt=Date.now();expStamp(x);expLog(x,'驳回：'+(reason||''));await expSave();
   return x;
 }
+
+async function expDelete(x){
+  x=expLive(x);
+  if(!(canExpReview()||x.user===session.name))throw new Error('只能删除自己的报销单');
+  if(!['draft','rejected'].includes(x.status))throw new Error('只能删除草稿或已驳回的报销单');
+  x.deleted=true;x.deletedBy=session.name;x.deletedAt=Date.now();expStamp(x);expLog(x,'删除报销单（'+EXP_STATUS[x.status]+'）');
+  await expSave();return x;
+}
+window.expDelete=expDelete;
 
 async function ensurePdfLib(){
   if(window.PDFLib)return;
@@ -12785,7 +12910,7 @@ async function expApproveBatch(ids){
     const ap={id:'ap'+Date.now()+Math.random().toString(36).slice(2,7),kind:'ops',cat:EXP_CAT_ACCT[mainCat]||'管理费用',recur:false,expenseBatch:b.batchNo,expenseIds:claims.map(x=>x.id),supplier:user,invNo:b.batchNo,invDate:b.invDate,due:ymdLocal(due),amount:total,currency:'EUR',costLines:[],files:[pdfMeta],uploadedBy:session.name,uploadedAt:Date.now(),
       comments:[{author:session.name,role:session.role,text:'员工报销批次 '+b.batchNo+' · '+user+' · '+claims.length+' 张报销单 / '+claims.reduce((s,x)=>s+x.lines.length,0)+' 笔\n员工明细：\n'+detail+'\n按类别：'+Object.keys(byCat).map(c=>c+' '+fmt(byCat[c])).join('；')+(R.fails.length?('\n未能并入的票据：'+R.fails.join('、')):''),time:Date.now()}],up:Date.now()};
     apItems.push(ap);try{apStampUp&&apStampUp();}catch(e){}
-    for(const x of claims){x.status='approved';x.batchNo=b.batchNo;x.apId=ap.id;x.pdf=pdfMeta;x.reviewedBy=session.name;x.reviewedAt=b.reviewedAt;x.up=Date.now();expLog(x,'批准 · 并入批次 '+b.batchNo+'（'+claims.length+' 张，合计 € '+fmt(total)+'，PDF '+R.pages+' 页）→ 应付运营类 '+b.batchNo);}
+    for(const x of claims){x.status='approved';x.batchNo=b.batchNo;x.apId=ap.id;x.pdf=pdfMeta;x.reviewedBy=session.name;x.reviewedAt=b.reviewedAt;expStamp(x);expLog(x,'批准 · 并入批次 '+b.batchNo+'（'+claims.length+' 张，合计 € '+fmt(total)+'，PDF '+R.pages+' 页）→ 应付运营类 '+b.batchNo);}
     results.push({batchNo:b.batchNo,user:user,ap:ap,pdf:pdfMeta,claims:claims.length,total:total,pages:R.pages,fails:R.fails});
   }
   await apSave();await expSave();
@@ -12809,7 +12934,7 @@ function expRenderList(){
   h+='<div style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap">'+['','submitted','draft','rejected','approved','paid'].map(k=>'<button type="button" class="own-chip exp-f'+(_expFilter===k?' on':'')+'" data-f="'+k+'">'+(k?EXP_STATUS[k]:'全部')+' <span class="oc-n">'+expMine().filter(x=>!k||expStatus(x)===k).length+'</span></button>').join('')+'</div>';
   if(!list.length)h+='<div style="padding:24px;text-align:center;color:var(--ink-soft)">没有报销单。点「＋ 新建报销单」录入票据。</div>';
   else{h+='<div class="ledger"><table><thead><tr>'+(fin?'<th></th>':'')+'<th>单号</th>'+(fin?'<th>员工</th>':'')+'<th>日期</th><th class="amount">合计</th><th>笔数</th><th>状态</th><th>批次 / 发票号</th><th></th></tr></thead><tbody>';
-    for(const x of list){const st=expStatus(x);h+='<tr class="row">'+(fin?'<td>'+(st==='submitted'?'<input type="checkbox" class="exp-ck" data-id="'+x.id+'" style="accent-color:var(--pine)">':'')+'</td>':'')+'<td style="font-family:var(--font-num)">'+esc(x.no)+'</td>'+(fin?'<td>'+esc(x.user)+(x.onBehalf?' <span style="font-size:10px;color:var(--ink-soft)">（代录）</span>':'')+'</td>':'')+'<td>'+esc(x.date)+'</td><td class="amount">'+fmt(expTotal(x))+'</td><td>'+x.lines.length+'</td><td><span class="badge" style="background:var(--n-wash);color:'+stCol[st]+'">'+EXP_STATUS[st]+'</span>'+(st==='rejected'&&x.rejectReason?'<div style="font-size:10.5px;color:var(--bad)">'+esc(x.rejectReason)+'</div>':'')+'</td><td style="font-family:var(--font-num);font-size:11.5px">'+esc(x.batchNo||'')+'</td><td style="white-space:nowrap"><button type="button" class="btn-sm exp-open" data-id="'+x.id+'">'+(['draft','rejected'].includes(st)&&(fin||x.user===session.name)?'编辑':(fin&&st==='submitted'?'审核':'查看'))+'</button>'+(x.pdf?' <button type="button" class="btn-sm exp-pdf" data-id="'+x.id+'">PDF</button>':'')+'</td></tr>';}
+    for(const x of list){const st=expStatus(x);h+='<tr class="row">'+(fin?'<td>'+(st==='submitted'?'<input type="checkbox" class="exp-ck" data-id="'+x.id+'" style="accent-color:var(--pine)">':'')+'</td>':'')+'<td style="font-family:var(--font-num)">'+esc(x.no)+'</td>'+(fin?'<td>'+esc(x.user)+(x.onBehalf?' <span style="font-size:10px;color:var(--ink-soft)">（代录）</span>':'')+'</td>':'')+'<td>'+esc(x.date)+'</td><td class="amount">'+fmt(expTotal(x))+'</td><td>'+x.lines.length+'</td><td><span class="badge" style="background:var(--n-wash);color:'+stCol[st]+'">'+EXP_STATUS[st]+'</span>'+(st==='rejected'&&x.rejectReason?'<div style="font-size:10.5px;color:var(--bad)">'+esc(x.rejectReason)+'</div>':'')+'</td><td style="font-family:var(--font-num);font-size:11.5px">'+esc(x.batchNo||'')+'</td><td style="white-space:nowrap"><button type="button" class="btn-sm exp-open" data-id="'+x.id+'">'+(['draft','rejected'].includes(st)&&(fin||x.user===session.name)?'编辑':(fin&&st==='submitted'?'审核':'查看'))+'</button>'+(x.pdf?' <button type="button" class="btn-sm exp-pdf" data-id="'+x.id+'">PDF</button>':'')+(['draft','rejected'].includes(st)&&(fin||x.user===session.name)?' <button type="button" class="btn-sm danger exp-del" data-id="'+x.id+'">删除</button>':'')+'</td></tr>';}
     h+='</tbody></table></div>';}
   card.innerHTML=h;ovl.appendChild(card);document.body.appendChild(ovl);ovl.onclick=e=>{if(e.target===ovl)ovl.remove();};
   card.querySelector('#expClose').onclick=()=>ovl.remove();
@@ -12817,6 +12942,7 @@ function expRenderList(){
   card.querySelectorAll('.exp-f').forEach(b=>b.onclick=()=>{_expFilter=b.dataset.f;expRenderList();});
   card.querySelectorAll('.exp-open').forEach(b=>b.onclick=()=>{const x=expItems.find(i=>i.id===b.dataset.id);if(x)expEditOpen(x);});
   card.querySelectorAll('.exp-pdf').forEach(b=>b.onclick=()=>{const x=expItems.find(i=>i.id===b.dataset.id);if(x&&x.pdf)apDownload(x.pdf);});
+  card.querySelectorAll('.exp-del').forEach(b=>b.onclick=async()=>{const x=expItems.find(i=>i.id===b.dataset.id);if(!x)return;if(!confirm('删除报销单 '+x.no+'（'+EXP_STATUS[expStatus(x)]+'，'+fmt(expTotal(x))+' €）？删除后不可恢复。'))return;try{await expDelete(x);toast('已删除 '+x.no);expRenderList();}catch(e){toast(e.message||e);}});
   const bb=card.querySelector('#expBatchBtn');
   if(bb){const upd=()=>{const n=card.querySelectorAll('.exp-ck:checked').length;bb.disabled=!n;bb.textContent='✓ 批量批准并生成 PDF（'+n+'）';};card.querySelectorAll('.exp-ck').forEach(c=>c.onchange=upd);
     bb.onclick=async()=>{const ids=[...card.querySelectorAll('.exp-ck:checked')].map(c=>c.dataset.id);if(!ids.length)return;const users=[...new Set(ids.map(id=>(expItems.find(x=>x.id===id)||{}).user))];
@@ -12849,7 +12975,7 @@ function expEditOpen(x){
     if(x&&x.rejectReason)h+='<div style="margin-top:8px;color:var(--bad);font-size:12px">驳回原因：'+esc(x.rejectReason)+'</div>';
     if(x&&x.pdf)h+='<div style="margin-top:8px"><button type="button" class="btn-sm" id="exePdf">📄 下载报销 PDF</button>'+(x.apId?' <span style="font-size:12px;color:var(--ink-soft)">已并入批次 '+esc(x.batchNo||'')+' → 应付运营类发票</span>':'')+'</div>';
     h+='<div id="exeErr" style="color:var(--bad);font-size:12px;display:none;margin-top:6px"></div>';
-    h+='<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap">'+(canEditLines?'<button type="button" class="btn-ghost" id="exeSave">保存草稿</button><button type="button" class="btn-sm" id="exeSubmit" style="border-color:var(--pine);color:var(--pine-ink);font-weight:700">提交审核</button>':'')+(review?'<button type="button" class="btn-ghost" id="exeReject" style="color:var(--bad)">驳回…</button><button type="button" class="btn-sm" id="exeApprove" style="border-color:var(--ok);color:var(--ok);font-weight:700">✓ 批准并生成 PDF</button>':'')+'</div>';
+    h+='<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap">'+((!isNew&&canEditLines)?'<button type="button" class="btn-ghost" id="exeDelete" style="color:var(--bad);margin-right:auto">删除</button>':'')+(canEditLines?'<button type="button" class="btn-ghost" id="exeSave">保存草稿</button><button type="button" class="btn-sm" id="exeSubmit" style="border-color:var(--pine);color:var(--pine-ink);font-weight:700">提交审核</button>':'')+(review?'<button type="button" class="btn-ghost" id="exeReject" style="color:var(--bad)">驳回…</button><button type="button" class="btn-sm" id="exeApprove" style="border-color:var(--ok);color:var(--ok);font-weight:700">✓ 批准并生成 PDF</button>':'')+'</div>';
     card.innerHTML=h;
     const q=id=>card.querySelector('#'+id);const err=m=>{const e=q('exeErr');e.textContent=m;e.style.display='block';};
     q('exeClose').onclick=()=>ovl.remove();
@@ -12864,7 +12990,8 @@ function expEditOpen(x){
     const collect=()=>{readLines();return {user:fin?hdr.user:(x?x.user:session.name),date:hdr.date,lines:lines.map(l=>Object.assign({},l,{amount:Number(l.amount)||0}))};};
     const persist=async()=>{const d=collect();if(fin&&!d.user)throw new Error('请选择员工');if(fin&&!EXP_STAFF.includes(d.user))throw new Error(d.user+' 不在报销名单');if(isNew){x=await expCreate(d);}else{await expUpdate(x,d);}return x;};
     if(q('exeSave'))q('exeSave').onclick=async()=>{try{await persist();toast('已保存草稿 '+x.no);ovl.remove();expRenderList();}catch(e){err(e.message||e);}};
-    if(q('exeSubmit'))q('exeSubmit').onclick=async()=>{try{await persist();await expSubmit(x);toast('已提交审核 '+x.no);ovl.remove();expRenderList();}catch(e){err(e.message||e);}};
+    if(q('exeSubmit'))q('exeSubmit').onclick=async()=>{try{await persist();x=await expSubmit(x);toast('已提交审核 '+x.no);ovl.remove();_expFilter='submitted';expRenderList();}catch(e){err(e.message||e);}};
+    if(q('exeDelete'))q('exeDelete').onclick=async()=>{if(!confirm('删除报销单 '+x.no+'？删除后不可恢复。'))return;try{await expDelete(x);toast('已删除 '+x.no);ovl.remove();expRenderList();}catch(e){err(e.message||e);}};
     if(q('exeReject'))q('exeReject').onclick=async()=>{const r=prompt('驳回原因（员工会看到）：');if(r===null)return;try{await expReject(x,r.trim());toast('已驳回');ovl.remove();expRenderList();}catch(e){err(e.message||e);}};
     if(q('exeApprove'))q('exeApprove').onclick=async()=>{const b=q('exeApprove');b.disabled=true;b.textContent='生成 PDF 中…';try{const r=await expApprove(x);toast('已批准：批次 '+r.batchNo+'，PDF '+r.pages+' 页，已转入应付运营类'+(r.fails.length?('；'+r.fails.length+' 张票据未能并入，见应付备注'):''));ovl.remove();expRenderList();try{renderAP();}catch(e){}}catch(e){b.disabled=false;b.textContent='✓ 批准并生成 PDF';err(e.message||e);}};
     if(q('exePdf'))q('exePdf').onclick=()=>apDownload(x.pdf);
@@ -13416,6 +13543,7 @@ function homeAct(a){
   if(k==='base'){switchMod('tabBASE');return;}
   if(k==='ord'){switchMod('tabORD');setTimeout(()=>ordGoMine(''),120);return;}
   if(k==='arifiles'){switchMod('tabAR');arSub('ari');setTimeout(()=>{setF('ariFMonth','');},120);return;}
+  if(k==='arinet'){switchMod('tabAR');arSub('ari');setTimeout(()=>{try{renderARI();ariNetFixOpen();}catch(e){}},150);return;}
   if(k==='apall'){switchMod('tabAP');setTimeout(()=>{setF('apFMonth','');setF('apFStatus','');},120);return;}
   if(k==='aging'){try{document.getElementById('agingBtn').click();}catch(e){}return;}
   if(k==='tm'){try{tmOpen();}catch(e){}return;}
@@ -15022,7 +15150,19 @@ Object.assign(I18N,{
 "前 5 客户占比 = 近 12 个月收入最高 5 家 ÷ 总收入（大表口径）；≥70% 视为集中度偏高":{en:"Top-5 share = top 5 customers by revenue last 12 months ÷ total (table basis); ≥70% = high concentration",de:"Top-5-Anteil = 5 umsatzstärkste Kunden ÷ Gesamt (12 Monate); ≥70% = hohe Konzentration"},
 "清提派收入占比 = 近 12 个月清提派线收入 ÷ 总收入；业务线按大表规则判定，订单可手工指定":{en:"Customs & delivery share = that line's revenue ÷ total, last 12 months; lines by table rule, overridable per order",de:"Anteil Zoll & Zustellung = Umsatz der Linie ÷ Gesamt (12 Monate); Zuordnung nach Tabellenregel, je Auftrag änderbar"},
 "本月新客户 = 首张正票开票日落在本月的客户":{en:"New customers = customers whose first invoice is dated this month",de:"Neukunden = Kunden mit erster Rechnung in diesem Monat"},
-"关键人依赖 = 在途订单 / 跟进中询价 / 近 6 个月收入 任一维度单人占比 ≥ 50%（按制作人）":{en:"Key-person risk = one person ≥ 50% of active orders / open inquiries / revenue last 6 months (by creator)",de:"Schlüsselperson = eine Person ≥ 50% bei laufenden Aufträgen / Anfragen / Umsatz 6 Monate (je Ersteller)"}
+"关键人依赖 = 在途订单 / 跟进中询价 / 近 6 个月收入 任一维度单人占比 ≥ 50%（按制作人）":{en:"Key-person risk = one person ≥ 50% of active orders / open inquiries / revenue last 6 months (by creator)",de:"Schlüsselperson = eine Person ≥ 50% bei laufenden Aufträgen / Anfragen / Umsatz 6 Monate (je Ersteller)"},
+"🧮 净额≠明细":{en:"🧮 Net ≠ lines",de:"🧮 Netto ≠ Positionen"},
+"以 sevdesk 实开金额为准（明细合计与净额不一致，我已核对）":{en:"Use the amount actually invoiced in sevdesk (lines total differs from net; verified)",de:"Tatsächlich in sevdesk berechneten Betrag übernehmen (Positionssumme weicht ab; geprüft)"},
+"发票净额与锁定明细不一致的正式发票：一键按明细修正（财务）":{en:"Invoices whose net differs from the locked lines: fix to lines total in one click (finance)",de:"Rechnungen mit Netto ≠ gesperrten Positionen: per Klick auf Positionssumme korrigieren (Buchhaltung)"},
+"原因 *（例如：剔除代垫 / 客户协商减免 / 部分开票）":{en:"Reason * (e.g. pass-through excluded / negotiated reduction / partial invoice)",de:"Grund * (z. B. durchl. Posten ausgenommen / Nachlass vereinbart / Teilrechnung)"},
+"应收发票净额与服务项明细不一致":{en:"AR invoice net differs from service lines",de:"Debitorenrechnung: Netto ≠ Leistungspositionen"},
+"在途订单售价字段与服务项合计不一致":{en:"Open orders: price field differs from service lines total",de:"Laufende Aufträge: Preisfeld ≠ Positionssumme"},
+"发票金额与锁定明细不符（开票预填曾取过期售价字段）；应收页「🧮 净额≠明细」按明细修正，或在该发票编辑里勾选以 sevdesk 实开为准":{en:"Invoice amount differs from locked lines (prefill once used a stale price field); use \"🧮 Net ≠ lines\" on the AR page, or tick \"use sevdesk amount\" in the invoice editor",de:"Rechnungsbetrag ≠ gesperrte Positionen (Vorbelegung nahm ein veraltetes Preisfeld); „🧮 Netto ≠ Positionen\" auf der Debitorenseite nutzen oder im Editor „sevdesk-Betrag übernehmen\" wählen"},
+"下次改服务项或对接财务时自动对齐；也可在订单详情点「设为客户售价」":{en:"Aligned automatically on the next line change or handover to finance; or click \"Set as customer price\" in the order",de:"Beim nächsten Positionswechsel oder der Übergabe an die Buchhaltung automatisch angeglichen; oder „Als Kundenpreis setzen\" im Auftrag"},
+"✓ 全部一致":{en:"✓ All consistent",de:"✓ Alles stimmig"},
+"✓ 按明细修正所选":{en:"✓ Fix selected to lines total",de:"✓ Auswahl auf Positionssumme korrigieren"},
+"明细合计":{en:"Lines total",de:"Positionssumme"},
+"这些发票的净额与锁定明细合计不一致（v35.3 根因：财务开票时预填取了过期的订单售价字段）。勾选后「按明细修正」会重算净额/税额/含税并回写订单、留痕；若 sevdesk 实开金额确实与明细不同，请到该发票「编辑」勾选「以 sevdesk 实开为准」并填原因。":{en:"These invoices have a net that differs from the locked lines total (v35.3 root cause: the prefill used a stale order price field). \"Fix\" recalculates net/VAT/gross, writes back to the order and leaves a trail; if the sevdesk amount really differs, open the invoice and tick \"use sevdesk amount\" with a reason.",de:"Bei diesen Rechnungen weicht das Netto von der gesperrten Positionssumme ab (v35.3-Ursache: Vorbelegung aus veraltetem Preisfeld). „Korrigieren\" berechnet Netto/USt/Brutto neu, schreibt in den Auftrag zurück und protokolliert; weicht der sevdesk-Betrag wirklich ab, in der Rechnung „sevdesk-Betrag übernehmen\" mit Grund wählen."}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
@@ -15180,6 +15320,8 @@ I18N_RULES.push(
 [/^已转入应付运营类发票\ (\d+(?:[.,]\d+)?)$/,{en:"Transferred to AP operating invoice $1",de:"In Kreditoren (Betrieb) übernommen $1"}],
 [/^✓\ 批量批准并生成\ PDF（(\d+(?:[.,]\d+)?)）$/,{en:"✓ Approve selected & generate PDF ($1)",de:"✓ Ausgewählte genehmigen & PDF ($1)"}],
 [/^已并入批次\ (\d+(?:[.,]\d+)?)\ →\ 应付运营类发票$/,{en:"Included in batch $1 → AP operating invoice",de:"In Abrechnung $1 → Betriebsrechnung"}],
+[/^🧮\ 净额≠明细（(\d+(?:[.,]\d+)?)）$/,{en:"🧮 Net ≠ lines ($1)",de:"🧮 Netto ≠ Positionen ($1)"}],
+[/^🧮\ 发票净额\ ≠\ 服务项明细（(\d+(?:[.,]\d+)?)）$/,{en:"🧮 Invoice net ≠ service lines ($1)",de:"🧮 Rechnungsnetto ≠ Leistungspositionen ($1)"}],
 [/^休假中 · 代办 (.+)$/,{en:"On leave · deputy $1",de:"Abwesend · Vertretung $1"}],
 [/^默认 (.+)$/,{en:"Default $1",de:"Standard $1"}],
 [/^代办中（(.+) 休假）$/,{en:"Covering ($1 on leave)",de:"Vertretung ($1 abwesend)"}],
