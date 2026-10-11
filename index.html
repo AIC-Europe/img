@@ -986,7 +986,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.1</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.2</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1636,7 +1636,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=35.1;
+const APP_VERSION=35.2;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -12694,8 +12694,9 @@ window.canExp=canExp;window.expMine=expMine;window.expItemsGet=()=>expItems;wind
 
 async function expCreate(data){
   if(!canExp())throw new Error('无报销权限');
-  const user=(canExpReview()&&data.user)?data.user:session.name;
-  if(!EXP_STAFF.includes(user)&&!canExpReview())throw new Error('该账号不在报销名单');
+  const user=canExpReview()?String(data.user||'').trim():session.name;
+  if(!user)throw new Error('请选择员工');
+  if(!EXP_STAFF.includes(user))throw new Error(user+' 不在报销名单');
   const x={id:'exp'+Date.now()+Math.random().toString(36).slice(2,6),no:expNextNo(),user:user,date:data.date||todayStr(),lines:(data.lines||[]).map(expLineNorm),status:'draft',createdBy:session.name,onBehalf:user!==session.name,createdAt:Date.now(),comments:[],up:Date.now()};
   expLog(x,'新建报销单'+(x.onBehalf?('（财务 '+session.name+' 代 '+user+' 录入）'):''));
   expItems.unshift(x);await expSave();return x;
@@ -12703,7 +12704,9 @@ async function expCreate(data){
 function expLineNorm(l){return {id:l.id||('el'+Date.now().toString(36)+Math.random().toString(36).slice(2,5)),date:l.date||'',cat:l.cat||'',vendor:String(l.vendor||'').trim(),amount:Math.round((Number(l.amount)||0)*100)/100,note:String(l.note||'').trim(),files:(l.files||[]).filter(Boolean)};}
 async function expUpdate(x,data){
   if(!(canExpReview()||(x.user===session.name&&['draft','rejected'].includes(x.status))))throw new Error('当前状态不可修改');
-  if(data.date)x.date=data.date;if(data.lines)x.lines=data.lines.map(expLineNorm);x.up=Date.now();await expSave();return x;
+  if(data.date)x.date=data.date;if(data.lines)x.lines=data.lines.map(expLineNorm);
+  if(canExpReview()&&data.user&&data.user!==x.user&&['draft','submitted','rejected'].includes(x.status)){if(!EXP_STAFF.includes(data.user))throw new Error(data.user+' 不在报销名单');expLog(x,'归属员工由 '+x.user+' 改为 '+data.user+'（财务 '+session.name+'）');x.user=data.user;x.onBehalf=x.createdBy!==data.user;}
+  x.up=Date.now();await expSave();return x;
 }
 async function expSubmit(x){
   if(!(canExpReview()||x.user===session.name))throw new Error('只能提交自己的报销单');
@@ -12831,12 +12834,13 @@ function expEditOpen(x){
   const ovl=document.createElement('div');ovl.id='expEdOvl';ovl.style.cssText='position:fixed;inset:0;background:rgba(20,28,26,.5);z-index:2400;display:flex;align-items:center;justify-content:center';
   const card=document.createElement('div');card.style.cssText='background:var(--card,#fff);border-radius:14px;padding:18px 20px;width:min(1040px,97vw);max-height:94vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px';
   const lines=x?JSON.parse(JSON.stringify(x.lines||[])):[{date:todayStr(),cat:'',vendor:'',amount:'',note:'',files:[]}];
+  const hdr={user:x?x.user:(fin?'':session.name),date:x?x.date:todayStr()};
   const render=()=>{
     const canEditLines=editable&&!review;
     let h='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div style="font-weight:700;font-size:15px">🧾 '+(isNew?'新建报销单':'报销单 '+esc(x.no))+(x?' <span class="badge" style="background:var(--n-wash)">'+EXP_STATUS[expStatus(x)]+'</span>':'')+'</div><button class="btn-ghost" id="exeClose" type="button">关闭</button></div>';
     h+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0">'+
-      '<div class="field"><label>员工</label>'+(fin&&isNew?'<select id="exeUser">'+[session.name].concat(EXP_STAFF.filter(n=>n!==session.name)).map(n=>'<option'+(n===session.name?' selected':'')+'>'+n+'</option>').join('')+'</select>':'<input value="'+esc(x?x.user:session.name)+'" disabled>')+'</div>'+
-      '<div class="field"><label>报销日期</label><input id="exeDate" type="date" value="'+esc(x?x.date:todayStr())+'"'+(canEditLines?'':' disabled')+'></div>'+
+      '<div class="field"><label>员工 *</label>'+((fin&&(isNew||['draft','submitted','rejected'].includes(x.status)))?'<select id="exeUser"><option value="">— 选择员工 —</option>'+EXP_STAFF.map(n=>'<option'+(n===hdr.user?' selected':'')+'>'+n+'</option>').join('')+'</select>':'<input value="'+esc(hdr.user||session.name)+'" disabled>')+'</div>'+
+      '<div class="field"><label>报销日期</label><input id="exeDate" type="date" value="'+esc(hdr.date)+'"'+(canEditLines?'':' disabled')+'></div>'+
       '<div class="field"><label>批次 / 发票号</label><input value="'+esc(x&&x.batchNo?x.batchNo:'—')+'" disabled></div></div>';
     h+='<div class="ledger"><table><thead><tr><th>#</th><th>消费日期 *</th><th>类别 *</th><th>商家 / 用途 *</th><th class="amount">金额（含税）*</th><th>备注</th><th>票据 *</th>'+(canEditLines?'<th></th>':'')+'</tr></thead><tbody>';
     lines.forEach((l,i)=>{h+='<tr><td>'+(i+1)+'</td><td><input type="date" class="exl" data-i="'+i+'" data-k="date" value="'+esc(l.date||'')+'"'+(canEditLines?'':' disabled')+'></td><td><select class="exl" data-i="'+i+'" data-k="cat"'+(canEditLines?'':' disabled')+'><option value="">— 选择 —</option>'+EXP_CATS.map(c=>'<option'+(l.cat===c?' selected':'')+'>'+c+'</option>').join('')+'</select></td><td><input class="exl" data-i="'+i+'" data-k="vendor" value="'+esc(l.vendor||'')+'" placeholder="REWE / DB / Zoom…"'+(canEditLines?'':' disabled')+'></td><td><input class="exl" data-i="'+i+'" data-k="amount" type="number" step="0.01" min="0" value="'+esc(l.amount===''?'':l.amount)+'" style="text-align:right;width:100px"'+(canEditLines?'':' disabled')+'></td><td><input class="exl" data-i="'+i+'" data-k="note" value="'+esc(l.note||'')+'"'+(canEditLines?'':' disabled')+'></td><td>'+(l.files||[]).map((f,fi)=>'<span style="white-space:nowrap">📎 <button type="button" class="ap-file exf-view" data-i="'+i+'" data-fi="'+fi+'" style="padding:0 4px">'+esc(f.name)+'</button>'+(canEditLines?' <button type="button" class="btn-sm exf-del" data-i="'+i+'" data-fi="'+fi+'" style="padding:0 5px">✕</button>':'')+'</span> ').join('')+(canEditLines?'<button type="button" class="btn-sm exf-add" data-i="'+i+'">上传</button>':'')+'</td>'+(canEditLines?'<td><button type="button" class="btn-sm exl-del" data-i="'+i+'">✕</button></td>':'')+'</tr>';});
@@ -12849,15 +12853,16 @@ function expEditOpen(x){
     card.innerHTML=h;
     const q=id=>card.querySelector('#'+id);const err=m=>{const e=q('exeErr');e.textContent=m;e.style.display='block';};
     q('exeClose').onclick=()=>ovl.remove();
-    const readLines=()=>{card.querySelectorAll('.exl').forEach(el=>{const i=+el.dataset.i,k=el.dataset.k;lines[i][k]=k==='amount'?(el.value===''?'':Number(el.value)):el.value;});return lines;};
+    const readHdr=()=>{if(q('exeUser'))hdr.user=q('exeUser').value;if(q('exeDate'))hdr.date=q('exeDate').value;};
+    const readLines=()=>{readHdr();card.querySelectorAll('.exl').forEach(el=>{const i=+el.dataset.i,k=el.dataset.k;lines[i][k]=k==='amount'?(el.value===''?'':Number(el.value)):el.value;});return lines;};
     card.querySelectorAll('.exl[data-k="amount"]').forEach(el=>el.oninput=()=>{readLines();q('exeTot').textContent=fmt(lines.reduce((s,l)=>s+(Number(l.amount)||0),0));});
     if(q('exeAddRow'))q('exeAddRow').onclick=()=>{readLines();lines.push({date:todayStr(),cat:'',vendor:'',amount:'',note:'',files:[]});render();};
     card.querySelectorAll('.exl-del').forEach(b=>b.onclick=()=>{readLines();lines.splice(+b.dataset.i,1);render();});
     card.querySelectorAll('.exf-del').forEach(b=>b.onclick=()=>{readLines();lines[+b.dataset.i].files.splice(+b.dataset.fi,1);render();});
     card.querySelectorAll('.exf-view').forEach(b=>b.onclick=()=>{const f=lines[+b.dataset.i].files[+b.dataset.fi];if(f)apDownload(f);});
     card.querySelectorAll('.exf-add').forEach(b=>b.onclick=()=>{readLines();const i=+b.dataset.i;const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,.jpg,.jpeg,.png,image/*,application/pdf';inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f)return;if(f.size>3*1024*1024){toast('票据超过 3MB，请压缩后再传');return;}toast('⏳ 上传中…');try{const fid='fx'+Date.now()+Math.random().toString(36).slice(2,6);const metaF=await fileStoreAny(fid,f,{name:f.name,type:f.type||'',size:f.size,fid:fid,by:session.name,time:Date.now()});lines[i].files.push(metaF);render();toast('已上传 '+f.name);}catch(e){toast('上传失败：'+(e.message||e));}};inp.click();});
-    const collect=()=>({user:q('exeUser')?q('exeUser').value:(x?x.user:session.name),date:q('exeDate').value,lines:readLines().map(l=>Object.assign({},l,{amount:Number(l.amount)||0}))});
-    const persist=async()=>{const d=collect();if(isNew){x=await expCreate(d);}else{await expUpdate(x,d);}return x;};
+    const collect=()=>{readLines();return {user:fin?hdr.user:(x?x.user:session.name),date:hdr.date,lines:lines.map(l=>Object.assign({},l,{amount:Number(l.amount)||0}))};};
+    const persist=async()=>{const d=collect();if(fin&&!d.user)throw new Error('请选择员工');if(fin&&!EXP_STAFF.includes(d.user))throw new Error(d.user+' 不在报销名单');if(isNew){x=await expCreate(d);}else{await expUpdate(x,d);}return x;};
     if(q('exeSave'))q('exeSave').onclick=async()=>{try{await persist();toast('已保存草稿 '+x.no);ovl.remove();expRenderList();}catch(e){err(e.message||e);}};
     if(q('exeSubmit'))q('exeSubmit').onclick=async()=>{try{await persist();await expSubmit(x);toast('已提交审核 '+x.no);ovl.remove();expRenderList();}catch(e){err(e.message||e);}};
     if(q('exeReject'))q('exeReject').onclick=async()=>{const r=prompt('驳回原因（员工会看到）：');if(r===null)return;try{await expReject(x,r.trim());toast('已驳回');ovl.remove();expRenderList();}catch(e){err(e.message||e);}};
@@ -14974,6 +14979,9 @@ Object.assign(I18N,{
 "票据超过 3MB，请压缩后再传":{en:"Receipt exceeds 3 MB; please compress",de:"Beleg über 3 MB; bitte komprimieren"},
 "批次 / 发票号":{en:"Batch / invoice no.",de:"Abrechnung / Rechnungsnr."},
 "勾选同一员工的多张待审单 → 批量批准：生成一套 PDF、一个批次号、一条应付运营类发票（供应商=员工，发票号=批次号）。跨员工勾选会自动按员工拆成多个批次。":{en:"Tick several pending claims of one employee → approve: one PDF, one batch no., one AP operating invoice (supplier = employee, invoice no. = batch). Mixed employees are split automatically.",de:"Mehrere offene Abrechnungen eines Mitarbeiters anhaken → genehmigen: ein PDF, eine Nr., eine Betriebsrechnung (Lieferant = Mitarbeiter). Gemischte Auswahl wird je Mitarbeiter getrennt."},
+"员工 *":{en:"Employee *",de:"Mitarbeiter *"},
+"— 选择员工 —":{en:"— select employee —",de:"— Mitarbeiter wählen —"},
+"请选择员工":{en:"Select an employee",de:"Mitarbeiter wählen"},
 "本期开票 = 所选月份（默认当月）开票日的正票 含税金额合计（EUR）；冲销票与待开票存根不计":{en:"Invoiced in period = gross total (EUR) of positive invoices dated in the selected month (default: current); cancellations and stubs excluded",de:"Berechnet im Zeitraum = Bruttosumme (EUR) der positiven Rechnungen im gewählten Monat (Standard: aktuell); Stornos und Platzhalter ausgeschlossen"},
 "本期已收 = 本期发票已到账部分（按核销）；回款率 = 已收 ÷ 本期开票":{en:"Received in period = allocated receipts on this period's invoices; rate = received ÷ invoiced",de:"Eingegangen = zugeordnete Zahlungen auf Rechnungen des Zeitraums; Quote = Eingang ÷ berechnet"},
 "本期未收 = 本期发票 含税金额 − 已核销到账":{en:"Open in period = gross of period invoices − allocated receipts",de:"Offen im Zeitraum = brutto − zugeordnete Zahlungen"},
