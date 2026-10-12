@@ -987,7 +987,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.4</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.5</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1641,7 +1641,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=35.4;
+const APP_VERSION=35.5;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1702,9 +1702,11 @@ function cloudPush(){
           .catch(function(e){console.warn('cloud push v2:',e.message);cloudFail(e);});
         return;
       }
-      cloudTxWrite(CLOUD_PATH,mergeRemote,function(){return JSON.stringify(payments);})
+      const _snap=JSON.parse(JSON.stringify(payments));
+      cloudTxWrite(CLOUD_PATH,mergeRemote,function(){payments=ensureSnap(payments,_snap);return JSON.stringify(payments);})
         .then(function(okTx){
           if(okTx===true){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();return;}
+          payments=ensureSnap(payments,_snap);
           const payload={json:JSON.stringify(payments),_at:Date.now(),_by:(session&&session.name)||'unknown',_client:CLOUD_CLIENT_ID};
           return rtdb.ref(CLOUD_PATH).set(payload)
             .then(function(){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();});
@@ -1713,12 +1715,53 @@ function cloudPush(){
     }catch(e){console.error('cloudPush:',e);cloudFail(e);}
   },400);
 }
+
+var _unsavedKept=0;
+function _recStamp(x){let m=0;for(const k of ['up','_up','createdAt','time','at','importedAt','stepAt']){const v=Number(x&&x[k]);if(v>m)m=v;}return m;}
+function keepUnsavedLocal(local,remote,remoteAt,label){
+  if(!Array.isArray(remote))return remote;
+  if(!Array.isArray(local)||!local.length)return remote;
+  const at=Number(remoteAt)||0;if(!at)return remote;
+  const idx=new Map();remote.forEach((r,i)=>{if(r&&r.id)idx.set(r.id,i);});
+  let kept=0;
+  for(const l of local){
+    if(!l||!l.id)continue;const st=_recStamp(l);if(st<=at)continue;
+    const i=idx.get(l.id);
+    if(i==null){remote.push(l);kept++;}
+    else if(_recStamp(remote[i])<st){remote[i]=l;kept++;}
+  }
+  if(kept){_unsavedKept+=kept;console.warn('keepUnsavedLocal['+(label||'')+'] 保留未落云记录 '+kept+' 条');}
+  return remote;
+}
+function ensureSnap(live,snap){
+  if(!Array.isArray(snap)||!snap.length)return live;
+  if(!Array.isArray(live))live=[];
+  const idx=new Map();live.forEach((r,i)=>{if(r&&r.id)idx.set(r.id,i);});
+  for(const s of snap){if(!s||!s.id)continue;const i=idx.get(s.id);
+    if(i==null)live.push(s);else if(_recStamp(live[i])<_recStamp(s))live[i]=s;}
+  return live;
+}
+function cloudVerifyIds(path,ids){
+  return (async function(){
+    if(!USE_CLOUD||!rtdb||!ids||!ids.length)return [];
+    let v=null;
+    try{const s=await Promise.race([rtdb.ref(path).once('value'),new Promise(function(_,rej){setTimeout(function(){rej(new Error('verify-timeout'));},6000);})]);v=s.val();}
+    catch(e){console.warn('cloudVerify',path,e&&e.message);return null;}
+    if(!v||typeof v.json!=='string')return null;
+    let arr=[];try{arr=JSON.parse(v.json||'[]');}catch(e){return null;}
+    if(!Array.isArray(arr))return null;
+    const have=new Set(arr.map(x=>x&&x.id));
+    return ids.filter(id=>!have.has(id));
+  })();
+}
+function cloudVerifyMsg(miss,label){return '云端未写入 '+miss.length+' 条'+label+'记录（网络不稳，常见于中国端）。本地已保留，请稍后重试保存；若反复出现请刷新页面后重试。';}
+window.keepUnsavedLocal=keepUnsavedLocal;window.ensureSnap=ensureSnap;window.cloudVerifyIds=cloudVerifyIds;window.unsavedKeptGet=function(){return _unsavedKept;};
 function applyRemote(s){
   try{setTimeout(homeRefreshIfVisible,0);}catch(e){}
   if(editingNow()){_pendingRemote=s;return;}
   _cloudApplying=true;
   try{
-    payments=JSON.parse(s.json||'[]');
+    payments=keepUnsavedLocal(payments,JSON.parse(s.json||'[]'),s._at,'到账');
     try{alcInvalidate();}catch(e){}
     lastJson=s.json||'[]';
     store.set(KEY_DATA,lastJson);
@@ -1942,12 +1985,12 @@ const SEED=[
   {id:'imp-20260803-hh',date:'2026-08-03',customer:'H + H GmbH',amount:23794.05,currency:'EUR',
    method:'银行转账',ref:'202600491',status:'received',
    note:'银行附言：202600491（本地清算汇入）',
-   createdBy:'银行流水导入',createdAt:Date.now(),comments:[]},
+   createdBy:'银行流水导入',createdAt:1754179200000,comments:[]},
   {id:'imp-20260803-ys',date:'2026-08-03',customer:'Youngstar International Freight Forwarding Co., Limited',
    amount:23176.00,currency:'EUR',method:'银行转账',
    ref:'202600374 / 375 / 376 / 529 / 530 / 531 / 532',status:'received',
    note:'对应逾期发票 7 张（202600374–376、202600529–532），合计 23.176,00 EUR，与到账金额一致。银行附言：freight K X',
-   createdBy:'银行流水导入',createdAt:Date.now(),comments:[]}
+   createdBy:'银行流水导入',createdAt:1754179200000,comments:[]}
 ];
 async function seedImport(){
   const have=new Set(payments.map(p=>p.id));
@@ -2337,6 +2380,7 @@ function editingNow(){
   if(now-_editCacheAt<400)return _editCache;
   let r=false;
   if($('payOverlay')&&$('payOverlay').classList.contains('open'))r=true;
+  else if(['ordEditOverlay','ordFinOverlay','ordInvOverlay','ariOverlay','apEntryOverlay','apPayOverlay','bulkPayOverlay','stornoOverlay','reopenOverlay','supOverlay','caOverlay','bkOverlay'].some(function(id){const el=$(id);return el&&el.classList.contains('open');})||$('expEdOvl'))r=true;
   else{
     const ae=document.activeElement;
     if(ae&&ae.closest&&ae.closest('tr.detail')&&ae.type!=='hidden')r=true;
@@ -3442,11 +3486,14 @@ async function apSave(){
     _apLastJson=j;
 
     if(USE_CLOUD&&rtdb){
-      const okTx=await cloudTxWrite(AP_PATH,apMergeRemote,()=>JSON.stringify(apItems));
+      const _snap=JSON.parse(j);
+      const okTx=await cloudTxWrite(AP_PATH,apMergeRemote,()=>{apItems=ensureSnap(apItems,_snap);return JSON.stringify(apItems);});
       cloudWriteGuard(okTx,_merged,'应付');
-      if(okTx!==true)await rtdb.ref(AP_PATH).set({json:JSON.stringify(apItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});
+      if(okTx!==true){apItems=ensureSnap(apItems,_snap);await rtdb.ref(AP_PATH).set({json:JSON.stringify(apItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});}
       _apLastJson=JSON.stringify(apItems);
       await store.set(AP_KEY,_apLastJson);
+      const miss=await cloudVerifyIds(AP_PATH,_snap.map(x=>x.id));
+      if(miss&&miss.length)throw new Error(cloudVerifyMsg(miss,'应付'));
     }
     return true;
   }catch(e){console.error('apSave:',e);throw e;}
@@ -3510,7 +3557,7 @@ function apApplyRemote(s){
   try{setTimeout(homeRefreshIfVisible,0);}catch(e){}
   if(editingNow()){_apPendingRemote=s;return;}
   _apApplying=true;
-  try{apItems=JSON.parse(s.json||'[]');_apLastJson=s.json||'[]';store.set(AP_KEY,_apLastJson);}catch(e){}
+  try{apItems=keepUnsavedLocal(apItems,JSON.parse(s.json||'[]'),s._at,'应付');_apLastJson=JSON.stringify(apItems);store.set(AP_KEY,_apLastJson);}catch(e){}
   _apApplying=false;
   if(session){renderAP();apAlertUpdate();}
   let _notified=false;try{_notified=openDetailNotify(_snap,apItems,'应付发票',s._by);}catch(e){}
@@ -7407,11 +7454,14 @@ async function ordSave(){
     await store.set(ORD_KEY,j);
     _ordLastJson=j;
     if(USE_CLOUD&&rtdb){
-      const okTx=await cloudTxWrite(ORD_PATH,ordMergeRemote,()=>JSON.stringify(ordItems));
+      const _snap=JSON.parse(j);
+      const okTx=await cloudTxWrite(ORD_PATH,ordMergeRemote,()=>{ordItems=ensureSnap(ordItems,_snap);return JSON.stringify(ordItems);});
       cloudWriteGuard(okTx,_merged,'订单');
-      if(okTx!==true)await rtdb.ref(ORD_PATH).set({json:JSON.stringify(ordItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});
+      if(okTx!==true){ordItems=ensureSnap(ordItems,_snap);await rtdb.ref(ORD_PATH).set({json:JSON.stringify(ordItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});}
       _ordLastJson=JSON.stringify(ordItems);
       await store.set(ORD_KEY,_ordLastJson);
+      const miss=await cloudVerifyIds(ORD_PATH,_snap.map(x=>x.id));
+      if(miss&&miss.length)throw new Error(cloudVerifyMsg(miss,'订单'));
     }
     return true;
   }catch(e){console.error('ordSave:',e);throw e;}
@@ -7422,7 +7472,7 @@ function ordApplyRemote(s){
   try{setTimeout(homeRefreshIfVisible,0);}catch(e){}
   if(editingNow()){_ordPendingRemote=s;return;}
   _ordApplying=true;
-  try{ordItems=JSON.parse(s.json||'[]');ordItems.forEach(ordMigrate);_ordLastJson=s.json||'[]';store.set(ORD_KEY,_ordLastJson);}catch(e){}
+  try{ordItems=keepUnsavedLocal(ordItems,JSON.parse(s.json||'[]'),s._at,'订单');ordItems.forEach(ordMigrate);_ordLastJson=JSON.stringify(ordItems);store.set(ORD_KEY,_ordLastJson);}catch(e){}
   _ordApplying=false;
   if(session){renderORD();ordAlertUpdate();}
   let _notified=false;try{_notified=openDetailNotify(_snap,ordItems,'订单',s._by);}catch(e){}
@@ -9217,7 +9267,8 @@ async function ordSaveEdit(){
       logAdd(o,'创建订单（①已接单）',nm);
       o.comments.push({author:nm,role:session.role,text:'创建订单，开始安排服务项与供应商询价。',time:Date.now()});
       ordItems.push(o);
-      await ordSave();toast('订单已创建：'+no);
+      try{await ordSave();}catch(e){ordEditingId=o.id;throw e;}
+      toast('订单已创建：'+no);
     }
     $('ordEditOverlay').classList.remove('open');
     renderORD();
@@ -9949,10 +10000,13 @@ async function ariSaveAll(){
     const _merged=await cloudReadMerge(ARI_PATH,ARI_KEY,ariMerge);
     await store.set(ARI_KEY,JSON.stringify(ariItems));
     if(USE_CLOUD&&rtdb){
-      const okTx=await cloudTxWrite(ARI_PATH,ariMerge,()=>JSON.stringify(ariItems));
+      const _snap=JSON.parse(JSON.stringify(ariItems));
+      const okTx=await cloudTxWrite(ARI_PATH,ariMerge,()=>{ariItems=ensureSnap(ariItems,_snap);return JSON.stringify(ariItems);});
       cloudWriteGuard(okTx,_merged,'应收');
-      if(okTx!==true)await rtdb.ref(ARI_PATH).set({json:JSON.stringify(ariItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});
+      if(okTx!==true){ariItems=ensureSnap(ariItems,_snap);await rtdb.ref(ARI_PATH).set({json:JSON.stringify(ariItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});}
       await store.set(ARI_KEY,JSON.stringify(ariItems));
+      const miss=await cloudVerifyIds(ARI_PATH,_snap.map(x=>x.id));
+      if(miss&&miss.length)throw new Error(cloudVerifyMsg(miss,'应收'));
     }
     if(session){ariAlertUpdate();try{render();}catch(e){} }
     return true;
@@ -9963,7 +10017,7 @@ function ariApplyRemote(s){
   try{setTimeout(homeRefreshIfVisible,0);}catch(e){}
   if(editingNow()){_ariPendingRemote=s;return;}
   const _snap=openDetailSnap('ariBody',ariItems);
-  try{ariItems=JSON.parse(s.json||'[]');store.set(ARI_KEY,s.json||'[]');}catch(e){}
+  try{ariItems=keepUnsavedLocal(ariItems,JSON.parse(s.json||'[]'),s._at,'应收');store.set(ARI_KEY,JSON.stringify(ariItems));}catch(e){}
   try{alcInvalidate();}catch(e){}
   try{ariLinesHeal();}catch(e){}
   if(session){renderARI();ariAlertUpdate();try{render();}catch(e){} }
@@ -11841,7 +11895,7 @@ async function hrSave(){
   }catch(e){console.error('hrSave:',e);throw e;}
 }
 function hrApplyRemote(s){
-  try{hrItems=JSON.parse(s.json||'[]');store.set(HR_KEY,s.json||'[]');}catch(e){}
+  try{hrItems=keepUnsavedLocal(hrItems,JSON.parse(s.json||'[]'),s._at,'人事');store.set(HR_KEY,JSON.stringify(hrItems));}catch(e){}
   if(session){try{renderHR();}catch(e){}hrAlertUpdate();try{setTimeout(homeRefreshIfVisible,0);}catch(e){}}
 }
 function hrCloudStart(){
@@ -12187,7 +12241,7 @@ async function bankSave(){
   }catch(e){console.error('bankSave:',e);throw e;}
 }
 function bankApplyRemote(s){
-  try{bankItems=JSON.parse(s.json||'[]');store.set(BANK_KEY,s.json||'[]');}catch(e){}
+  try{bankItems=keepUnsavedLocal(bankItems,JSON.parse(s.json||'[]'),s._at,'银行');store.set(BANK_KEY,JSON.stringify(bankItems));}catch(e){}
   if(session){try{if(document.body.dataset.mod==='bank')renderBANK();}catch(e){}bankAlertUpdate();}
 }
 function bankAlertUpdate(){
