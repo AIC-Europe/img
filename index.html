@@ -987,7 +987,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.5</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.6</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1641,7 +1641,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=35.5;
+const APP_VERSION=35.6;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -12904,7 +12904,11 @@ async function ensurePdfLib(){
   if(window.PDFLib)return;
   await new Promise(function(res,rej){const t=setTimeout(function(){rej(new Error('pdf-lib 加载超时'));},10000);const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';sc.onload=function(){clearTimeout(t);window.PDFLib?res():rej(new Error('pdf-lib 加载失败'));};sc.onerror=function(){clearTimeout(t);rej(new Error('pdf-lib 加载失败'));};document.head.appendChild(sc);});
 }
-function expBatchNextNo(){const d=new Date();const ym=String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0');let n=0;for(const x of expItems){const m=String(x.batchNo||'').match(new RegExp('^EXB-'+ym+'-(\\d+)$'));if(m)n=Math.max(n,parseInt(m[1],10));}return 'EXB-'+ym+'-'+String(n+1).padStart(3,'0');}
+function expBatchNextNo(){const d=new Date();const ym=String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0');let n=0;const re=new RegExp('^EXB-'+ym+'-(\\d+)$');
+  const take=s=>{const m=String(s||'').match(re);if(m)n=Math.max(n,parseInt(m[1],10));};
+  for(const x of expItems){take(x.batchNo);for(const h of (x.batchHist||[]))take(h.batchNo);}
+  try{for(const a of apItems)if(a.expenseBatch)take(a.expenseBatch);}catch(e){}
+  return 'EXB-'+ym+'-'+String(n+1).padStart(3,'0');}
 
 function expBatchSummaryHtml(b){
   let rows='';let k=0;
@@ -12971,6 +12975,36 @@ async function expApproveBatch(ids){
   return results;
 }
 async function expApprove(x){return (await expApproveBatch([x.id]))[0];}
+
+function expBatchAp(batchNo){return apItems.find(a=>!a.deleted&&a.expenseBatch===batchNo);}
+function expBatchRevokable(batchNo){
+  const ap=expBatchAp(batchNo);
+  if(ap){if(apPaid(ap)>0||apPayList(ap).length)return '批次 '+batchNo+' 的运营类发票已有付款记录，不能撤回；请先在应付侧处理付款';
+    if(ap.bankTx)return '批次 '+batchNo+' 的运营类发票已与银行流水匹配，不能撤回；请先在银行页撤回确认';
+    if(ap.stornoOf||ap.storno)return '批次 '+batchNo+' 的运营类发票已冲销，不能撤回';}
+  const claims=expItems.filter(x=>!x.deleted&&x.batchNo===batchNo);
+  if(!claims.length)return '批次 '+batchNo+' 下没有报销单';
+  if(claims.some(x=>expStatus(x)==='paid'))return '批次 '+batchNo+' 已付款，不能撤回';
+  return '';
+}
+async function expBatchRevoke(batchNo,reason){
+  if(!canExpReview())throw new Error('仅财务可撤回批次');
+  reason=(reason||'').trim();if(!reason)throw new Error('请填写撤回原因');
+  const why=expBatchRevokable(batchNo);if(why)throw new Error(why);
+  const claims=expItems.filter(x=>!x.deleted&&x.batchNo===batchNo);
+  const ap=expBatchAp(batchNo);const now=Date.now();
+  if(ap){ap.deleted=true;ap.deletedBy=session.name;ap.deletedAt=now;ap.deleteReason='报销批次 '+batchNo+' 撤回：'+reason;ap.up=now;
+    (ap.comments=ap.comments||[]).push({author:session.name,role:session.role,text:'↩ 报销批次 '+batchNo+' 撤回（'+claims.length+' 张回到待审核），本发票作废。原因：'+reason,time:now});
+    try{apStampUp&&apStampUp();}catch(e){}}
+  for(const x of claims){
+    (x.batchHist=x.batchHist||[]).push({batchNo:batchNo,apId:x.apId||null,pdf:x.pdf||null,approvedBy:x.reviewedBy||null,approvedAt:x.reviewedAt||null,revokedBy:session.name,revokedAt:now,reason:reason});
+    x.status='submitted';delete x.batchNo;delete x.apId;delete x.pdf;delete x.reviewedBy;delete x.reviewedAt;expStamp(x);
+    expLog(x,'↩ 批次 '+batchNo+' 撤回 → 待财务审核。原因：'+reason);
+  }
+  if(ap)await apSave();await expSave();
+  return {batchNo:batchNo,claims:claims.length,apDeleted:!!ap};
+}
+window.expBatchRevoke=expBatchRevoke;window.expBatchRevokable=expBatchRevokable;
 window.expApproveBatch=expApproveBatch;
 window.expCreate=expCreate;window.expUpdate=expUpdate;window.expSubmit=expSubmit;window.expReject=expReject;window.expApprove=expApprove;window.expBuildPdf=expBuildPdf;window.EXP_CAT_ACCT=EXP_CAT_ACCT;
 function expPendingCount(){return expItems.filter(x=>!x.deleted&&x.status==='submitted').length;}
@@ -12988,7 +13022,7 @@ function expRenderList(){
   h+='<div style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap">'+['','submitted','draft','rejected','approved','paid'].map(k=>'<button type="button" class="own-chip exp-f'+(_expFilter===k?' on':'')+'" data-f="'+k+'">'+(k?EXP_STATUS[k]:'全部')+' <span class="oc-n">'+expMine().filter(x=>!k||expStatus(x)===k).length+'</span></button>').join('')+'</div>';
   if(!list.length)h+='<div style="padding:24px;text-align:center;color:var(--ink-soft)">没有报销单。点「＋ 新建报销单」录入票据。</div>';
   else{h+='<div class="ledger"><table><thead><tr>'+(fin?'<th></th>':'')+'<th>单号</th>'+(fin?'<th>员工</th>':'')+'<th>日期</th><th class="amount">合计</th><th>笔数</th><th>状态</th><th>批次 / 发票号</th><th></th></tr></thead><tbody>';
-    for(const x of list){const st=expStatus(x);h+='<tr class="row">'+(fin?'<td>'+(st==='submitted'?'<input type="checkbox" class="exp-ck" data-id="'+x.id+'" style="accent-color:var(--pine)">':'')+'</td>':'')+'<td style="font-family:var(--font-num)">'+esc(x.no)+'</td>'+(fin?'<td>'+esc(x.user)+(x.onBehalf?' <span style="font-size:10px;color:var(--ink-soft)">（代录）</span>':'')+'</td>':'')+'<td>'+esc(x.date)+'</td><td class="amount">'+fmt(expTotal(x))+'</td><td>'+x.lines.length+'</td><td><span class="badge" style="background:var(--n-wash);color:'+stCol[st]+'">'+EXP_STATUS[st]+'</span>'+(st==='rejected'&&x.rejectReason?'<div style="font-size:10.5px;color:var(--bad)">'+esc(x.rejectReason)+'</div>':'')+'</td><td style="font-family:var(--font-num);font-size:11.5px">'+esc(x.batchNo||'')+'</td><td style="white-space:nowrap"><button type="button" class="btn-sm exp-open" data-id="'+x.id+'">'+(['draft','rejected'].includes(st)&&(fin||x.user===session.name)?'编辑':(fin&&st==='submitted'?'审核':'查看'))+'</button>'+(x.pdf?' <button type="button" class="btn-sm exp-pdf" data-id="'+x.id+'">PDF</button>':'')+(['draft','rejected'].includes(st)&&(fin||x.user===session.name)?' <button type="button" class="btn-sm danger exp-del" data-id="'+x.id+'">删除</button>':'')+'</td></tr>';}
+    for(const x of list){const st=expStatus(x);h+='<tr class="row">'+(fin?'<td>'+(st==='submitted'?'<input type="checkbox" class="exp-ck" data-id="'+x.id+'" style="accent-color:var(--pine)">':'')+'</td>':'')+'<td style="font-family:var(--font-num)">'+esc(x.no)+'</td>'+(fin?'<td>'+esc(x.user)+(x.onBehalf?' <span style="font-size:10px;color:var(--ink-soft)">（代录）</span>':'')+'</td>':'')+'<td>'+esc(x.date)+'</td><td class="amount">'+fmt(expTotal(x))+'</td><td>'+x.lines.length+'</td><td><span class="badge" style="background:var(--n-wash);color:'+stCol[st]+'">'+EXP_STATUS[st]+'</span>'+(st==='rejected'&&x.rejectReason?'<div style="font-size:10.5px;color:var(--bad)">'+esc(x.rejectReason)+'</div>':'')+'</td><td style="font-family:var(--font-num);font-size:11.5px">'+esc(x.batchNo||'')+'</td><td style="white-space:nowrap"><button type="button" class="btn-sm exp-open" data-id="'+x.id+'">'+(['draft','rejected'].includes(st)&&(fin||x.user===session.name)?'编辑':(fin&&st==='submitted'?'审核':'查看'))+'</button>'+(x.pdf?' <button type="button" class="btn-sm exp-pdf" data-id="'+x.id+'">PDF</button>':'')+(['draft','rejected'].includes(st)&&(fin||x.user===session.name)?' <button type="button" class="btn-sm danger exp-del" data-id="'+x.id+'">删除</button>':'')+(fin&&st==='approved'&&x.batchNo&&!expBatchRevokable(x.batchNo)?' <button type="button" class="btn-sm exp-revoke" data-batch="'+esc(x.batchNo)+'" title="整批回到待财务审核，运营类发票作废" style="color:var(--warn);border-color:var(--warn)">↩ 撤回批次</button>':'')+'</td></tr>';}
     h+='</tbody></table></div>';}
   card.innerHTML=h;ovl.appendChild(card);document.body.appendChild(ovl);ovl.onclick=e=>{if(e.target===ovl)ovl.remove();};
   card.querySelector('#expClose').onclick=()=>ovl.remove();
@@ -12996,6 +13030,7 @@ function expRenderList(){
   card.querySelectorAll('.exp-f').forEach(b=>b.onclick=()=>{_expFilter=b.dataset.f;expRenderList();});
   card.querySelectorAll('.exp-open').forEach(b=>b.onclick=()=>{const x=expItems.find(i=>i.id===b.dataset.id);if(x)expEditOpen(x);});
   card.querySelectorAll('.exp-pdf').forEach(b=>b.onclick=()=>{const x=expItems.find(i=>i.id===b.dataset.id);if(x&&x.pdf)apDownload(x.pdf);});
+  card.querySelectorAll('.exp-revoke').forEach(b=>b.onclick=async()=>{const bn=b.dataset.batch;const n=expItems.filter(x=>!x.deleted&&x.batchNo===bn).length;const reason=prompt('撤回批次 '+bn+'（'+n+' 张回到待财务审核，运营类发票 '+bn+' 作废，批次号不复用）。请填写撤回原因：');if(reason===null)return;try{const r=await expBatchRevoke(bn,reason);toast('已撤回批次 '+r.batchNo+'：'+r.claims+' 张回到待审核'+(r.apDeleted?'，运营类发票已作废':''));_expFilter='submitted';expRenderList();try{renderAP();}catch(e){}}catch(e){toast(e.message||e);}});
   card.querySelectorAll('.exp-del').forEach(b=>b.onclick=async()=>{const x=expItems.find(i=>i.id===b.dataset.id);if(!x)return;if(!confirm('删除报销单 '+x.no+'（'+EXP_STATUS[expStatus(x)]+'，'+fmt(expTotal(x))+' €）？删除后不可恢复。'))return;try{await expDelete(x);toast('已删除 '+x.no);expRenderList();}catch(e){toast(e.message||e);}});
   const bb=card.querySelector('#expBatchBtn');
   if(bb){const upd=()=>{const n=card.querySelectorAll('.exp-ck:checked').length;bb.disabled=!n;bb.textContent='✓ 批量批准并生成 PDF（'+n+'）';};card.querySelectorAll('.exp-ck').forEach(c=>c.onchange=upd);
