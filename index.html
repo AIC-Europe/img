@@ -988,7 +988,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.7</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.8</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1642,7 +1642,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=35.7;
+const APP_VERSION=35.8;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1719,6 +1719,8 @@ function cloudPush(){
 }
 
 var _unsavedKept=0;
+function stampMono(x,key){key=key||'up';x[key]=Math.max(Date.now(),(Number(x[key])||0)+1);return x[key];}
+window.stampMono=stampMono;
 function _recStamp(x){let m=0;for(const k of ['up','_up','createdAt','time','at','importedAt','stepAt']){const v=Number(x&&x[k]);if(v>m)m=v;}return m;}
 function keepUnsavedLocal(local,remote,remoteAt,label){
   if(!Array.isArray(remote))return remote;
@@ -2395,7 +2397,7 @@ function editingNow(){
     const ae=document.activeElement;
     if(ae&&ae.closest&&ae.closest('tr.detail')&&ae.type!=='hidden')r=true;
 
-    else if(_editDirty&&(now-_editSeenAt)<90000&&document.querySelector('tr.detail'))r=true;
+    else if(_editDirty&&(now-_editSeenAt)<30000&&document.querySelector('tr.detail'))r=true;
   }
   _editCache=r;_editCacheAt=now;
   return r;
@@ -3069,7 +3071,7 @@ async function netProbe(){
   catch(e){_netSlow=true;}
   try{const el=$('storeStatus');if(el&&_netSlow)el.title=(el.title||'')+' · 数据库往返 '+(_netRtt==null?'>8000':_netRtt)+' ms（慢链路模式：大写入自动走投递箱）';}catch(e){}
 }
-window.inboxPendingGet=function(){return _inboxPending;};window.inboxLocalGet=function(){return _inboxLocal;};window.netSlowGet=function(){return _netSlow;};window.netSlowSet=function(v){_netSlow=v;};window.cloudAtGet=function(){return _cloudAt;};window.inboxAll=inboxAll;window.inboxOldestAge=inboxOldestAge;window.cloudFallbackWrite=cloudFallbackWrite;
+window.inboxPendingGet=function(){return _inboxPending;};window.inboxLocalGet=function(){return _inboxLocal;};window.netSlowGet=function(){return _netSlow;};window.netSlowSet=function(v){_netSlow=v;};window.cloudAtGet=function(){return _cloudAt;};window.migSwitch=migSwitch;window.inboxAll=inboxAll;window.inboxOldestAge=inboxOldestAge;window.cloudFallbackWrite=cloudFallbackWrite;
 
 const METRICS={
   lineNet:function(s){return svcLineNet(s);},
@@ -5240,6 +5242,8 @@ function healthCalc(){
   try{const mm=arcMissingMonths();add('arcMissing','月度凭证包未归档',mm.length,'warn',mm.length?('缺：'+mm.join('、')+' —— 月结完成后系统会自动提示生成；也可在「📦 月度归档」手动生成'):'','arc');}catch(e){}
 
   add('stubDated','待开票存根带日期或金额',ariItems.filter(function(x){return !x.deleted&&!x.invNo&&!x.storno&&!x.cancelledBy&&(x.invDate||(Number(x.gross)||0)||(Number(x.net)||0));}).length,'warn','存根应无日期与金额；请核对是否漏填发票号（报表已排除存根）','ari');
+
+  try{const m={};for(const o of ordItems){if(o.deleted||!o.orderNo)continue;(m[o.orderNo]=m[o.orderNo]||[]).push(o);}const dups=Object.keys(m).filter(k=>m[k].length>1);add('ordDupNo','成单号重复',dups.length,'bad',dups.length?('重复：'+dups.slice(0,5).join('、')+'。请在订单详情「编辑」改号或删除其中一张；慢链路端新建前先刷新'):'','ord');}catch(e){}
 
   try{const n=(typeof inboxAll==='function')?inboxAll():0;const age=(typeof inboxOldestAge==='function')?inboxOldestAge():0;add('inboxPend','投递箱待合并（慢链路写入）',n,age>600000?'bad':'warn',n?'中国端写入的记录等待线路正常的客户端合并进主表；德国端任一人打开平台即自动合并。超过 10 分钟仍在，检查德国端是否有人在线':'','ord');}catch(e){}
 
@@ -7494,8 +7498,9 @@ async function v2Write(path,items,label){
   const last=_v2Last[path]||(_v2Last[path]={});const upd={};let n=0;
   for(const r of items){const id=r&&r.id;if(!id)continue;const j=JSON.stringify(r);if(last[id]!==j){upd[id]=JSON.parse(j);last[id]=j;n++;}}
   const meta={_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID,n:n,label:label||''};
-  if(n){upd['_meta']=meta;await rtdb.ref(v2Path(path)).update(upd);}
-  try{await rtdb.ref(path).set({json:JSON.stringify(items),_at:meta._at,_by:meta._by,_client:CLOUD_CLIENT_ID,_shadow:true});}catch(e){console.warn('shadow v1:',e&&e.message);}
+  if(n){upd['_meta']=meta;await _withTimeout(rtdb.ref(v2Path(path)).update(upd),45000,(label||'')+'逐条写入');}
+
+  if(typeof _netSlow==='undefined'||_netSlow!==true){try{await _withTimeout(rtdb.ref(path).set({json:JSON.stringify(items),_at:meta._at,_by:meta._by,_client:CLOUD_CLIENT_ID,_shadow:true}),20000,'影子回写');}catch(e){console.warn('shadow v1:',e&&e.message);}}
   return n;
 }
 function v2Subscribe(path,applyFn){
@@ -9836,6 +9841,10 @@ async function migWriteV2(){
   _mig.written={cols:out,ok:out.every(function(x){return x.ok;}),at:Date.now()};return _mig.written;
 }
 async function migSwitch(mode){
+  if(mode==='v1'){
+    for(const c of MIG_COLS){const path=c[1]();const s=await rtdb.ref(v2Path(path)).once('value');const v=s.val();if(!v)continue;const arr=v2ArrayOf(v);
+      await _withTimeout(rtdb.ref(path).set({json:JSON.stringify(arr),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID,_rebuilt:true}),60000,c[0]+'回滚重建');}
+  }
   await new Promise(function(res,rej){rtdb.ref(storeModePath()).transaction(function(){return mode;},function(err){err?rej(err):res();});});
 }
 function migRender(){
@@ -11996,10 +12005,12 @@ async function hrSave(){
     const _merged=await cloudReadMerge(HR_PATH,HR_KEY,hrMerge);
     await store.set(HR_KEY,JSON.stringify(hrItems));
     if(USE_CLOUD&&rtdb){
-      const okTx=await cloudTxWrite(HR_PATH,hrMerge,()=>JSON.stringify(hrItems));
+      const _snap=JSON.parse(JSON.stringify(hrItems));
+      const okTx=await cloudTxWrite(HR_PATH,hrMerge,()=>{hrItems=ensureSnap(hrItems,_snap);return JSON.stringify(hrItems);});
       cloudWriteGuard(okTx,_merged,'人事');
-      if(okTx!==true)await rtdb.ref(HR_PATH).set({json:JSON.stringify(hrItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});
+      if(okTx!==true){hrItems=ensureSnap(hrItems,_snap);await _withTimeout(rtdb.ref(HR_PATH).set({json:JSON.stringify(hrItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID}),45000,'人事整表写入');}
       await store.set(HR_KEY,JSON.stringify(hrItems));
+      if(okTx===true){const miss=await cloudVerifyIds(HR_PATH,_snap.map(x=>x.id));if(miss&&miss.length)throw new Error(cloudVerifyMsg(miss,'人事'));}
     }
     hrAlertUpdate();return true;
   }catch(e){console.error('hrSave:',e);throw e;}
@@ -12342,10 +12353,12 @@ async function bankSave(){
     const _merged=await cloudReadMerge(BANK_PATH,BANK_KEY,bankMerge);
     await store.set(BANK_KEY,JSON.stringify(bankItems));
     if(USE_CLOUD&&rtdb){
-      const okTx=await cloudTxWrite(BANK_PATH,bankMerge,()=>JSON.stringify(bankItems));
+      const _snap=JSON.parse(JSON.stringify(bankItems));
+      const okTx=await cloudTxWrite(BANK_PATH,bankMerge,()=>{bankItems=ensureSnap(bankItems,_snap);return JSON.stringify(bankItems);});
       cloudWriteGuard(okTx,_merged,'银行');
-      if(okTx!==true)await rtdb.ref(BANK_PATH).set({json:JSON.stringify(bankItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});
+      if(okTx!==true){bankItems=ensureSnap(bankItems,_snap);await _withTimeout(rtdb.ref(BANK_PATH).set({json:JSON.stringify(bankItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID}),45000,'银行整表写入');}
       await store.set(BANK_KEY,JSON.stringify(bankItems));
+      if(okTx===true){const miss=await cloudVerifyIds(BANK_PATH,_snap.map(x=>x.id));if(miss&&miss.length)throw new Error(cloudVerifyMsg(miss,'银行'));}
     }
     bankAlertUpdate();return true;
   }catch(e){console.error('bankSave:',e);throw e;}
