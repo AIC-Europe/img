@@ -716,6 +716,7 @@ td{font-size:12.5px}
     <span class="spacer"></span>
     <span class="user-chip"><b id="userName"></b><span class="tag" id="userRoleTag"></span></span>
     <span class="tag" id="storeStatus" style="background:rgba(255,255,255,.15);border-radius:20px;padding:2px 10px;font-size:12px"></span>
+    <span class="tag" id="inboxBadge" style="display:none;background:var(--warn-bg);color:var(--warn);border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700"></span>
     <button class="link-btn" id="ntfBtn" type="button" style="display:none;position:relative" title="通知"><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><span class="mod-dot" id="ntfDot" style="display:none;position:absolute;top:-4px;right:-6px">0</span></button>
     <button class="link-btn" id="logBtn" type="button" style="display:none" title="操作日志"><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg></button>
     <button class="link-btn" id="netDiagBtn" type="button" title="线路自检：检测认证服务是否可达" style="display:none"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></button>
@@ -987,7 +988,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.6</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.7</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1641,7 +1642,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=35.6;
+const APP_VERSION=35.7;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1707,6 +1708,7 @@ function cloudPush(){
         .then(function(okTx){
           if(okTx===true){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();return;}
           payments=ensureSnap(payments,_snap);
+          if(true){return cloudFallbackWrite('pay',_snap,CLOUD_PATH,function(){return JSON.stringify(payments);}).then(function(r){CLOUD_ERR='';updateBadge();if(r.via==='inbox')toast('线路较慢：'+r.n+' 条到账已投递箱，等待合并');}).catch(function(e){CLOUD_ERR=e.message||String(e);updateBadge();});}
           const payload={json:JSON.stringify(payments),_at:Date.now(),_by:(session&&session.name)||'unknown',_client:CLOUD_CLIENT_ID};
           return rtdb.ref(CLOUD_PATH).set(payload)
             .then(function(){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();});
@@ -1757,6 +1759,7 @@ function cloudVerifyIds(path,ids){
 function cloudVerifyMsg(miss,label){return '云端未写入 '+miss.length+' 条'+label+'记录（网络不稳，常见于中国端）。本地已保留，请稍后重试保存；若反复出现请刷新页面后重试。';}
 window.keepUnsavedLocal=keepUnsavedLocal;window.ensureSnap=ensureSnap;window.cloudVerifyIds=cloudVerifyIds;window.unsavedKeptGet=function(){return _unsavedKept;};
 function applyRemote(s){
+  try{cloudAtNote('pay',s&&s._at);}catch(e){}
   try{setTimeout(homeRefreshIfVisible,0);}catch(e){}
   if(editingNow()){_pendingRemote=s;return;}
   _cloudApplying=true;
@@ -2333,6 +2336,13 @@ function enterApp(){
   });
   try{skelFill('ledgerBody',10,6);skelFill('ariBody',12,6);skelFill('apBody',11,6);skelFill('ordBody',11,6);}catch(e){}
   ariLoad().then(()=>{ariCloudStart();ariAlertUpdate();});
+
+  if(USE_CLOUD&&rtdb){netProbe().then(function(){
+    try{inboxListen('orders',async function(recs){ordMergeRemote(recs);await ordSave();});}catch(e){}
+    try{inboxListen('ap',async function(recs){apMergeRemote(recs);await apSave();});}catch(e){}
+    try{inboxListen('ari',async function(recs){ariMerge(recs);await ariSaveAll();});}catch(e){}
+    try{inboxListen('pay',async function(recs){mergeRemote(recs);await savePayments();});}catch(e){}
+  });}
   try{densBind();densApply(densGet());}catch(e){}
   try{themeBind();themeApply(themeGet());}catch(e){}
   try{a11yInit();}catch(e){}
@@ -2972,6 +2982,95 @@ $('paySave').onclick=async()=>{
   }
 };
 
+const INBOX_ROOT=DB_PREFIX+'img-ap/inbox/';
+const INBOX_LEDGERS={orders:'订单',ap:'应付',ari:'应收',pay:'到账'};
+var _inboxLocal={orders:new Set(),ap:new Set(),ari:new Set(),pay:new Set()};
+var _inboxPending={orders:[],ap:[],ari:[],pay:[]};
+var _cloudAt={orders:0,ap:0,ari:0,pay:0};
+var _netSlow=null,_netRtt=null,_inboxMerging={};
+function _withTimeout(p,ms,label){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error((label||'云端操作')+'超时（'+Math.round(ms/1000)+' s）'));},ms);})]);}
+function cloudAtNote(k,at){const a=Number(at)||0;if(a>(_cloudAt[k]||0))_cloudAt[k]=a;}
+function inboxDelta(k,snap){
+
+  const at=_cloudAt[k]||0;if(!at)return null;
+  return (snap||[]).filter(function(r){return r&&r.id&&_recStamp(r)>at;});
+}
+async function inboxPost(k,recs){
+  if(!recs||!recs.length)return 0;
+  const upd={},now=Date.now();
+  for(const r of recs)upd[r.id]={json:JSON.stringify(r),_at:now,_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID,up:_recStamp(r)};
+  const ref=rtdb.ref(INBOX_ROOT+k);
+  if(typeof ref.update==='function')await _withTimeout(ref.update(upd),15000,'投递箱写入');
+  else{for(const id in upd)await _withTimeout(rtdb.ref(INBOX_ROOT+k+'/'+id).set(upd[id]),15000,'投递箱写入');}
+  recs.forEach(function(r){_inboxLocal[k].add(r.id);});
+  try{inboxBadge();}catch(e){}
+  return recs.length;
+}
+
+async function cloudFallbackWrite(k,snap,path,liveJson){
+  const d=inboxDelta(k,snap);
+  if(d===null){
+
+    if(path&&liveJson){await _withTimeout(rtdb.ref(path).set({json:liveJson(),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID}),45000,INBOX_LEDGERS[k]+'整表写入');return {via:'set',n:0};}
+    throw new Error('云端尚未同步过'+INBOX_LEDGERS[k]+'数据，无法判定改动范围；请刷新页面后重试');
+  }
+  if(!d.length)return {via:'none',n:0};
+  if(d.length>50){
+    if(path&&liveJson){await _withTimeout(rtdb.ref(path).set({json:liveJson(),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID}),45000,INBOX_LEDGERS[k]+'整表写入');return {via:'set',n:d.length};}
+    throw new Error('本次改动涉及 '+d.length+' 条'+INBOX_LEDGERS[k]+'记录，超出投递箱范围；线路恢复后再保存');
+  }
+  const n=await inboxPost(k,d);
+  return {via:'inbox',n:n};
+}
+function inboxBadge(){
+  const el=$('inboxBadge');if(!el)return;
+  let mine=0,all=0,oldest=0;
+  for(const k in _inboxPending){for(const it of _inboxPending[k]){all++;if(it._client===CLOUD_CLIENT_ID||_inboxLocal[k].has(it.id))mine++;if(!oldest||it._at<oldest)oldest=it._at;}}
+  if(!all){el.style.display='none';return;}
+  const age=oldest?Math.round((Date.now()-oldest)/60000):0;
+  el.style.display='';el.textContent='⏳ 待合并 '+all+(mine?'（本机 '+mine+'）':'')+(age>=10?' · 已等 '+age+' 分钟':'');
+  el.title='慢链路投递箱：这些记录已写到云端投递箱，等任一线路正常的客户端合并进主表。本机记录已保留，刷新不丢。';
+}
+function inboxAll(){let n=0;for(const k in _inboxPending)n+=_inboxPending[k].length;return n;}
+function inboxOldestAge(){let o=0;for(const k in _inboxPending)for(const it of _inboxPending[k])if(!o||it._at<o)o=it._at;return o?Date.now()-o:0;}
+async function inboxClear(k,items){
+
+  for(const it of items){
+    try{await new Promise(function(res){rtdb.ref(INBOX_ROOT+k+'/'+it.id).transaction(function(cur){if(cur&&cur._at===it._at)return null;return cur;},function(){res();});});}catch(e){}
+  }
+}
+function inboxListen(k,mergeAndSave){
+  if(!USE_CLOUD||!rtdb)return;
+  rtdb.ref(INBOX_ROOT+k).on('value',function(s){
+    const v=s&&s.val();const items=[];
+    if(v)for(const id in v){try{const e=v[id];if(!e||!e.json)continue;items.push({id:id,rec:JSON.parse(e.json),_at:e._at,_by:e._by,_client:e._client});}catch(e){}}
+    _inboxPending[k]=items;
+
+    const ids=new Set(items.map(function(x){return x.id;}));
+    for(const id of Array.from(_inboxLocal[k]))if(!ids.has(id))_inboxLocal[k].delete(id);
+    try{inboxBadge();}catch(e){}
+    if(!items.length)return;
+    if(_netSlow!==false)return;
+    if(typeof isRO==='function'&&isRO())return;
+    if(_inboxMerging[k])return;
+    _inboxMerging[k]=true;
+    setTimeout(async function(){
+      try{await mergeAndSave(items.map(function(x){return x.rec;}));await inboxClear(k,items);console.log('inbox['+k+'] 已合并 '+items.length+' 条');}
+      catch(e){console.warn('inbox merge '+k,e&&e.message);}
+      finally{_inboxMerging[k]=false;}
+    },300+Math.random()*700);
+  });
+}
+async function netProbe(){
+
+  try{const f=localStorage.getItem('img-netslow');if(f==='1'){_netSlow=true;return;}if(f==='0'){_netSlow=false;return;}}catch(e){}
+  if(!USE_CLOUD||!rtdb){_netSlow=false;return;}
+  try{const t=Date.now();await _withTimeout(rtdb.ref(DB_PREFIX+'img-ap/_ping').once('value'),8000,'探测');_netRtt=Date.now()-t;_netSlow=_netRtt>400;}
+  catch(e){_netSlow=true;}
+  try{const el=$('storeStatus');if(el&&_netSlow)el.title=(el.title||'')+' · 数据库往返 '+(_netRtt==null?'>8000':_netRtt)+' ms（慢链路模式：大写入自动走投递箱）';}catch(e){}
+}
+window.inboxPendingGet=function(){return _inboxPending;};window.inboxLocalGet=function(){return _inboxLocal;};window.netSlowGet=function(){return _netSlow;};window.netSlowSet=function(v){_netSlow=v;};window.cloudAtGet=function(){return _cloudAt;};window.inboxAll=inboxAll;window.inboxOldestAge=inboxOldestAge;window.cloudFallbackWrite=cloudFallbackWrite;
+
 const METRICS={
   lineNet:function(s){return svcLineNet(s);},
   apNet:function(x){return apNetOf(x);},
@@ -3489,11 +3588,12 @@ async function apSave(){
       const _snap=JSON.parse(j);
       const okTx=await cloudTxWrite(AP_PATH,apMergeRemote,()=>{apItems=ensureSnap(apItems,_snap);return JSON.stringify(apItems);});
       cloudWriteGuard(okTx,_merged,'应付');
-      if(okTx!==true){apItems=ensureSnap(apItems,_snap);await rtdb.ref(AP_PATH).set({json:JSON.stringify(apItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});}
+      let _via='tx';
+      if(okTx!==true){apItems=ensureSnap(apItems,_snap);const r=await cloudFallbackWrite('ap',_snap,AP_PATH,()=>JSON.stringify(apItems));_via=r.via;if(r.via==='inbox')toast('线路较慢：'+r.n+' 条应付已写入云端投递箱，等待合并（本机已保留）');}
       _apLastJson=JSON.stringify(apItems);
       await store.set(AP_KEY,_apLastJson);
-      const miss=await cloudVerifyIds(AP_PATH,_snap.map(x=>x.id));
-      if(miss&&miss.length)throw new Error(cloudVerifyMsg(miss,'应付'));
+      if(_via==='tx'){const miss=await cloudVerifyIds(AP_PATH,_snap.map(x=>x.id));
+      if(miss&&miss.length)throw new Error(cloudVerifyMsg(miss,'应付'));}
     }
     return true;
   }catch(e){console.error('apSave:',e);throw e;}
@@ -3552,6 +3652,7 @@ function apPush(){
   },400);
 }
 function apApplyRemote(s){
+  try{cloudAtNote('ap',s&&s._at);}catch(e){}
   try{rcBigInvalidate();}catch(e){}
   const _snap=openDetailSnap('apBody',apItems);
   try{setTimeout(homeRefreshIfVisible,0);}catch(e){}
@@ -5139,6 +5240,8 @@ function healthCalc(){
   try{const mm=arcMissingMonths();add('arcMissing','月度凭证包未归档',mm.length,'warn',mm.length?('缺：'+mm.join('、')+' —— 月结完成后系统会自动提示生成；也可在「📦 月度归档」手动生成'):'','arc');}catch(e){}
 
   add('stubDated','待开票存根带日期或金额',ariItems.filter(function(x){return !x.deleted&&!x.invNo&&!x.storno&&!x.cancelledBy&&(x.invDate||(Number(x.gross)||0)||(Number(x.net)||0));}).length,'warn','存根应无日期与金额；请核对是否漏填发票号（报表已排除存根）','ari');
+
+  try{const n=(typeof inboxAll==='function')?inboxAll():0;const age=(typeof inboxOldestAge==='function')?inboxOldestAge():0;add('inboxPend','投递箱待合并（慢链路写入）',n,age>600000?'bad':'warn',n?'中国端写入的记录等待线路正常的客户端合并进主表；德国端任一人打开平台即自动合并。超过 10 分钟仍在，检查德国端是否有人在线':'','ord');}catch(e){}
 
   try{const nl=(typeof ariNetLineScan==='function')?ariNetLineScan().length:0;add('arNetLine','应收发票净额与服务项明细不一致',nl,'bad',nl?'发票金额与锁定明细不符（开票预填曾取过期售价字段）；应收页「🧮 净额≠明细」按明细修正，或在该发票编辑里勾选以 sevdesk 实开为准':'','arinet');}catch(e){}
   try{const sm=(typeof ordSaleMisScan==='function')?ordSaleMisScan().length:0;add('ordSaleMis','在途订单售价字段与服务项合计不一致',sm,'warn',sm?'下次改服务项或对接财务时自动对齐；也可在订单详情点「设为客户售价」':'','ord');}catch(e){}
@@ -7457,16 +7560,18 @@ async function ordSave(){
       const _snap=JSON.parse(j);
       const okTx=await cloudTxWrite(ORD_PATH,ordMergeRemote,()=>{ordItems=ensureSnap(ordItems,_snap);return JSON.stringify(ordItems);});
       cloudWriteGuard(okTx,_merged,'订单');
-      if(okTx!==true){ordItems=ensureSnap(ordItems,_snap);await rtdb.ref(ORD_PATH).set({json:JSON.stringify(ordItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});}
+      let _via='tx';
+      if(okTx!==true){ordItems=ensureSnap(ordItems,_snap);const r=await cloudFallbackWrite('orders',_snap,ORD_PATH,()=>JSON.stringify(ordItems));_via=r.via;if(r.via==='inbox')toast('线路较慢：'+r.n+' 条订单已写入云端投递箱，等待合并（本机已保留）');}
       _ordLastJson=JSON.stringify(ordItems);
       await store.set(ORD_KEY,_ordLastJson);
-      const miss=await cloudVerifyIds(ORD_PATH,_snap.map(x=>x.id));
-      if(miss&&miss.length)throw new Error(cloudVerifyMsg(miss,'订单'));
+      if(_via==='tx'){const miss=await cloudVerifyIds(ORD_PATH,_snap.map(x=>x.id));
+      if(miss&&miss.length)throw new Error(cloudVerifyMsg(miss,'订单'));}
     }
     return true;
   }catch(e){console.error('ordSave:',e);throw e;}
 }
 function ordApplyRemote(s){
+  try{cloudAtNote('orders',s&&s._at);}catch(e){}
   try{rcBigInvalidate();}catch(e){}
   const _snap=openDetailSnap('ordBody',ordItems);
   try{setTimeout(homeRefreshIfVisible,0);}catch(e){}
@@ -9226,6 +9331,8 @@ async function ordSaveEdit(){
   const dup=ordItems.find(x=>!x.deleted&&x.orderNo===no&&x.id!==ordEditingId);
   if(dup){err.textContent='成单号已存在（'+esc(dup.customer||'')+'），请更换。';err.style.display='block';return;}
   const btn=$('ordEditSave');btn.disabled=true;btn.textContent='保存中…';
+  const _t0=Date.now();const _tick=setInterval(function(){const s=Math.round((Date.now()-_t0)/1000);btn.textContent='保存中… '+s+' s';if(s===20){const e=$('ordEditErr');if(e){e.style.display='block';e.style.background='var(--warn-bg)';e.style.color='var(--warn)';e.textContent='线路较慢，仍在上传。可点「缩小」让保存在后台继续；本机已保留本次内容，刷新不丢。';}}},1000);
+  try{
   try{
 
     if(cust&&!meta.clients.some(c=>c.name===cust)){
@@ -9272,7 +9379,8 @@ async function ordSaveEdit(){
     }
     $('ordEditOverlay').classList.remove('open');
     renderORD();
-  }catch(e){err.textContent='保存失败：'+(e.message||'');err.style.display='block';}
+  }catch(e){err.style.background='';err.style.color='';err.textContent='保存失败：'+(e.message||'');err.style.display='block';}
+  }finally{clearInterval(_tick);}
   btn.disabled=false;btn.textContent='保存';
 }
 
@@ -10003,16 +10111,18 @@ async function ariSaveAll(){
       const _snap=JSON.parse(JSON.stringify(ariItems));
       const okTx=await cloudTxWrite(ARI_PATH,ariMerge,()=>{ariItems=ensureSnap(ariItems,_snap);return JSON.stringify(ariItems);});
       cloudWriteGuard(okTx,_merged,'应收');
-      if(okTx!==true){ariItems=ensureSnap(ariItems,_snap);await rtdb.ref(ARI_PATH).set({json:JSON.stringify(ariItems),_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID});}
+      let _via='tx';
+      if(okTx!==true){ariItems=ensureSnap(ariItems,_snap);const r=await cloudFallbackWrite('ari',_snap,ARI_PATH,()=>JSON.stringify(ariItems));_via=r.via;if(r.via==='inbox')toast('线路较慢：'+r.n+' 条应收已写入云端投递箱，等待合并（本机已保留）');}
       await store.set(ARI_KEY,JSON.stringify(ariItems));
-      const miss=await cloudVerifyIds(ARI_PATH,_snap.map(x=>x.id));
-      if(miss&&miss.length)throw new Error(cloudVerifyMsg(miss,'应收'));
+      if(_via==='tx'){const miss=await cloudVerifyIds(ARI_PATH,_snap.map(x=>x.id));
+      if(miss&&miss.length)throw new Error(cloudVerifyMsg(miss,'应收'));}
     }
     if(session){ariAlertUpdate();try{render();}catch(e){} }
     return true;
   }catch(e){console.error('ariSave:',e);throw e;}
 }
 function ariApplyRemote(s){
+  try{cloudAtNote('ari',s&&s._at);}catch(e){}
   try{rcBigInvalidate();}catch(e){}
   try{setTimeout(homeRefreshIfVisible,0);}catch(e){}
   if(editingNow()){_ariPendingRemote=s;return;}
@@ -15251,7 +15361,10 @@ Object.assign(I18N,{
 "✓ 全部一致":{en:"✓ All consistent",de:"✓ Alles stimmig"},
 "✓ 按明细修正所选":{en:"✓ Fix selected to lines total",de:"✓ Auswahl auf Positionssumme korrigieren"},
 "明细合计":{en:"Lines total",de:"Positionssumme"},
-"这些发票的净额与锁定明细合计不一致（v35.3 根因：财务开票时预填取了过期的订单售价字段）。勾选后「按明细修正」会重算净额/税额/含税并回写订单、留痕；若 sevdesk 实开金额确实与明细不同，请到该发票「编辑」勾选「以 sevdesk 实开为准」并填原因。":{en:"These invoices have a net that differs from the locked lines total (v35.3 root cause: the prefill used a stale order price field). \"Fix\" recalculates net/VAT/gross, writes back to the order and leaves a trail; if the sevdesk amount really differs, open the invoice and tick \"use sevdesk amount\" with a reason.",de:"Bei diesen Rechnungen weicht das Netto von der gesperrten Positionssumme ab (v35.3-Ursache: Vorbelegung aus veraltetem Preisfeld). „Korrigieren\" berechnet Netto/USt/Brutto neu, schreibt in den Auftrag zurück und protokolliert; weicht der sevdesk-Betrag wirklich ab, in der Rechnung „sevdesk-Betrag übernehmen\" mit Grund wählen."}
+"这些发票的净额与锁定明细合计不一致（v35.3 根因：财务开票时预填取了过期的订单售价字段）。勾选后「按明细修正」会重算净额/税额/含税并回写订单、留痕；若 sevdesk 实开金额确实与明细不同，请到该发票「编辑」勾选「以 sevdesk 实开为准」并填原因。":{en:"These invoices have a net that differs from the locked lines total (v35.3 root cause: the prefill used a stale order price field). \"Fix\" recalculates net/VAT/gross, writes back to the order and leaves a trail; if the sevdesk amount really differs, open the invoice and tick \"use sevdesk amount\" with a reason.",de:"Bei diesen Rechnungen weicht das Netto von der gesperrten Positionssumme ab (v35.3-Ursache: Vorbelegung aus veraltetem Preisfeld). „Korrigieren\" berechnet Netto/USt/Brutto neu, schreibt in den Auftrag zurück und protokolliert; weicht der sevdesk-Betrag wirklich ab, in der Rechnung „sevdesk-Betrag übernehmen\" mit Grund wählen."},
+"投递箱待合并（慢链路写入）":{en:"Inbox pending merge (slow-link writes)",de:"Posteingang wartet auf Zusammenführung (langsame Leitung)"},
+"中国端写入的记录等待线路正常的客户端合并进主表；德国端任一人打开平台即自动合并。超过 10 分钟仍在，检查德国端是否有人在线":{en:"Records written from the China side wait for a client with a normal link to merge them into the main table; anyone opening the platform in Germany merges them automatically. If still pending after 10 min, check whether anyone in Germany is online",de:"Vom China-Standort geschriebene Datensätze warten auf einen Client mit normaler Leitung; jeder in Deutschland, der die Plattform öffnet, führt sie automatisch zusammen. Nach 10 Minuten prüfen, ob in Deutschland jemand online ist"},
+"线路较慢，仍在上传。可点「缩小」让保存在后台继续；本机已保留本次内容，刷新不丢。":{en:"Slow link, still uploading. Click \"Minimize\" to keep saving in the background; this device keeps your input, a refresh will not lose it.",de:"Langsame Leitung, Upload läuft noch. „Verkleinern\" lässt das Speichern im Hintergrund weiterlaufen; die Eingabe bleibt auf diesem Gerät erhalten."}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
@@ -15411,6 +15524,8 @@ I18N_RULES.push(
 [/^已并入批次\ (\d+(?:[.,]\d+)?)\ →\ 应付运营类发票$/,{en:"Included in batch $1 → AP operating invoice",de:"In Abrechnung $1 → Betriebsrechnung"}],
 [/^🧮\ 净额≠明细（(\d+(?:[.,]\d+)?)）$/,{en:"🧮 Net ≠ lines ($1)",de:"🧮 Netto ≠ Positionen ($1)"}],
 [/^🧮\ 发票净额\ ≠\ 服务项明细（(\d+(?:[.,]\d+)?)）$/,{en:"🧮 Invoice net ≠ service lines ($1)",de:"🧮 Rechnungsnetto ≠ Leistungspositionen ($1)"}],
+[/^⏳\ 待合并\ (\d+(?:[.,]\d+)?)（本机\ (\d+(?:[.,]\d+)?)）$/,{en:"⏳ Pending merge $1 (this device $2)",de:"⏳ Ausstehend $1 (dieses Gerät $2)"}],
+[/^⏳\ 待合并\ (\d+(?:[.,]\d+)?)$/,{en:"⏳ Pending merge $1",de:"⏳ Ausstehend $1"}],
 [/^休假中 · 代办 (.+)$/,{en:"On leave · deputy $1",de:"Abwesend · Vertretung $1"}],
 [/^默认 (.+)$/,{en:"Default $1",de:"Standard $1"}],
 [/^代办中（(.+) 休假）$/,{en:"Covering ($1 on leave)",de:"Vertretung ($1 abwesend)"}],
