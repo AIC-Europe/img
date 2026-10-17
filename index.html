@@ -990,7 +990,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v36.1</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v36.2</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1644,7 +1644,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=36.1;
+const APP_VERSION=36.2;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -3196,6 +3196,201 @@ function arReconOpen(){
   }
 }
 window.arReconOpen=arReconOpen;
+
+const LOC_COUNTRY={DE:'Germany',NL:'Netherlands',PL:'Poland',BE:'Belgium',FR:'France',AT:'Austria',CZ:'Czech Republic',ES:'Spain',IT:'Italy',CH:'Switzerland',DK:'Denmark',LU:'Luxembourg',HU:'Hungary',SK:'Slovakia',GB:'United Kingdom',SE:'Sweden',CN:'China'};
+const LOC_CN={DE:'德国',NL:'荷兰',PL:'波兰',BE:'比利时',FR:'法国',AT:'奥地利',CZ:'捷克',ES:'西班牙',IT:'意大利',CH:'瑞士',DK:'丹麦',LU:'卢森堡',HU:'匈牙利',SK:'斯洛伐克',GB:'英国',SE:'瑞典',CN:'中国'};
+const LOC_PC={DE:/^\d{5}$/,NL:/^\d{4}\s?[A-Z]{2}$/i,PL:/^\d{2}-\d{3}$/,BE:/^\d{4}$/,FR:/^\d{5}$/,AT:/^\d{4}$/,CZ:/^\d{3}\s?\d{2}$/,ES:/^\d{5}$/,IT:/^\d{5}$/,CH:/^\d{4}$/,DK:/^\d{4}$/,LU:/^L?-?\d{4}$/,HU:/^\d{4}$/,SK:/^\d{3}\s?\d{2}$/,GB:/^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i,SE:/^\d{3}\s?\d{2}$/};
+const LOC_WORDS=[['DE',/germany|deutschland|\bDE\b|\bD-\d/i],['NL',/netherlands|nederland|holland|\bNL\b/i],['PL',/poland|polska|polen|\bPL\b|\.PL\b/i],['BE',/belgi|\bBE\b/i],['FR',/france|frankreich|\bFR\b/i],['AT',/austria|österreich|\bAT\b/i],['CZ',/czech|česk|tschech|\bCZ\b/i],['ES',/spain|españa|spanien|\bES\b/i],['IT',/\bitaly|italia|italien|\bIT\b/i],['CH',/switzerland|schweiz|\bCH\b/i],['DK',/denmark|danmark|\bDK\b/i],['LU',/luxemb|\bLU\b/i],['HU',/hungar|magyar|\bHU\b/i],['SK',/slovak|\bSK\b/i],['GB',/united kingdom|england|\bUK\b|\bGB\b/i],['SE',/sweden|sverige|\bSE\b/i]];
+const LOC_PORTS=[{code:'NLRTM',name:'鹿特丹港',en:'Rotterdam Port',city:'Rotterdam',country:'NL',alias:['RTM','RTM PORT','ROTTERDAM','ROTTERDAM PORT','鹿特丹']},{code:'DEHAM',name:'汉堡港',en:'Hamburg Port',city:'Hamburg',country:'DE',alias:['HAM','HAMBURG','HAMBURG PORT','汉堡']},{code:'BEANR',name:'安特卫普港',en:'Antwerp Port',city:'Antwerpen',country:'BE',alias:['ANR','ANTWERP','ANTWERPEN','安特卫普']},{code:'DEBRV',name:'不来梅哈芬港',en:'Bremerhaven Port',city:'Bremerhaven',country:'DE',alias:['BRV','BREMERHAVEN']}];
+const LOC_ORIGIN_KINDS=['port','warehouse','terminal','supplier'];
+function locIsOrigin(L){return !!L&&LOC_ORIGIN_KINDS.indexOf(L.kind)>=0;}
+function locAll(){return (meta.locations=meta.locations||[]);}
+
+function locNoteUse(L,customer,role){if(!L)return;L.useCount=(L.useCount||0)+1;L.lastUsed=Date.now();if(customer){L.customers=L.customers||[];if(L.customers.indexOf(customer)<0){L.customers.push(customer);if(L.customers.length>30)L.customers.shift();}}if(role==='to'&&!locIsOrigin(L)&&L.kind==='other')L.kind='customer';}
+function locLive(){return locAll().filter(function(l){return !l.inactive;});}
+function locById(id){return locAll().find(function(l){return l.id===id;});}
+function locFmt(L){
+  if(!L)return '';
+  if(L.incomplete)return L.name||'';
+  const parts=[];
+  if(L.name)parts.push(L.name);
+  if(L.kind==='port'&&L.locode)parts.push(L.locode+(L.city?' '+L.city:''));
+  else{const st=[L.street,L.houseNo].filter(Boolean).join(' ')+(L.extra?' ('+L.extra+')':'');if(st.trim())parts.push(st.trim());
+    const pc=[L.postcode,L.city].filter(Boolean).join(' ');if(pc)parts.push(pc);}
+  if(L.country)parts.push(LOC_COUNTRY[L.country]||L.country);
+  return parts.join(', ');
+}
+function locShort(L){if(!L)return '';return L.name||((L.city||'')+(L.country?' '+L.country:''));}
+function locKey(L){if(!L.postcode&&!L.locode)return 'name:'+String(L.name||'').toLowerCase().replace(/\s+/g,' ').trim();return [(L.country||'').toUpperCase(),String(L.postcode||'').replace(/\s/g,'').toUpperCase(),String(L.houseNo||'').toUpperCase(),String(L.street||'').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,12),L.locode||''].join('|');}
+function locComplete(L){return !!(L&&!L.incomplete&&(L.locode||(L.postcode&&L.city&&L.country)));}
+function locPcValid(country,pc){const re=LOC_PC[country];if(!re)return !!pc;return re.test(String(pc||'').trim());}
+
+function locParse(text){
+  const raw=String(text||'').trim();const out={ok:false,raw:raw,name:'',street:'',houseNo:'',extra:'',postcode:'',city:'',country:'',locode:'',kind:'other'};
+  if(!raw)return out;
+  const U=raw.toUpperCase().replace(/[.,]/g,' ').replace(/\s+/g,' ').trim();
+  for(const p of LOC_PORTS){if(p.alias.indexOf(U)>=0||U===p.code||U===p.name.toUpperCase()){return Object.assign(out,{ok:true,kind:'port',name:p.name,locode:p.code,city:p.city,country:p.country});}}
+  let s=raw.replace(/[\u2010\u2011\u2012\u2013\u2014]/g,'-').replace(/[，、]/g,',').replace(/：/g,':').replace(/\s+/g,' ').trim();
+
+  if(/邮编\s*:/.test(s)){const g=function(k){const m=new RegExp(k+'\\s*:\\s*([^:]*?)(?=\\s+(?:国家|城市|街道|门牌号?|邮编|名称|公司)\\s*:|$)').exec(s);return m?m[1].trim().replace(/[,，]+$/,''):'';};
+    out.country=(g('国家')||'').toUpperCase().slice(0,2);out.city=g('城市');out.street=g('街道');out.houseNo=g('门牌号?');out.postcode=g('邮编');out.name=s.split(/\s*国家\s*:/)[0].trim();
+    if(out.postcode&&out.city&&out.country)out.ok=true;return out;}
+  for(const w of LOC_WORDS){if(w[1].test(s)){out.country=w[0];break;}}
+  let m;
+  if((m=/\b(\d{2}-\d{3})\b/.exec(s))){out.postcode=m[1];out.country=out.country||'PL';}
+  else if((m=/\b(\d{4})\s?([A-Z]{2})\b/.exec(s))&&!/\d{5}/.test(s)){out.postcode=m[1]+' '+m[2].toUpperCase();out.country=out.country||'NL';}
+  else if((m=/\b(?:D-|DE-)?(\d{5})\b/.exec(s))){out.postcode=m[1];out.country=out.country||'DE';}
+  else if((m=/\b(\d{4})\b/.exec(s))){out.postcode=m[1];}
+  if(out.postcode){
+    const idx=s.indexOf(m[0]);const before=s.slice(0,idx).trim().replace(/[,\-–]\s*$/,'').trim();let after=s.slice(idx+m[0].length).trim().replace(/^[,\-–\s]+/,'');
+    after=after.replace(/\b(DE|NL|PL|BE|FR|AT|CZ|ES|IT|CH|DK|LU|HU|SK|GB|SE)\b\.?$/i,'').trim();
+    for(const w of LOC_WORDS){after=after.replace(w[1],'').trim();}
+    after=after.replace(/[,\s]+$/,'').trim();
+    const cityM=/^([A-Za-zÀ-ž' \-]+?)(?:[,\s]+|$)/.exec(after);if(cityM)out.city=cityM[1].trim();
+
+    const hm=/^(.*?)[\s,]+(\d+[A-Za-z]?(?:\s?[-\/]\s?\d+[A-Za-z]?)?)\s*(?:,|$)/.exec(before+',');
+    if(hm){
+      const pre=hm[1].replace(/[,;\s]+$/,'').trim();out.houseNo=hm[2].replace(/\s/g,'');
+      const toks=pre.split(/\s+/);let si=-1;
+      for(let i=toks.length-1;i>=0;i--){if(/(str\.?|straße|strasse|stra\u00dfe|weg|allee|platz|gasse|ring|damm|ufer|laan|straat|plein|kade|dijk|road|rd\.?|street|st\.?)$/i.test(toks[i].replace(/[,.]$/,''))){si=i;break;}}
+      if(si<0){for(let i=0;i<toks.length;i++){if(/^(rue|avenue|av\.?|calle|via|ul\.?|ulica|boulevard|bd\.?|chemin|route|strada|piazza|plac|aleja|al\.?)$/i.test(toks[i])){si=i;break;}}
+        if(si>=0){out.street=toks.slice(si).join(' ');out.name=toks.slice(0,si).join(' ');}
+        else{const seg=pre.split(',').map(function(x){return x.trim();}).filter(Boolean);if(seg.length>1){out.name=seg.slice(0,-1).join(', ');out.street=seg[seg.length-1];}else{out.street=toks.slice(-1).join(' ');out.name=toks.slice(0,-1).join(' ');}}}
+      else{let s0=si;if(/^(str\.?|straße|strasse|street|st\.?|road|rd\.?|weg|allee|platz|laan|straat|plein)$/i.test(toks[si].replace(/[,.]$/,''))&&si>0)s0=si-1;
+        out.street=toks.slice(s0,si+1).join(' ').replace(/,$/,'');out.name=toks.slice(0,s0).join(' ').replace(/[,;]+$/,'').trim();}
+    }else{const seg=before.split(',').map(function(x){return x.trim();}).filter(Boolean);if(seg.length>1){out.name=seg.slice(0,-1).join(', ');out.street=seg[seg.length-1];}else out.street=before;}
+    const ex=/\b(Tor|Halle|Gate|Dock|Unit|Geb(?:äude)?\.?|Building)\s*[\w\-\/]+/i.exec(raw);if(ex)out.extra=ex[0];
+    if(!out.city){const cm=/\b(\d{5}|\d{2}-\d{3}|\d{4}\s?[A-Z]{2}|\d{4})\s+([A-Za-zÀ-ž' \-]{2,})/.exec(s);if(cm)out.city=cm[2].trim();}
+    if(!out.city){const segs=before.split(',').map(function(x){return x.trim();}).filter(Boolean);const last=segs[segs.length-1]||'';if(last&&!/\d/.test(last)&&segs.length>1){out.city=last;const rest=segs.slice(0,-1).join(', ');const hm2=/^(.*?)[\s,]+(\d+[A-Za-z]?)\s*$/.exec(rest);if(hm2){out.houseNo=hm2[2];const t2=hm2[1].split(/\s+/);out.street=t2.slice(-2).join(' ');out.name=t2.slice(0,-2).join(' ');}}}
+    if(out.street){const t=out.street.split(/\s+/);if(t.length===1&&out.name){const nt=out.name.split(/\s+/);let k=nt.length;while(k>0&&/^(an|am|im|in|auf|der|dem|den|de|la|le|du|des|van|von|zum|zur|del|della|di|do|dos|da|al|ul|op|bij|aan|het)$/i.test(nt[k-1]))k--;if(k<nt.length){out.street=nt.slice(k).join(' ')+' '+out.street;out.name=nt.slice(0,k).join(' ');}}}
+    if(out.street&&!out.name&&/warehous|logist|gmbh|b\.v\.|sp\. z|s\.l\.|ltd/i.test(out.street)){out.name=out.street;out.street='';}
+  }
+  if(out.postcode&&out.city&&out.country)out.ok=true;
+  if(/warehous|lager|magazyn|仓/i.test(raw))out.kind='warehouse';
+  return out;
+}
+function locUpsert(L){
+  const list=locAll();const key=locKey(L);
+  let ex=list.find(function(x){return locKey(x)===key&&!x.inactive;});
+  if(!ex&&L.locode)ex=list.find(function(x){return x.locode===L.locode;});
+  if(ex){for(const k of ['name','extra','contact','note','cn','kind'])if(!ex[k]&&L[k])ex[k]=L[k];if(L.alias)ex.alias=Array.from(new Set((ex.alias||[]).concat(L.alias)));ex.up=Date.now();return ex;}
+  const n=Object.assign({id:'loc'+Date.now()+Math.random().toString(36).slice(2,6),alias:[],at:Date.now(),up:Date.now()},L);
+  if(n.country)n.country=String(n.country).toUpperCase();
+  list.push(n);return n;
+}
+
+function locResolve(text,autoCreate,lenient){
+  const t=String(text||'').trim();if(!t)return null;
+  let L=locById(t);if(L)return L;
+  const tu=t.toUpperCase().replace(/[.,]/g,' ').replace(/\s+/g,' ').trim();
+  L=locLive().find(function(x){return (x.name||'').toUpperCase()===tu||(x.alias||[]).some(function(a){return String(a).toUpperCase().replace(/[.,]/g,' ').replace(/\s+/g,' ').trim()===tu;})||locFmt(x)===t;});
+  if(L)return L;
+  const p=locParse(t);
+  if(!p.ok){
+    if(!autoCreate||!lenient||t.length>120)return null;
+    const key='name:'+t.toLowerCase().replace(/\s+/g,' ').trim();L=locLive().find(function(x){return locKey(x)===key;});if(L)return L;
+    return locUpsert({name:t,kind:p.kind||'other',postcode:p.postcode||'',city:p.city||'',country:p.country||'',incomplete:true,alias:[]});
+  }
+  const key=locKey(p);L=locLive().find(function(x){return locKey(x)===key;});if(L)return L;
+  if(!autoCreate)return null;
+  return locUpsert({name:p.name,kind:p.kind,street:p.street,houseNo:p.houseNo,extra:p.extra,postcode:p.postcode,city:p.city,country:p.country,locode:p.locode,alias:[t]});
+}
+function locSeed(){
+  let n=0;
+  for(const p of LOC_PORTS){if(!locAll().some(function(x){return x.locode===p.code;})){locUpsert({name:p.name,kind:'port',locode:p.code,city:p.city,country:p.country,alias:p.alias.concat([p.en]),cn:p.name});n++;}}
+  if(!locAll().some(function(x){return (x.name||'')==='Aalsmeer 仓';})){locUpsert({name:'Aalsmeer 仓',kind:'warehouse',street:'Rietwijkeroordweg',houseNo:'52',postcode:'1432 JG',city:'Aalsmeer',country:'NL',alias:['Aalsmeer','TFS Aalsmeer','TFS 1432 JG Aalsmeer, Rietwijkerordweg 52','1432 JG Aalsmeer, Rietwijkerordweg 52','1432 JG Aalsmeer, Rietwijkeroordweg 52','Rietwijkerordweg 52'],cn:'阿尔斯梅尔仓'});n++;}
+  return n;
+}
+
+function locMigrate(){
+  locSeed();const st={lines:0,resolved:0,dirty:0,created:0};const before=locAll().length;
+  for(const o of ordItems){if(o.deleted)continue;let ch=false;
+    for(const s of (o.svc||[])){
+      const tos=(s.addrTos&&s.addrTos.length?s.addrTos:(s.addrTo?[s.addrTo]:[]));
+      if(!s.addrFrom&&!tos.length)continue;st.lines++;
+      let ok=true;
+      if(s.addrFrom){const L=locResolve(s.addrFrom,true,true);if(L){if(L.kind==='other'||L.kind==='customer')L.kind='warehouse';  locNoteUse(L,o.customer,'from');if(s.locFrom!==L.id||s.addrFrom!==locFmt(L)){s.locFrom=L.id;s.addrFrom=locFmt(L);ch=true;}}else ok=false;}
+      const ids=[],txt=[];for(const t of tos){const L=locResolve(t,true,true);if(L){locNoteUse(L,o.customer,'to');ids.push(L.id);txt.push(locFmt(L));}else{ok=false;ids.push(null);txt.push(t);}}
+      if(tos.length){const same=JSON.stringify(s.locTos||[])===JSON.stringify(ids)&&JSON.stringify(txt)===JSON.stringify(tos);if(!same){s.locTos=ids;s.addrTo=txt[0];s.addrTos=txt.length>1?txt:undefined;ch=true;}}
+      if(ok){const Ls=[s.locFrom].concat(s.locTos||[]).map(locById);ok=Ls.every(function(x){return !x||locComplete(x);});}
+      if(ok){if(s.addrDirty){delete s.addrDirty;ch=true;}st.resolved++;}else{if(!s.addrDirty){s.addrDirty=true;ch=true;}st.dirty++;}
+    }
+    if(ch)o.up=Date.now();
+  }
+  st.created=locAll().length-before;return st;
+}
+function locDirtyLines(){const out=[];for(const o of ordItems){if(o.deleted||o.type==='inq')continue;for(const s of (o.svc||[])){if(!(s.addrFrom||s.addrTo))continue;const ids=[s.locFrom].concat(s.locTos||[]).filter(Boolean);const bad=s.addrDirty||!ids.length||ids.some(function(id){return !locComplete(locById(id));});if(bad)out.push({o:o,s:s});}}return out;}
+window.locComplete=locComplete;window.locAll=locAll;window.locFmt=locFmt;window.locParse=locParse;window.locResolve=locResolve;window.locUpsert=locUpsert;window.locSeed=locSeed;window.locMigrate=locMigrate;window.locDirtyLines=locDirtyLines;window.locPcValid=locPcValid;window.locKey=locKey;
+
+function locDatalist(customer){
+
+  const mk=function(id,list){let dl=document.getElementById(id);if(!dl){dl=document.createElement('datalist');dl.id=id;document.body.appendChild(dl);}
+    dl.innerHTML=list.map(function(L){return '<option value="'+esc(locFmt(L))+'">'+esc(locShort(L))+(L.cn?' · '+esc(L.cn):'')+(L.useCount?' · '+L.useCount+'次':'')+'</option>';}).join('');return dl;};
+  const live=locLive();
+  const origins=live.filter(locIsOrigin).sort(function(a,b){return (b.useCount||0)-(a.useCount||0)||String(a.name||'').localeCompare(String(b.name||''));});
+  const mine=customer?live.filter(function(L){return !locIsOrigin(L)&&(L.customers||[]).indexOf(customer)>=0;}):[];
+  const others=live.filter(function(L){return !locIsOrigin(L)&&mine.indexOf(L)<0;}).sort(function(a,b){return (b.useCount||0)-(a.useCount||0)||String(a.name||'').localeCompare(String(b.name||''));});
+  mk('locListFrom',origins);mk('locListTo',mine.sort(function(a,b){return (b.lastUsed||0)-(a.lastUsed||0);}).concat(others));
+  return mk('locList',origins.concat(mine,others));
+}
+window.locNoteUse=locNoteUse;window.locIsOrigin=locIsOrigin;
+window.locDatalist=locDatalist;
+
+function locFormOpen(prefill,cb){
+  const old=document.getElementById('locFormOvl');if(old)old.remove();
+  const p=Object.assign({kind:'customer',country:'DE'},prefill||{});
+  const ovl=document.createElement('div');ovl.id='locFormOvl';ovl.style.cssText='position:fixed;inset:0;background:rgba(20,28,26,.45);z-index:2500;display:flex;align-items:center;justify-content:center';
+  const card=document.createElement('div');card.style.cssText='background:var(--card,#fff);border-radius:14px;padding:18px 20px;width:min(640px,96vw);box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px';
+  const inp=function(id,label,val,ph,w){return '<label style="display:flex;flex-direction:column;gap:3px;'+(w||'flex:1;min-width:140px')+'"><span style="font-size:11px;color:var(--ink-soft)">'+label+'</span><input id="'+id+'" value="'+esc(val||'')+'" placeholder="'+esc(ph||'')+'" style="border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px"></label>';};
+  card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:700;font-size:14px">📍 '+(p.id?'编辑地点':'新建地点')+'</div><button class="btn-ghost" id="lfClose" type="button">关闭</button></div>'+
+    '<div style="font-size:11px;color:var(--ink-soft);margin:4px 0 10px">标准格式（物流发票口径）：名称, 街道 门牌 (附加), 邮编 城市, 国家。港口用 UN/LOCODE（鹿特丹 = NLRTM）。</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px">'+inp('lfName','名称 *（公司/仓库/港口）',p.name,'Aalsmeer 仓','flex:2;min-width:220px')+
+    '<label style="display:flex;flex-direction:column;gap:3px;min-width:120px"><span style="font-size:11px;color:var(--ink-soft)">类型</span><select id="lfKind" style="border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px"><option value="port">港口</option><option value="warehouse">仓库</option><option value="customer">客户收货点</option><option value="supplier">供应商</option><option value="terminal">码头/堆场</option><option value="other">其他</option></select></label></div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+inp('lfStreet','街道',p.street,'Rietwijkeroordweg','flex:2;min-width:200px')+inp('lfNo','门牌',p.houseNo,'52','width:90px')+inp('lfExtra','附加（Tor/Halle/Gate）',p.extra,'Tor 13-19','flex:1;min-width:140px')+'</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+inp('lfPc','邮编 *',p.postcode,'1432 JG','width:110px')+inp('lfCity','城市 *',p.city,'Aalsmeer','flex:1;min-width:140px')+
+    '<label style="display:flex;flex-direction:column;gap:3px;width:150px"><span style="font-size:11px;color:var(--ink-soft)">国家 *</span><select id="lfCountry" style="border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px">'+Object.keys(LOC_COUNTRY).map(function(c){return '<option value="'+c+'">'+c+' '+LOC_COUNTRY[c]+' '+LOC_CN[c]+'</option>';}).join('')+'</select></label>'+inp('lfLocode','UN/LOCODE（港口）',p.locode,'NLRTM','width:120px')+'</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+inp('lfCn','中文别名',p.cn,'阿尔斯梅尔仓','flex:1;min-width:140px')+inp('lfAlias','其他叫法（逗号分隔）',(p.alias||[]).join(', '),'TFS Aalsmeer, RTM','flex:2;min-width:200px')+'</div>'+
+    '<div id="lfErr" style="display:none;color:var(--bad);margin-top:8px;font-weight:600"></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><span id="lfPreview" style="font-size:11.5px;color:var(--ink-soft)"></span><button class="btn btn-primary" style="width:auto" id="lfSave" type="button">保存地点</button></div>';
+  ovl.appendChild(card);document.body.appendChild(ovl);
+  const q=function(id){return card.querySelector('#'+id);};q('lfKind').value=p.kind||'customer';q('lfCountry').value=p.country||'DE';
+  const read=function(){return {id:p.id,name:q('lfName').value.trim(),kind:q('lfKind').value,street:q('lfStreet').value.trim(),houseNo:q('lfNo').value.trim(),extra:q('lfExtra').value.trim(),postcode:q('lfPc').value.trim(),city:q('lfCity').value.trim(),country:q('lfCountry').value,locode:q('lfLocode').value.trim().toUpperCase(),cn:q('lfCn').value.trim(),alias:q('lfAlias').value.split(',').map(function(x){return x.trim();}).filter(Boolean)};};
+  const prev=function(){q('lfPreview').textContent=locFmt(read());};card.querySelectorAll('input,select').forEach(function(el){el.addEventListener('input',prev);el.addEventListener('change',prev);});prev();
+  ovl.onclick=function(e){if(e.target===ovl)ovl.remove();};q('lfClose').onclick=function(){ovl.remove();};
+  q('lfSave').onclick=function(){
+    const L=read();const err=q('lfErr');
+    if(!L.name){err.textContent='名称必填';err.style.display='';return;}
+    if(L.kind==='port'){if(!/^[A-Z]{5}$/.test(L.locode)){err.textContent='港口请填 5 位 UN/LOCODE（如 NLRTM）';err.style.display='';return;}}
+    else{if(!L.postcode||!L.city){err.textContent='邮编和城市必填';err.style.display='';return;}if(!locPcValid(L.country,L.postcode)){err.textContent='邮编格式不符合 '+L.country+'（'+LOC_COUNTRY[L.country]+'）';err.style.display='';return;}}
+    let saved;
+    if(L.id){saved=locById(L.id);Object.assign(saved,L,{up:Date.now()});}
+    else{const dup=locLive().find(function(x){return locKey(x)===locKey(L);});if(dup&&!confirm('已有相同邮编/门牌的地点「'+locShort(dup)+'」，仍要新建？')){saved=dup;}else saved=locUpsert(L);}
+    metaSave().then(function(){try{locDatalist();}catch(e){}ovl.remove();cb&&cb(saved);}).catch(function(e){err.textContent='保存失败：'+(e.message||e);err.style.display='';});
+  };
+}
+window.locFormOpen=locFormOpen;
+
+function locCardEnsure(){
+  let card=document.getElementById('locCard');const host=document.getElementById('baseCards');if(!host)return;
+  if(!card){card=document.createElement('div');card.className='base-card';card.id='locCard';host.parentNode.insertBefore(card,host.nextSibling);}
+  const fin=session&&session.role==='finance';const list=locLive().slice().sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''));});
+  const dirty=locDirtyLines();
+  let h='<h3>📍 地点簿（'+list.length+'）</h3><div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:8px">派送行的收发货地址从这里选，标准格式：名称, 街道 门牌, 邮编 城市, 国家。港口用 UN/LOCODE。</div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><span class="chip on" data-f="" style="cursor:pointer">全部</span><span class="chip" data-f="from" style="cursor:pointer">起运地</span><span class="chip" data-f="to" style="cursor:pointer">收货地</span><span class="chip" data-f="inc" style="cursor:pointer">待补全</span><input id="locSearch" placeholder="搜索名称/城市/邮编" style="flex:1;min-width:160px;border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12px"><button class="btn-sm" id="locAddBtn" type="button">＋ 新建地点</button>'+(fin?'<button class="btn-sm" id="locMigBtn" type="button" title="把历史派送行的自由文本地址归入地点簿并改写为标准格式（可重复运行）">⟳ 迁移历史地址</button>':'')+'</div>';
+  if(dirty.length)h+='<div style="margin-bottom:8px;padding:6px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:12px;font-weight:600">⚠ '+dirty.length+' 条派送行地址无法解析，请到订单详情 ✏ 重新选择或新建地点：'+dirty.slice(0,6).map(function(d){return esc(d.o.orderNo);}).join('、')+(dirty.length>6?' …':'')+'</div>';
+  h+='<div style="max-height:260px;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--n-wash)"><th style="text-align:left;padding:4px">名称</th><th style="text-align:left">类型</th><th style="text-align:left">街道 门牌</th><th style="text-align:left">邮编 城市</th><th>国家</th><th class="amount">次数</th><th></th></tr></thead><tbody id="locRows"></tbody></table></div>';
+  card.innerHTML=h;
+  const KIND={port:'港口',warehouse:'仓库',customer:'客户',supplier:'供应商',terminal:'码头',other:'其他'};
+  let filt='';
+  const render=function(){const qv=(card.querySelector('#locSearch').value||'').toLowerCase();const rows=list.filter(function(L){if(filt==='from'&&!locIsOrigin(L))return false;if(filt==='to'&&locIsOrigin(L))return false;if(filt==='inc'&&locComplete(L))return false;return !qv||[L.name,L.cn,L.city,L.postcode,L.locode].concat(L.alias||[],L.customers||[]).join(' ').toLowerCase().indexOf(qv)>=0;}).sort(function(a,b){return (b.useCount||0)-(a.useCount||0)||String(a.name||'').localeCompare(String(b.name||''));});
+    card.querySelector('#locRows').innerHTML=rows.map(function(L){return '<tr'+(locComplete(L)?'':' style="background:var(--warn-bg)"')+'><td style="padding:4px;font-weight:600">'+esc(L.name||'')+(L.cn?' <span style="color:var(--ink-soft)">'+esc(L.cn)+'</span>':'')+(locComplete(L)?'':' <span style="color:var(--warn);font-size:11px">待补全</span>')+'</td><td>'+(KIND[L.kind]||L.kind||'')+'</td><td>'+esc(L.kind==='port'?(L.locode||''):[L.street,L.houseNo].filter(Boolean).join(' ')+(L.extra?' ('+L.extra+')':''))+'</td><td>'+esc([L.postcode,L.city].filter(Boolean).join(' '))+'</td><td style="text-align:center">'+esc(L.country||'')+'</td><td class="amount">'+(L.useCount||0)+'</td><td style="text-align:right"><button type="button" class="btn-sm loc-edit" data-id="'+L.id+'">✎</button></td></tr>';}).join('')||'<tr><td colspan="7" style="padding:8px;color:var(--ink-soft)">（空）</td></tr>';
+    card.querySelectorAll('.chip').forEach(function(c){c.classList.toggle('on',c.dataset.f===filt);});
+    card.querySelectorAll('.loc-edit').forEach(function(b){b.onclick=function(){locFormOpen(locById(b.dataset.id),function(){locCardEnsure();});};});};
+  render();card.querySelector('#locSearch').oninput=render;card.querySelectorAll('.chip').forEach(function(c){c.onclick=function(){filt=c.dataset.f;render();};});
+  card.querySelector('#locAddBtn').onclick=function(){locFormOpen(null,function(){locCardEnsure();});};
+  const mb=card.querySelector('#locMigBtn');if(mb)mb.onclick=async function(){mb.disabled=true;try{const st=locMigrate();await metaSave();await ordSave();toast('迁移完成：'+st.lines+' 条派送行，'+st.resolved+' 条已标准化，新建地点 '+st.created+'，待清理 '+st.dirty);locCardEnsure();try{renderORD();}catch(e){}}catch(e){toast('迁移失败：'+(e.message||e));}mb.disabled=false;};
+}
+window.locCardEnsure=locCardEnsure;
 
 const METRICS={
   lineNet:function(s){return svcLineNet(s);},
@@ -5368,6 +5563,8 @@ function healthCalc(){
   add('stubDated','待开票存根带日期或金额',ariItems.filter(function(x){return !x.deleted&&!x.invNo&&!x.storno&&!x.cancelledBy&&(x.invDate||(Number(x.gross)||0)||(Number(x.net)||0));}).length,'warn','存根应无日期与金额；请核对是否漏填发票号（报表已排除存根）','ari');
 
   try{const m={};for(const o of ordItems){if(o.deleted||!o.orderNo)continue;(m[o.orderNo]=m[o.orderNo]||[]).push(o);}const dups=Object.keys(m).filter(k=>m[k].length>1);add('ordDupNo','成单号重复',dups.length,'bad',dups.length?('重复：'+dups.slice(0,5).join('、')+'。请在订单详情「编辑」改号或删除其中一张；慢链路端新建前先刷新'):'','ord');}catch(e){}
+
+  try{const n=(typeof locDirtyLines==='function')?locDirtyLines().length:0;add('addrDirty','派送行地址未归入地点簿',n,'warn',n?'基础资料「📍 地点簿」→「⟳ 迁移历史地址」，剩余的到订单详情 ✏ 重新选择或新建地点':'','base');}catch(e){}
 
   try{const n=(typeof ariVatLineScan==='function')?ariVatLineScan().length:0;add('arVatLine','应收发票税额与明细逐行计税不一致',n,'bad',n?'混合税率票按明细、出口票统一为头部税率；应收页「🧾 税额≠明细」逐张选':'','arivat');}catch(e){}
 
@@ -8889,7 +9086,17 @@ function ordDetail(o){
         {const _p=Math.min(100,Math.max(-100,parseFloat(iDisc.value)||0));
          if(iPm.value==='rate'){item.pm='rate';item.rate=_p;item.disc=0;}
          else{item.disc=_p;}}
-        const _tos=_isDel?addrTosGet():[];
+        let _tos=_isDel?addrTosGet():[];
+        if(_isDel&&o.type!=='inq'){
+          const fL=iAF.value.trim()?locResolve(iAF.value.trim(),true,true):null;
+          const tL=_tos.map(function(t){return locResolve(t,true,true);});
+          item.locFrom=fL?fL.id:undefined;item.locTos=tL.length?tL.map(function(x){return x.id;}):undefined;
+          if(fL){if(fL.kind==='other'||fL.kind==='customer')fL.kind='warehouse';locNoteUse(fL,o.customer,'from');}tL.forEach(function(x){locNoteUse(x,o.customer,'to');});
+          if(fL)iAF.value=locFmt(fL);_tos=tL.map(locFmt);
+          const inc=[fL].concat(tL).filter(function(x){return x&&!locComplete(x);});
+          if(inc.length){item.addrDirty=true;toast('地址「'+inc.map(function(x){return x.name;}).join('」「')+'」未含邮编/城市/国家，已记为待补全（基础资料「📍 地点簿」可补）');}else delete item.addrDirty;
+          try{metaSave();}catch(e){}
+        }
         item.addrFrom=_isDel?(iAF.value.trim()||undefined):undefined;
         item.addrTo=_tos.length?_tos[0]:undefined;
         item.addrTos=_tos.length>1?_tos:undefined;
@@ -8917,7 +9124,7 @@ function ordDetail(o){
       addrRow.style.cssText='display:none;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center';
       iAF=document.createElement('input');iAF.placeholder='发货地址 / Pickup address';iAF.style.cssText=st+';flex:1;min-width:180px';
       iAT=document.createElement('input');iAT.placeholder='收货地址 / Delivery address';iAT.style.cssText=st+';flex:1;min-width:180px';
-      const addrHint=document.createElement('span');addrHint.textContent='📍 派送费须填写收发货地址（收货地址最多3个）';addrHint.style.cssText='font-size:11px;color:var(--brass);width:100%';
+      const addrHint=document.createElement('span');addrHint.textContent='📍 派送费须填写收发货地址（从地点簿选择，输入名称/城市联想；选不到点「＋ 地点」新建；收货地址最多3个）';addrHint.style.cssText='font-size:11px;color:var(--brass);width:100%';
       iAT2=document.createElement('input');iAT2.placeholder='收货地址②(可选)';iAT2.style.cssText=st+';flex:1;min-width:180px;display:none';
       iAT3=document.createElement('input');iAT3.placeholder='收货地址③(可选)';iAT3.style.cssText=st+';flex:1;min-width:180px;display:none';
       const bAddrPlus=document.createElement('button');bAddrPlus.className='btn-sm';bAddrPlus.type='button';bAddrPlus.textContent='＋';bAddrPlus.title='再加一个收货地址（最多3个）';
@@ -8926,8 +9133,12 @@ function ordDetail(o){
         else if(iAT3.style.display==='none'){iAT3.style.display='';bAddrPlus.style.display='none';}
       };
       addrTosGet=function(){return [iAT,iAT2,iAT3].map(function(x){return String(x.value||'').trim();}).filter(Boolean);};
-      for(const el of [iAF,iAT,iAT2,iAT3]){el.dataset.init='';el.onclick=e=>e.stopPropagation();}
-      addrRow.append(addrHint,iAF,iAT,iAT2,iAT3,bAddrPlus);
+      for(const el of [iAF,iAT,iAT2,iAT3]){el.dataset.init='';el.onclick=e=>e.stopPropagation();el.autocomplete='off';}
+      iAF.setAttribute('list','locListFrom');for(const el of [iAT,iAT2,iAT3])el.setAttribute('list','locListTo');
+      try{locDatalist(o.customer);}catch(e){}
+      const bLoc=document.createElement('button');bLoc.className='btn-sm';bLoc.type='button';bLoc.textContent='＋ 地点';bLoc.title='按标准格式新建地点（名称/街道门牌/邮编/城市/国家）并填入';
+      bLoc.onclick=e=>{e.stopPropagation();const target=[iAF,iAT,iAT2,iAT3].find(function(x){return x.style.display!=='none'&&!x.value.trim();})||iAT;const pre=(typeof locParse==='function')?locParse(target.value):null;locFormOpen(pre&&pre.ok?{name:pre.name,kind:pre.kind,street:pre.street,houseNo:pre.houseNo,extra:pre.extra,postcode:pre.postcode,city:pre.city,country:pre.country,locode:pre.locode}:null,function(L){target.value=locFmt(L);});};
+      addrRow.append(addrHint,iAF,iAT,iAT2,iAT3,bAddrPlus,bLoc);
       addrRow.onclick=e=>e.stopPropagation();
       addrRowSync=function(){
         const nmX=iName.value.trim();
@@ -10039,6 +10250,7 @@ async function ctryImport(btn){
 function renderBASE(){
   baseBackupHintUpdate();
   try{hrCfgCardEnsure();}catch(e){}
+  try{locCardEnsure();}catch(e){}
   try{
     let card=$('migCard');
     if(session&&session.name==='Emma'&&USE_CLOUD&&rtdb){
@@ -15596,7 +15808,23 @@ Object.assign(I18N,{
 "发票税额与明细逐行计税不一致的正式发票（财务逐张选按明细/按头部）":{en:"Invoices whose VAT differs from line-by-line tax (finance chooses per invoice: by lines / by header rate)",de:"Rechnungen, deren USt von der zeilenweisen Berechnung abweicht (Buchhaltung wählt je Rechnung: nach Positionen / nach Kopfsatz)"},
 "上传 sevDesk 发票导出 CSV，逐张比对发票号/净额/含税/收款状态，输出差异清单（财务）":{en:"Upload the sevDesk invoice export CSV; compares invoice no./net/gross/payment status per invoice and lists differences (finance)",de:"sevDesk-Rechnungsexport (CSV) hochladen; vergleicht Rechnungsnr./Netto/Brutto/Zahlungsstatus je Rechnung und listet Abweichungen (Buchhaltung)"},
 "应收发票税额与明细逐行计税不一致":{en:"AR invoice VAT differs from line-by-line tax",de:"Debitorenrechnung: USt ≠ zeilenweise Berechnung"},
-"混合税率票按明细、出口票统一为头部税率；应收页「🧾 税额≠明细」逐张选":{en:"Mixed-rate invoices by lines, export invoices unify to header rate; choose per invoice via \"🧾 VAT ≠ lines\" on the AR page",de:"Mischsatz-Rechnungen nach Positionen, Exportrechnungen auf Kopfsatz vereinheitlichen; je Rechnung über „🧾 USt ≠ Positionen\" wählen"}
+"混合税率票按明细、出口票统一为头部税率；应收页「🧾 税额≠明细」逐张选":{en:"Mixed-rate invoices by lines, export invoices unify to header rate; choose per invoice via \"🧾 VAT ≠ lines\" on the AR page",de:"Mischsatz-Rechnungen nach Positionen, Exportrechnungen auf Kopfsatz vereinheitlichen; je Rechnung über „🧾 USt ≠ Positionen\" wählen"},
+"派送行的收发货地址从这里选，标准格式：名称, 街道 门牌, 邮编 城市, 国家。港口用 UN/LOCODE。":{en:"Pick-up/delivery addresses on delivery lines are chosen here. Standard format: Name, Street No., Postcode City, Country. Ports use UN/LOCODE.",de:"Abhol-/Lieferadressen der Zustellzeilen werden hier gewählt. Standardformat: Name, Straße Nr., PLZ Ort, Land. Häfen mit UN/LOCODE."},
+"＋ 新建地点":{en:"＋ New location",de:"＋ Neuer Ort"},
+"⟳ 迁移历史地址":{en:"⟳ Migrate historical addresses",de:"⟳ Alte Adressen migrieren"},
+"街道 门牌":{en:"Street No.",de:"Straße Nr."},
+"邮编 城市":{en:"Postcode City",de:"PLZ Ort"},
+"（空）":{en:"(empty)",de:"(leer)"},
+"搜索名称/城市/邮编":{en:"Search name/city/postcode",de:"Name/Ort/PLZ suchen"},
+"把历史派送行的自由文本地址归入地点簿并改写为标准格式（可重复运行）":{en:"Files free-text addresses of past delivery lines into the location book and rewrites them in standard format (safe to rerun)",de:"Ordnet Freitext-Adressen alter Zustellzeilen dem Ortsverzeichnis zu und schreibt sie im Standardformat um (wiederholbar)"},
+"＋ 地点":{en:"＋ Location",de:"＋ Ort"},
+"按标准格式新建地点（名称/街道门牌/邮编/城市/国家）并填入":{en:"Create a location in standard format (name/street no./postcode/city/country) and fill it in",de:"Ort im Standardformat anlegen (Name/Straße Nr./PLZ/Ort/Land) und eintragen"},
+"派送行地址未归入地点簿":{en:"Delivery-line addresses not in the location book",de:"Zustellzeilen-Adressen nicht im Ortsverzeichnis"},
+"基础资料「📍 地点簿」→「⟳ 迁移历史地址」，剩余的到订单详情 ✏ 重新选择或新建地点":{en:"Master data \"📍 Locations\" → \"⟳ Migrate historical addresses\"; fix the rest in the order detail ✏ by re-selecting or creating a location",de:"Stammdaten „📍 Orte\" → „⟳ Alte Adressen migrieren\"; Rest im Auftragsdetail ✏ neu wählen oder anlegen"},
+"起运地":{en:"Origins",de:"Abgangsorte"},
+"收货地":{en:"Delivery points",de:"Lieferorte"},
+"待补全":{en:"Incomplete",de:"Unvollständig"},
+"次数":{en:"Uses",de:"Nutzungen"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
@@ -15759,6 +15987,8 @@ I18N_RULES.push(
 [/^⏳\ 待合并\ (\d+(?:[.,]\d+)?)（本机\ (\d+(?:[.,]\d+)?)）$/,{en:"⏳ Pending merge $1 (this device $2)",de:"⏳ Ausstehend $1 (dieses Gerät $2)"}],
 [/^⏳\ 待合并\ (\d+(?:[.,]\d+)?)$/,{en:"⏳ Pending merge $1",de:"⏳ Ausstehend $1"}],
 [/^🧾\ 税额≠明细（(\d+(?:[.,]\d+)?)）$/,{en:"🧾 VAT ≠ lines ($1)",de:"🧾 USt ≠ Positionen ($1)"}],
+[/^📍\ 地点簿（(\d+(?:[.,]\d+)?)）$/,{en:"📍 Locations ($1)",de:"📍 Orte ($1)"}],
+[/^📍\ 派送费须填写收发货地址（从地点簿选择，输入名称\/城市联想；选不到点「＋\ 地点」新建；收货地址最多(\d+(?:[.,]\d+)?)个）$/,{en:"📍 Delivery lines need pick-up and delivery addresses (choose from the location book by typing name/city; click \"＋ Location\" to add; up to $1 delivery addresses)",de:"📍 Zustellzeilen brauchen Abhol- und Lieferadresse (aus dem Ortsverzeichnis per Name/Ort wählen; „＋ Ort\" für neue; bis zu $1 Lieferadressen)"}],
 [/^休假中 · 代办 (.+)$/,{en:"On leave · deputy $1",de:"Abwesend · Vertretung $1"}],
 [/^默认 (.+)$/,{en:"Default $1",de:"Standard $1"}],
 [/^代办中（(.+) 休假）$/,{en:"Covering ($1 on leave)",de:"Vertretung ($1 abwesend)"}],
