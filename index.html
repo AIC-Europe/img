@@ -988,7 +988,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.8</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v35.9</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1642,7 +1642,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=35.8;
+const APP_VERSION=35.9;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2035,7 +2035,7 @@ function lwwMerge(l,r,upKey,KEEP,ARR){
 function stampChanged(list,upKey,state){
   const now=Date.now();const snap=new Map();
   if(state.dirty){state.dirty=false;state.snap=null;}
-  for(const it of list){const o=Object.assign({},it);delete o[upKey];const j=JSON.stringify(o);snap.set(it.id,j);if(state.snap&&state.snap.get(it.id)!==j)it[upKey]=now;}
+  for(const it of list){const o=Object.assign({},it);delete o[upKey];const j=JSON.stringify(o);snap.set(it.id,j);if(state.snap&&state.snap.get(it.id)!==j)it[upKey]=Math.max(now,(Number(it[upKey])||0)+1);}
   state.snap=snap;
 }
 window.lwwMerge=lwwMerge;window.stampChanged=stampChanged;
@@ -2339,6 +2339,7 @@ function enterApp(){
   try{skelFill('ledgerBody',10,6);skelFill('ariBody',12,6);skelFill('apBody',11,6);skelFill('ordBody',11,6);}catch(e){}
   ariLoad().then(()=>{ariCloudStart();ariAlertUpdate();});
 
+  if(USE_CLOUD&&rtdb){setTimeout(function(){try{nosBackfill();}catch(e){}},6000);}
   if(USE_CLOUD&&rtdb){netProbe().then(function(){
     try{inboxListen('orders',async function(recs){ordMergeRemote(recs);await ordSave();});}catch(e){}
     try{inboxListen('ap',async function(recs){apMergeRemote(recs);await apSave();});}catch(e){}
@@ -3072,6 +3073,46 @@ async function netProbe(){
   try{const el=$('storeStatus');if(el&&_netSlow)el.title=(el.title||'')+' · 数据库往返 '+(_netRtt==null?'>8000':_netRtt)+' ms（慢链路模式：大写入自动走投递箱）';}catch(e){}
 }
 window.inboxPendingGet=function(){return _inboxPending;};window.inboxLocalGet=function(){return _inboxLocal;};window.netSlowGet=function(){return _netSlow;};window.netSlowSet=function(v){_netSlow=v;};window.cloudAtGet=function(){return _cloudAt;};window.migSwitch=migSwitch;window.inboxAll=inboxAll;window.inboxOldestAge=inboxOldestAge;window.cloudFallbackWrite=cloudFallbackWrite;
+
+const NOS_ROOT=DB_PREFIX+'img-ap/nos/';
+function nosKey(no){return String(no||'').trim().replace(/[.#$\/\[\]]/g,'_');}
+async function noClaim(no,id){
+  if(!USE_CLOUD||!rtdb||!no||!id)return 'skip';
+  const ref=rtdb.ref(NOS_ROOT+nosKey(no));let holder=null;
+  const r=await _withTimeout(new Promise(function(res,rej){
+    ref.transaction(function(cur){if(!cur||cur.id===id)return {id:id,by:(session&&session.name)||'',at:Date.now()};holder=cur;return;},
+      function(err,committed){if(err)rej(err);else res(committed);});
+  }),10000,'成单号占号');
+  if(r===true)return 'ok';
+  if(r===false&&holder&&holder.id!==id)throw new Error('成单号 '+no+' 已被 '+(holder.by||'他人')+' 使用（云端登记），请换号或先刷新页面');
+  return 'ok';
+}
+async function noRelease(no,id){
+  if(!USE_CLOUD||!rtdb||!no)return;
+  try{await _withTimeout(new Promise(function(res){rtdb.ref(NOS_ROOT+nosKey(no)).transaction(function(cur){if(cur&&(!id||cur.id===id))return null;return cur;},function(){res();});}),10000,'释放占号');}catch(e){console.warn('noRelease',e&&e.message);}
+}
+
+async function nosBackfill(){
+  if(!USE_CLOUD||!rtdb||!(session&&session.name==='Emma'))return 0;
+  try{
+    const s=await _withTimeout(rtdb.ref(NOS_ROOT+'_meta').once('value'),8000,'占号表读取');if(s&&s.val())return 0;
+    const upd={};let n=0;
+    for(const o of ordItems){if(o.deleted)continue;for(const no of [o.orderNo,o.inqNo]){const k=nosKey(no);if(!k||upd[k])continue;upd[k]={id:o.id,by:o.createdBy||'',at:o.createdAt||Date.now()};n++;}}
+    upd['_meta']={at:Date.now(),by:session.name,n:n};
+    await _withTimeout(rtdb.ref(NOS_ROOT).update(upd),30000,'占号表初始化');
+    console.log('nos backfill',n);return n;
+  }catch(e){console.warn('nosBackfill',e&&e.message);return -1;}
+}
+
+async function ordGenNoClaimed(prefix,id){
+  let cand=seqNextNo(prefix);
+  for(let i=0;i<20;i++){
+    try{await noClaim(cand,id);return cand;}
+    catch(e){if(!/已被/.test(e.message||''))throw e;const m=/^(\D+\d{4})(\d+)$/.exec(cand);if(!m)throw e;cand=m[1]+String(parseInt(m[2],10)+1).padStart(2,'0');}
+  }
+  throw new Error('连续 20 个候选号都已被占用，请刷新页面后重试');
+}
+window.noClaim=noClaim;window.noRelease=noRelease;window.nosBackfill=nosBackfill;window.ordGenNoClaimed=ordGenNoClaimed;
 
 const METRICS={
   lineNet:function(s){return svcLineNet(s);},
@@ -7370,6 +7411,11 @@ const SVC_ALIAS={"海运费":{"en":"Ocean Freight","cat":"运输"},"空运费":{
 
 function ordMigrate(o){
 
+  try{
+    if(o.type==='inq'&&/^IMG/.test(String(o.orderNo||''))){o.type='order';(o.log=o.log||[]).push({t:Date.now(),by:'系统',txt:'修复：IMG 成单号记录误标为询价（v35.9）'});}
+    if(o.inqNo&&!/^F/.test(String(o.inqNo))){for(const l of (o.log||[])){const m=/询价转成单：(F\d+)/.exec(l&&l.txt||'');if(m){o.inqNo=m[1];break;}}}
+  }catch(e){}
+
   if(o.step!==undefined&&o.step!==null&&o.step!==''){const n=Math.round(Number(o.step));if(isFinite(n)&&n>=1&&n<=7)o.step=n;else if(isFinite(n)&&n>7)o.step=7;else if(isFinite(n)&&n<1)o.step=1;else delete o.step;}
   if(o.step)return o;
   const map={inquiry:1,selected:3,done:6,invoiced:7};
@@ -9030,11 +9076,11 @@ function ordDetailPart2(o,wrap,left){
     bWin.title='分配连续 IMG 成单号，询价号保留可查';
     bWin.onclick=e=>{e.stopPropagation();
       if(!confirm('确认成单？\n将分配下一个连续 IMG 成单号，询价号 '+o.orderNo+' 保留在订单里可随时查。'))return;
-      ordDo(()=>{
-        const newNo=ordGenNo();
-        o.inqNo=o.orderNo;
+      ordDo(async()=>{
+        const newNo=await ordGenNoClaimed('IMG',o.id);
+        if(!o.inqNo||!/^F/.test(String(o.inqNo)))o.inqNo=o.orderNo;
         o.orderNo=newNo;
-        delete o.type;
+        o.type='order';
         o.step=Math.max(o.step||1,1);
         logAdd(o,'询价转成单：'+o.inqNo+' → '+newNo);
         ordCmt(o,'🎉 询价 '+o.inqNo+' 已成单，成单号 '+newNo+'。');
@@ -9123,7 +9169,7 @@ function ordDetailPart2(o,wrap,left){
     const bDel=document.createElement('button');bDel.className='btn-sm danger';bDel.textContent='删除';
     bDel.onclick=e=>{e.stopPropagation();
       let _rs=null;if(delStrictNeeded('ord',o)){_rs=confirmDeleteStrict('订单「'+o.orderNo+'」（已开票）',o.orderNo);if(_rs===null)return;}else if(!confirmDelete('订单「'+o.orderNo+'」'))return;
-      ordDo(async()=>{o.deleted=true;auditDel(o,'订单',_rs);ordOpenId=null;
+      ordDo(async()=>{o.deleted=true;auditDel(o,'订单',_rs);ordOpenId=null;try{await noRelease(o.orderNo,o.id);if(o.inqNo)await noRelease(o.inqNo,o.id);}catch(e){}
         try{await ordFinStubRemove(o);}catch(e2){}},'订单已删除');};
     act.appendChild(bDel);
   }
@@ -9351,6 +9397,7 @@ async function ordSaveEdit(){
       const cmp={orderNo:['成单号',no],customer:['客户',cust],owner:['负责人',ownerV],salePrice:['售价',sale],saleCur:['币种',$('oSaleCur').value],desc:['需求',$('oDesc').value.trim()]};
       for(const k in cmp){if(String(o[k]??'')!==String(cmp[k][1]??''))changes.push(cmp[k][0]+'：'+(o[k]??'—')+' → '+(cmp[k][1]??'—'));}
       const oldNo=o.orderNo;
+      if(no!==oldNo)await noClaim(no,o.id);
       o.orderNo=no;o.customer=cust;o.owner=ownerV;o.salePrice=sale;o.saleCur=$('oSaleCur').value;o.desc=$('oDesc').value.trim();o.vatRate=parseFloat($('oVatRate').value)||0;
       if(changes.length){logAdd(o,'编辑：'+changes.join('；'));ordCmt(o,'✎ 修改订单：'+changes.join('；'));}
       await ordSave();
@@ -9378,6 +9425,7 @@ async function ordSaveEdit(){
       };
       logAdd(o,'创建订单（①已接单）',nm);
       o.comments.push({author:nm,role:session.role,text:'创建订单，开始安排服务项与供应商询价。',time:Date.now()});
+      await noClaim(no,o.id);
       ordItems.push(o);
       try{await ordSave();}catch(e){ordEditingId=o.id;throw e;}
       toast('订单已创建：'+no);
