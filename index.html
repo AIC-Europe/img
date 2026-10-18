@@ -990,7 +990,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v36.5</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v36.6</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1644,7 +1644,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=36.5;
+const APP_VERSION=36.6;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -3201,7 +3201,7 @@ window.arReconOpen=arReconOpen;
 const LOC_COUNTRY={DE:'Germany',NL:'Netherlands',PL:'Poland',BE:'Belgium',FR:'France',AT:'Austria',CZ:'Czech Republic',ES:'Spain',IT:'Italy',CH:'Switzerland',DK:'Denmark',LU:'Luxembourg',HU:'Hungary',SK:'Slovakia',GB:'United Kingdom',SE:'Sweden',CN:'China'};
 const LOC_CN={DE:'德国',NL:'荷兰',PL:'波兰',BE:'比利时',FR:'法国',AT:'奥地利',CZ:'捷克',ES:'西班牙',IT:'意大利',CH:'瑞士',DK:'丹麦',LU:'卢森堡',HU:'匈牙利',SK:'斯洛伐克',GB:'英国',SE:'瑞典',CN:'中国'};
 const LOC_PC={CN:/^\d{6}$/,DE:/^\d{5}$/,NL:/^\d{4}\s?[A-Z]{2}$/i,PL:/^\d{2}-\d{3}$/,BE:/^\d{4}$/,FR:/^\d{5}$/,AT:/^\d{4}$/,CZ:/^\d{3}\s?\d{2}$/,ES:/^\d{5}$/,IT:/^\d{5}$/,CH:/^\d{4}$/,DK:/^\d{4}$/,LU:/^L?-?\d{4}$/,HU:/^\d{4}$/,SK:/^\d{3}\s?\d{2}$/,GB:/^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i,SE:/^\d{3}\s?\d{2}$/};
-const LOC_WORDS=[['CN',/china|中国|\bCN\b|shanghai|上海|shenzhen|深圳|ningbo|宁波|qingdao|青岛|guangzhou|广州/i,/china|中国|\bCN\b/i],['DE',/germany|deutschland|\bDE\b|\bD-\d/i],['NL',/netherlands|nederland|holland|\bNL\b/i],['PL',/poland|polska|polen|\bPL\b|\.PL\b/i],['BE',/belgi|\bBE\b/i],['FR',/france|frankreich|\bFR\b/i],['AT',/austria|österreich|\bAT\b/i],['CZ',/czech|česk|tschech|\bCZ\b/i],['ES',/spain|españa|spanien|\bES\b/i],['IT',/\bitaly|italia|italien|\bIT\b/i],['CH',/switzerland|schweiz|\bCH\b/i],['DK',/denmark|danmark|\bDK\b/i],['LU',/luxemb|\bLU\b/i],['HU',/hungar|magyar|\bHU\b/i],['SK',/slovak|\bSK\b/i],['GB',/united kingdom|england|\bUK\b|\bGB\b/i],['SE',/sweden|sverige|\bSE\b/i]];
+const LOC_WORDS=[['CN',/china|中国|shanghai|上海|shenzhen|深圳|ningbo|宁波|qingdao|青岛|guangzhou|广州/i,/china|中国/i],['DE',/germany|deutschland/i],['NL',/netherlands|nederland|holland/i],['PL',/poland|polska|polen/i],['BE',/belgi/i],['FR',/france|frankreich/i],['AT',/austria|österreich/i],['CZ',/czech|česk|tschech/i],['ES',/spain|españa|spanien/i],['IT',/\bitaly|italia|italien/i],['CH',/switzerland|schweiz/i],['DK',/denmark|danmark/i],['LU',/luxemb/i],['HU',/hungar|magyar/i],['SK',/slovak/i],['GB',/united kingdom|england/i],['SE',/sweden|sverige/i]];
 const LOC_PORTS=[{code:'NLRTM',name:'鹿特丹港',en:'Rotterdam Port',city:'Rotterdam',country:'NL',alias:['RTM','RTM PORT','ROTTERDAM','ROTTERDAM PORT','鹿特丹']},{code:'DEHAM',name:'汉堡港',en:'Hamburg Port',city:'Hamburg',country:'DE',alias:['HAM','HAMBURG','HAMBURG PORT','汉堡']},{code:'BEANR',name:'安特卫普港',en:'Antwerp Port',city:'Antwerpen',country:'BE',alias:['ANR','ANTWERP','ANTWERPEN','安特卫普']},{code:'DEBRV',name:'不来梅哈芬港',en:'Bremerhaven Port',city:'Bremerhaven',country:'DE',alias:['BRV','BREMERHAVEN']}];
 const LOC_ORIGIN_KINDS=['port','warehouse','terminal','supplier'];
 function locIsOrigin(L){return !!L&&LOC_ORIGIN_KINDS.indexOf(L.kind)>=0;}
@@ -3236,7 +3236,12 @@ function locParse(text){
   if(/邮编\s*:/.test(s)){const g=function(k){const m=new RegExp(k+'\\s*:\\s*([^:]*?)(?=\\s+(?:国家|城市|街道|门牌号?|邮编|名称|公司)\\s*:|$)').exec(s);return m?m[1].trim().replace(/[,，]+$/,''):'';};
     out.country=(g('国家')||'').toUpperCase().slice(0,2);out.city=g('城市');out.street=g('街道');out.houseNo=g('门牌号?');out.postcode=g('邮编');out.name=s.split(/\s*国家\s*:/)[0].trim();
     if(out.postcode&&out.city&&out.country)out.ok=true;return out;}
+
+  if(/postal code\s*:/i.test(s)&&/country\s*:/i.test(s)){const g=function(k){const m=new RegExp(k+'\\s*:\\s*([^:]*?)(?=\\s+(?:Country|City|Street|Postal Code|Company Name[^:]*|Name)\\s*:|$)','i').exec(s);return m?m[1].trim().replace(/[,，]+$/,''):'';};
+    out.country=(g('Country')||'').toUpperCase().slice(0,2);out.city=g('City');const st=locSplitStreet(g('Street').split(',')[0]);out.street=st.street;out.houseNo=st.houseNo;out.extra=(g('Street').split(',')[1]||'').trim();out.postcode=g('Postal Code');out.name=s.split(/\s*(?:Company Name[^:]*|Country)\s*:/i)[0].replace(/[,\s]+$/,'').trim().slice(0,60);
+    if(out.postcode&&out.city&&out.country)out.ok=true;return out;}
   for(const w of LOC_WORDS){if(w[1].test(s)){out.country=w[0];break;}}
+  if(!out.country){const cm=/(?:^|[\s,.(])([A-Z]{2})(?:[\s,.)]*$|-\d)/.exec(s);if(cm&&LOC_COUNTRY[cm[1]])out.country=cm[1];}
   let m;
   if((m=/\b(\d{6})\b/.exec(s))){out.postcode=m[1];out.country=out.country||'CN';}
   else if((m=/\b(\d{2}-\d{3})\b/.exec(s))){out.postcode=m[1];out.country=out.country||'PL';}
@@ -3292,7 +3297,9 @@ function locResolve(text,autoCreate,lenient){
   if(!p.ok){
     if(!autoCreate||!lenient||t.length>120)return null;
     const key='name:'+t.toLowerCase().replace(/\s+/g,' ').trim();L=locLive().find(function(x){return locKey(x)===key;});if(L)return L;
-    return locUpsert({name:t,kind:p.kind||'other',postcode:p.postcode||'',city:p.city||'',country:p.country||'',incomplete:true,alias:[]});
+
+    const nm=p.name||((p.street||p.postcode)?'':t);
+    return locUpsert({name:nm,kind:p.kind||'other',street:p.street||'',houseNo:p.houseNo||'',extra:p.extra||'',postcode:p.postcode||'',city:p.city||'',country:p.country||'',incomplete:true,alias:[t]});
   }
   const key=locKey(p);L=locLive().find(function(x){return locKey(x)===key;});if(L)return L;
   if(!autoCreate)return null;
@@ -3306,7 +3313,8 @@ function locSeed(){
 }
 
 function locMigrate(){
-  locSeed();try{locRecheckGuessed();}catch(e){} const st={lines:0,resolved:0,dirty:0,created:0};const before=locAll().length;
+  locSeed();try{locRecheckGuessed();}catch(e){}
+  try{locApplyFixTable();}catch(e){} const st={lines:0,resolved:0,dirty:0,created:0};const before=locAll().length;
   for(const o of ordItems){if(o.deleted)continue;let ch=false;
     for(const s of (o.svc||[])){
       const tos=(s.addrTos&&s.addrTos.length?s.addrTos:(s.addrTo?[s.addrTo]:[]));
@@ -3320,8 +3328,35 @@ function locMigrate(){
     }
     if(ch)o.up=Date.now();
   }
+  try{if(locApplyFixTable()){for(const o of ordItems){if(o.deleted)continue;for(const s of (o.svc||[])){const ids=[s.locFrom].concat(s.locTos||[]);if(!ids.some(Boolean))continue;const F=s.locFrom?locById(s.locFrom):null;if(F){s.addrFrom=locFmt(F);}if(s.locTos&&s.locTos.length){const t=s.locTos.map(function(id){const L=locById(id);return L?locFmt(L):null;});if(t.every(Boolean)){s.addrTo=t[0];s.addrTos=t.length>1?t:undefined;}}const ok=[F].concat((s.locTos||[]).map(locById)).every(function(L){return !L||locComplete(L);});if(ok&&s.addrDirty){delete s.addrDirty;st.dirty--;st.resolved++;}o.up=Date.now();}}}}catch(e){}
   st.created=locAll().length-before;return st;
 }
+
+const LOC_FIX_TABLE={
+  '40764|langenfeld':{country:'DE'},'30855|langenhagen':{country:'DE'},'46446|emmerich am rhein':{country:'DE'},'46446|emmerich':{country:'DE',city:'Emmerich am Rhein'},
+  '28906|getafe':{country:'ES',city:'Getafe'},'41751|viersen':{country:'DE'},'63110|rodgau':{country:'DE'},'10156|torino':{country:'IT'},'64832|babenhausen':{country:'DE'},
+  '44536|lünen':{country:'DE'},'44536|lunen':{country:'DE',city:'Lünen'},'31629|estorf':{country:'DE'},'46147|oberhausen':{country:'DE'},'41747|':{country:'DE',city:'Viersen'},
+  '1070|anderlecht':{country:'BE',street:'Rue Brogniez',houseNo:'67'},'41460|neuss':{country:'DE'},'59368|werne':{country:'DE'},'53909|zuelpich':{country:'DE',city:'Zülpich',street:'Am Meilenstein'},'53909|zülpich':{country:'DE'},
+  '53881|euskirchen':{country:'DE'},'45143|essen-stadtbezirke':{country:'DE',city:'Essen'},'45143|essen':{country:'DE'},'64579|gernsheim':{country:'DE'},'40549|düsselodorf':{country:'DE',city:'Düsseldorf'},'40549|düsseldorf':{country:'DE'},
+  '93290|tremblay':{country:'FR',city:'Tremblay-en-France'},'93290|tremblay en france':{country:'FR',city:'Tremblay-en-France'},
+
+  '28830|san':{country:'ES',city:'San Fernando de Henares'},'28830|san fernando de henares':{country:'ES'},'77550|réau':{country:'FR',city:'Réau'},'77550|reau':{country:'FR',city:'Réau'},'28021|madrid':{country:'ES'}
+};
+function locApplyFixTable(){
+  let n=0;
+  for(const L of locAll()){
+    if(L.inactive||L.locode)continue;
+    const needs=L.incomplete||!L.country;if(!needs)continue;
+    const pc=String(L.postcode||'').replace(/\s/g,'');if(!pc)continue;
+    const city=String(L.city||'').toLowerCase().trim();
+    const fx=LOC_FIX_TABLE[pc+'|'+city]||LOC_FIX_TABLE[pc+'|'];if(!fx)continue;
+    if(!L.street&&!L.locode){const raw=(L.alias||[]).find(function(a){return /\d/.test(a);})||'';const p=raw?locParse(raw):null;if(p){if(p.street){L.street=p.street;L.houseNo=p.houseNo||L.houseNo;}if(p.extra&&!L.extra)L.extra=p.extra;if(L.name===raw)L.name=p.name||'';}}
+    L.country=fx.country;if(fx.city)L.city=fx.city;if(fx.street)L.street=fx.street;if(fx.houseNo)L.houseNo=fx.houseNo;
+    delete L.incomplete;delete L.countryGuessed;L.countryConfirmed='Emma 2026-10-18 审定';L.up=Date.now();n++;
+  }
+  return n;
+}
+window.locApplyFixTable=locApplyFixTable;
 
 function locRecheckGuessed(){let n=0;for(const L of locAll()){if(L.inactive||L.incomplete||L.country!=='DE'||L.locode)continue;const raws=[L.name].concat(L.alias||[]).join(' | ');if(!/germany|deutschland|\bDE\b|\bD-\d/i.test(raws)&&L.countryConfirmed!==true){L.incomplete=true;L.countryGuessed='DE';L.country='';n++;}}return n;}
 window.locRecheckGuessed=locRecheckGuessed;
