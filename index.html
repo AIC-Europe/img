@@ -890,7 +890,7 @@ td{font-size:12.5px}
       <button class="btn-ghost" id="ordCaBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-users"/></svg> 客户分析</button>
       <button class="btn-ghost" id="ordSupBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-truck"/></svg> 供应商分析</button>
       <button class="btn-ghost" id="rcBtn" type="button" title="按服务项/客户/月度分析收入成本毛利"><svg class="ic" aria-hidden="true"><use href="#i-coins"/></svg> 收入成本</button>
-      <button class="btn-ghost" id="ordStatsBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> 业务员分析</button><button class="btn-ghost" id="benchBtn" type="button" title="按服务项汇总历史成本（应付成本明细）：近6个月/全部的笔数、中位、区间与主要供应商——询价时参考">📚 报价基准库</button><button class="btn-ghost" id="ordBulkBtn" type="button" style="display:none" title="对当前筛选结果批量操作（改负责人）">🧰 批量操作</button><button class="btn-ghost" id="hoBtn" type="button" style="display:none" title="把某位同事名下的在途订单/询价/未回执加急批量转给另一位（财务执行，留痕）">🔁 一键交接</button><button class="btn-ghost" id="ordInqSaBtn" type="button" style="display:none"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> 业务员分析</button>
+      <button class="btn-ghost" id="ordStatsBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> 业务员分析</button><button class="btn-ghost" id="laneBtn" type="button" title="起运区 → 目的区 车次/售价/成本/毛利/供应商，包车候选">🗺 线路分析</button><button class="btn-ghost" id="benchBtn" type="button" title="按服务项汇总历史成本（应付成本明细）：近6个月/全部的笔数、中位、区间与主要供应商——询价时参考">📚 报价基准库</button><button class="btn-ghost" id="ordBulkBtn" type="button" style="display:none" title="对当前筛选结果批量操作（改负责人）">🧰 批量操作</button><button class="btn-ghost" id="hoBtn" type="button" style="display:none" title="把某位同事名下的在途订单/询价/未回执加急批量转给另一位（财务执行，留痕）">🔁 一键交接</button><button class="btn-ghost" id="ordInqSaBtn" type="button" style="display:none"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> 业务员分析</button>
       <button class="btn-ghost" id="ordExportBtn" type="button">导出 Excel</button>
       <button class="btn-add" id="ordAddBtn" type="button">＋ 新建订单</button>
     </div>
@@ -990,7 +990,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v36.2</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v36.3</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1644,7 +1644,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=36.2;
+const APP_VERSION=36.3;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -3457,6 +3457,88 @@ function metricsApplyStatic(){
   document.querySelectorAll('.mi[data-m]').forEach(function(el){const d=METRIC_DEF[el.dataset.m];if(d&&!el.title)el.title=d;});
 }
 window.metricI=metricI;
+
+function laneZoneOf(L,text){
+  if(L&&L.kind==='port'&&L.locode)return {zone:L.locode,country:L.country||'',city:L.city||'',label:(L.name||L.locode)};
+  const src=L&&!L.incomplete?L:((typeof locParse==='function')?locParse(text||(L&&L.name)||''):null);
+  if(src&&(src.country||src.postcode)){
+    if(src.kind==='port'&&src.locode)return {zone:src.locode,country:src.country||'',city:src.city||'',label:src.name||src.locode};
+    const pc=String(src.postcode||'').replace(/\s/g,'');const c=src.country||'??';
+    const z=c+'-'+(pc?pc.slice(0,2):'??');return {zone:z,country:c,city:src.city||'',label:z+(src.city?' '+src.city:'')};
+  }
+  return {zone:'未知',country:'',city:'',label:(L&&L.name)||text||'未知'};
+}
+function laneRowsBuild(opt){
+  opt=opt||{};const m0=opt.from||'',m1=opt.to||'';const rows=[];
+  for(const o of ordItems){
+    if(o.deleted||o.type==='inq'||o.flag==='cancelled')continue;
+    const mon=String(o.createdAt?ymLocal(new Date(o.createdAt)):'');
+    if(m0&&mon<m0)continue;if(m1&&mon>m1)continue;
+    if(opt.customer&&o.customer!==opt.customer)continue;
+    const dl=(o.svc||[]).filter(function(s){return s.addrFrom||s.addrTo||(s.addrTos&&s.addrTos.length);});
+    if(!dl.length)continue;
+    const q=ordSelQuote(o);const sup=(q&&q.supplier)||'';if(opt.supplier&&sup!==opt.supplier)continue;
+    const cost=ordCost(o);const prof=ordProfit(o);const sale=Number(o.salePrice)||0;
+    const totalQty=dl.reduce(function(a,s){return a+(Number(s.qty)||1);},0)||1;
+    for(const s of dl){
+      const qty=Number(s.qty)||1;const share=qty/totalQty;
+      const fromL=s.locFrom?locById(s.locFrom):null;const toIds=(s.locTos&&s.locTos.length)?s.locTos:[null];
+      const toTexts=(s.addrTos&&s.addrTos.length)?s.addrTos:[s.addrTo];
+      const fz=laneZoneOf(fromL,s.addrFrom);
+      toIds.forEach(function(id,i){const tL=id?locById(id):null;const tz=laneZoneOf(tL,toTexts[i]||toTexts[0]);const w=share/toIds.length;
+        rows.push({o:o,s:s,from:fz,to:tz,qty:qty/toIds.length,sale:sale*w,cost:(cost&&cost.v!=null&&cost.cur!=='混合')?cost.v*w:null,gm:prof?prof.v*w:null,supplier:sup,mon:mon,customer:o.customer||''});});
+    }
+  }
+  return rows;
+}
+function laneAggregate(rows,level){
+
+  const key=function(z){return level==='country'?(z.country||z.zone):(level==='city'?(z.country+' '+(z.city||z.zone)):z.zone);};
+  const g={};const months=new Set();
+  for(const r of rows){months.add(r.mon);const k=r.from.zone+' → '+key(r.to);const a=g[k]=g[k]||{lane:k,from:r.from.zone,to:key(r.to),trips:0,orders:new Set(),sale:0,cost:0,costN:0,gm:0,gmN:0,sup:{},cust:{},months:new Set()};
+    a.trips+=r.qty;a.orders.add(r.o.id);a.sale+=r.sale;if(r.cost!=null){a.cost+=r.cost;a.costN++;}if(r.gm!=null){a.gm+=r.gm;a.gmN++;}a.sup[r.supplier||'—']=(a.sup[r.supplier||'—']||0)+r.qty;a.cust[r.customer]=(a.cust[r.customer]||0)+r.qty;a.months.add(r.mon);}
+  const span=Math.max(1,months.size);
+  const out=Object.values(g).map(function(a){const sups=Object.keys(a.sup).sort(function(x,y){return a.sup[y]-a.sup[x];});const custs=Object.keys(a.cust).sort(function(x,y){return a.cust[y]-a.cust[x];});
+    return {lane:a.lane,from:a.from,to:a.to,trips:Math.round(a.trips*100)/100,orders:a.orders.size,sale:Math.round(a.sale*100)/100,cost:a.costN?Math.round(a.cost*100)/100:null,gm:a.gmN?Math.round(a.gm*100)/100:null,gmPct:(a.gmN&&a.sale)?Math.round(a.gm/a.sale*1000)/10:null,perTrip:a.costN&&a.trips?Math.round(a.cost/a.trips*100)/100:null,monthly:Math.round(a.trips/span*10)/10,topSup:sups[0]||'—',supN:sups.length,topCust:custs.slice(0,3).join('、'),custN:custs.length,charter:(a.trips/span)>=8};});
+  out.sort(function(x,y){return y.trips-x.trips||y.sale-x.sale;});
+  return {rows:out,months:span,trips:Math.round(rows.reduce(function(a,r){return a+r.qty;},0)*100)/100,sale:Math.round(rows.reduce(function(a,r){return a+r.sale;},0)*100)/100};
+}
+window.laneRowsBuild=laneRowsBuild;window.laneAggregate=laneAggregate;window.laneZoneOf=laneZoneOf;
+function laneOpen(){
+  const old=document.getElementById('laneOvl');if(old)old.remove();
+  const ovl=document.createElement('div');ovl.id='laneOvl';ovl.style.cssText='position:fixed;inset:0;background:rgba(20,28,26,.45);z-index:2400;display:flex;align-items:center;justify-content:center';
+  const card=document.createElement('div');card.style.cssText='background:var(--card,#fff);border-radius:14px;padding:18px 22px;width:min(1140px,97vw);max-height:92vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px';
+  const months=Array.from(new Set(ordItems.filter(function(o){return !o.deleted&&o.createdAt;}).map(function(o){return ymLocal(new Date(o.createdAt));}))).sort();
+  const custs=Array.from(new Set(ordItems.filter(function(o){return !o.deleted&&o.customer;}).map(function(o){return o.customer;}))).sort();
+  const sups=Array.from(new Set(ordItems.map(function(o){const q=ordSelQuote(o);return q&&q.supplier;}).filter(Boolean))).sort();
+  const sel=function(id,opts,first){return '<select id="'+id+'" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12px"><option value="">'+first+'</option>'+opts.map(function(x){return '<option value="'+esc(x)+'">'+esc(x)+'</option>';}).join('')+'</select>';};
+  card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:700;font-size:15px">🗺 线路分析（起运区 → 目的区）</div><button class="btn-ghost" id="laneClose" type="button">关闭</button></div>'+
+    '<div style="font-size:11.5px;color:var(--ink-soft);margin:6px 0 10px">车次 = 派送行数量；区 = 港口 LOCODE 或 国家-邮编前两位（货代报价表口径）；售价/成本/毛利按订单口径，多条派送行按数量分摊；月均 ≥ 8 车标为<b>包车候选</b>。只读。</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+sel('laneM0',months,'起始月')+sel('laneM1',months,'截止月')+sel('laneCust',custs,'全部客户')+sel('laneSup',sups,'全部供应商')+
+    '<select id="laneLevel" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12px"><option value="zone">目的：邮编区</option><option value="country">目的：国家</option><option value="city">目的：城市</option></select>'+
+    '<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" id="laneCharter"> 只看包车候选</label><button class="btn-ghost" id="laneXls" type="button">导出 Excel</button></div>'+
+    '<div id="laneSum" style="margin-bottom:8px;font-weight:600"></div><div id="laneOut"></div>';
+  ovl.appendChild(card);document.body.appendChild(ovl);
+  ovl.onclick=function(e){if(e.target===ovl)ovl.remove();};card.querySelector('#laneClose').onclick=function(){ovl.remove();};
+  let last=null;
+  const run=function(){
+    const q=function(id){return card.querySelector('#'+id);};
+    const rows=laneRowsBuild({from:q('laneM0').value,to:q('laneM1').value,customer:q('laneCust').value,supplier:q('laneSup').value});
+    last=laneAggregate(rows,q('laneLevel').value);
+    let list=last.rows;if(q('laneCharter').checked)list=list.filter(function(r){return r.charter;});
+    q('laneSum').textContent='线路 '+list.length+' 条 · 车次 '+last.trips+' · 售价合计 '+fmt(last.sale)+' EUR · 跨 '+last.months+' 个月';
+    let h='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--n-wash)"><th style="text-align:left;padding:5px">起运</th><th style="text-align:left">目的</th><th class="amount">车次</th><th class="amount">月均</th><th class="amount">订单</th><th class="amount">售价</th><th class="amount">成本</th><th class="amount">毛利</th><th class="amount">毛利%</th><th class="amount">单车成本</th><th style="text-align:left">主要供应商</th><th style="text-align:left">主要客户</th><th></th></tr></thead><tbody>';
+    for(const r of list){h+='<tr'+(r.charter?' style="background:var(--warn-bg)"':'')+'><td style="padding:4px 5px;font-weight:600">'+esc(r.from)+'</td><td style="font-weight:600">'+esc(r.to)+'</td><td class="amount">'+r.trips+'</td><td class="amount">'+r.monthly+'</td><td class="amount">'+r.orders+'</td><td class="amount">'+fmt(r.sale)+'</td><td class="amount">'+(r.cost==null?'—':fmt(r.cost))+'</td><td class="amount">'+(r.gm==null?'—':fmt(r.gm))+'</td><td class="amount">'+(r.gmPct==null?'—':r.gmPct+'%')+'</td><td class="amount">'+(r.perTrip==null?'—':fmt(r.perTrip))+'</td><td>'+esc(r.topSup)+(r.supN>1?' <span style="color:var(--ink-soft)">+'+(r.supN-1)+'</span>':'')+'</td><td style="font-size:11.5px">'+esc(r.topCust)+(r.custN>3?' …':'')+'</td><td>'+(r.charter?'<span style="color:var(--warn);font-weight:700">包车候选</span>':'')+'</td></tr>';}
+    q('laneOut').innerHTML=list.length?h+'</tbody></table>':'<div style="color:var(--ink-soft);padding:12px">没有带地址的派送行（先在地点簿「⟳ 迁移历史地址」）</div>';
+  };
+  ['laneM0','laneM1','laneCust','laneSup','laneLevel','laneCharter'].forEach(function(id){card.querySelector('#'+id).onchange=run;});
+  card.querySelector('#laneXls').onclick=async function(){if(!last)return;const head=['起运','目的','车次','月均车次','订单数','售价','成本','毛利','毛利%','单车成本','主要供应商','供应商数','主要客户','客户数','包车候选'];
+    const aoa=[head].concat(last.rows.map(function(r){return [r.from,r.to,r.trips,r.monthly,r.orders,r.sale,r.cost??'',r.gm??'',r.gmPct??'',r.perTrip??'',r.topSup,r.supN,r.topCust,r.custN,r.charter?'是':''];}));
+    try{await ensureXLSX();const ws=XLSX.utils.aoa_to_sheet(aoa);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'线路分析');XLSX.writeFile(wb,'IMG-Europe-线路分析-'+todayStr()+'.xlsx');}catch(e){toast('导出失败：'+(e.message||e));}};
+  run();
+}
+window.laneOpen=laneOpen;
+if($('laneBtn'))$('laneBtn').onclick=laneOpen;
 
 function exportRows(){
   const list=filtered();
@@ -15824,7 +15906,9 @@ Object.assign(I18N,{
 "起运地":{en:"Origins",de:"Abgangsorte"},
 "收货地":{en:"Delivery points",de:"Lieferorte"},
 "待补全":{en:"Incomplete",de:"Unvollständig"},
-"次数":{en:"Uses",de:"Nutzungen"}
+"次数":{en:"Uses",de:"Nutzungen"},
+"🗺 线路分析":{en:"🗺 Lane analysis",de:"🗺 Relationsanalyse"},
+"起运区 → 目的区 车次/售价/成本/毛利/供应商，包车候选":{en:"Origin zone → destination zone: trips/revenue/cost/margin/suppliers, charter candidates",de:"Abgangs- → Zielzone: Fahrten/Umsatz/Kosten/Marge/Lieferanten, Charter-Kandidaten"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
