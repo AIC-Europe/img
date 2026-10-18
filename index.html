@@ -990,7 +990,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v36.3</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v36.5</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1644,7 +1644,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=36.3;
+const APP_VERSION=36.5;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2289,6 +2289,7 @@ function enterApp(){
   if(isRO()){for(const id of ['ariDunBtn','ariArchBtn','ariOvdBtn2'])if($(id)&&id==='ariDunBtn')$(id).style.display='none';}
   $('ordAddBtn').style.display=isRO()?'none':'';
   const _ana=(session.role==='finance'||session.name==='Peter'||MGMT_VIEW_ACCTS.includes(session.name));
+  if($('laneBtn'))$('laneBtn').style.display='';
   for(const id of ['ordMrBtn','ordCaBtn','ordSupBtn','ordStatsBtn'])$(id).style.display=_ana?'':'none';
   if($('ariRcBigBtn'))$('ariRcBigBtn').style.display=_ana?'':'none';
   if($('apDupScanBtn'))$('apDupScanBtn').style.display=(session.role==='finance')?'':'none';
@@ -3199,8 +3200,8 @@ window.arReconOpen=arReconOpen;
 
 const LOC_COUNTRY={DE:'Germany',NL:'Netherlands',PL:'Poland',BE:'Belgium',FR:'France',AT:'Austria',CZ:'Czech Republic',ES:'Spain',IT:'Italy',CH:'Switzerland',DK:'Denmark',LU:'Luxembourg',HU:'Hungary',SK:'Slovakia',GB:'United Kingdom',SE:'Sweden',CN:'China'};
 const LOC_CN={DE:'德国',NL:'荷兰',PL:'波兰',BE:'比利时',FR:'法国',AT:'奥地利',CZ:'捷克',ES:'西班牙',IT:'意大利',CH:'瑞士',DK:'丹麦',LU:'卢森堡',HU:'匈牙利',SK:'斯洛伐克',GB:'英国',SE:'瑞典',CN:'中国'};
-const LOC_PC={DE:/^\d{5}$/,NL:/^\d{4}\s?[A-Z]{2}$/i,PL:/^\d{2}-\d{3}$/,BE:/^\d{4}$/,FR:/^\d{5}$/,AT:/^\d{4}$/,CZ:/^\d{3}\s?\d{2}$/,ES:/^\d{5}$/,IT:/^\d{5}$/,CH:/^\d{4}$/,DK:/^\d{4}$/,LU:/^L?-?\d{4}$/,HU:/^\d{4}$/,SK:/^\d{3}\s?\d{2}$/,GB:/^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i,SE:/^\d{3}\s?\d{2}$/};
-const LOC_WORDS=[['DE',/germany|deutschland|\bDE\b|\bD-\d/i],['NL',/netherlands|nederland|holland|\bNL\b/i],['PL',/poland|polska|polen|\bPL\b|\.PL\b/i],['BE',/belgi|\bBE\b/i],['FR',/france|frankreich|\bFR\b/i],['AT',/austria|österreich|\bAT\b/i],['CZ',/czech|česk|tschech|\bCZ\b/i],['ES',/spain|españa|spanien|\bES\b/i],['IT',/\bitaly|italia|italien|\bIT\b/i],['CH',/switzerland|schweiz|\bCH\b/i],['DK',/denmark|danmark|\bDK\b/i],['LU',/luxemb|\bLU\b/i],['HU',/hungar|magyar|\bHU\b/i],['SK',/slovak|\bSK\b/i],['GB',/united kingdom|england|\bUK\b|\bGB\b/i],['SE',/sweden|sverige|\bSE\b/i]];
+const LOC_PC={CN:/^\d{6}$/,DE:/^\d{5}$/,NL:/^\d{4}\s?[A-Z]{2}$/i,PL:/^\d{2}-\d{3}$/,BE:/^\d{4}$/,FR:/^\d{5}$/,AT:/^\d{4}$/,CZ:/^\d{3}\s?\d{2}$/,ES:/^\d{5}$/,IT:/^\d{5}$/,CH:/^\d{4}$/,DK:/^\d{4}$/,LU:/^L?-?\d{4}$/,HU:/^\d{4}$/,SK:/^\d{3}\s?\d{2}$/,GB:/^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i,SE:/^\d{3}\s?\d{2}$/};
+const LOC_WORDS=[['CN',/china|中国|\bCN\b|shanghai|上海|shenzhen|深圳|ningbo|宁波|qingdao|青岛|guangzhou|广州/i,/china|中国|\bCN\b/i],['DE',/germany|deutschland|\bDE\b|\bD-\d/i],['NL',/netherlands|nederland|holland|\bNL\b/i],['PL',/poland|polska|polen|\bPL\b|\.PL\b/i],['BE',/belgi|\bBE\b/i],['FR',/france|frankreich|\bFR\b/i],['AT',/austria|österreich|\bAT\b/i],['CZ',/czech|česk|tschech|\bCZ\b/i],['ES',/spain|españa|spanien|\bES\b/i],['IT',/\bitaly|italia|italien|\bIT\b/i],['CH',/switzerland|schweiz|\bCH\b/i],['DK',/denmark|danmark|\bDK\b/i],['LU',/luxemb|\bLU\b/i],['HU',/hungar|magyar|\bHU\b/i],['SK',/slovak|\bSK\b/i],['GB',/united kingdom|england|\bUK\b|\bGB\b/i],['SE',/sweden|sverige|\bSE\b/i]];
 const LOC_PORTS=[{code:'NLRTM',name:'鹿特丹港',en:'Rotterdam Port',city:'Rotterdam',country:'NL',alias:['RTM','RTM PORT','ROTTERDAM','ROTTERDAM PORT','鹿特丹']},{code:'DEHAM',name:'汉堡港',en:'Hamburg Port',city:'Hamburg',country:'DE',alias:['HAM','HAMBURG','HAMBURG PORT','汉堡']},{code:'BEANR',name:'安特卫普港',en:'Antwerp Port',city:'Antwerpen',country:'BE',alias:['ANR','ANTWERP','ANTWERPEN','安特卫普']},{code:'DEBRV',name:'不来梅哈芬港',en:'Bremerhaven Port',city:'Bremerhaven',country:'DE',alias:['BRV','BREMERHAVEN']}];
 const LOC_ORIGIN_KINDS=['port','warehouse','terminal','supplier'];
 function locIsOrigin(L){return !!L&&LOC_ORIGIN_KINDS.indexOf(L.kind)>=0;}
@@ -3220,7 +3221,7 @@ function locFmt(L){
   if(L.country)parts.push(LOC_COUNTRY[L.country]||L.country);
   return parts.join(', ');
 }
-function locShort(L){if(!L)return '';return L.name||((L.city||'')+(L.country?' '+L.country:''));}
+function locShort(L){if(!L)return '';return L.name||[L.street,L.houseNo].filter(Boolean).join(' ')||((L.city||'')+(L.country?' '+L.country:''));}
 function locKey(L){if(!L.postcode&&!L.locode)return 'name:'+String(L.name||'').toLowerCase().replace(/\s+/g,' ').trim();return [(L.country||'').toUpperCase(),String(L.postcode||'').replace(/\s/g,'').toUpperCase(),String(L.houseNo||'').toUpperCase(),String(L.street||'').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,12),L.locode||''].join('|');}
 function locComplete(L){return !!(L&&!L.incomplete&&(L.locode||(L.postcode&&L.city&&L.country)));}
 function locPcValid(country,pc){const re=LOC_PC[country];if(!re)return !!pc;return re.test(String(pc||'').trim());}
@@ -3237,16 +3238,18 @@ function locParse(text){
     if(out.postcode&&out.city&&out.country)out.ok=true;return out;}
   for(const w of LOC_WORDS){if(w[1].test(s)){out.country=w[0];break;}}
   let m;
-  if((m=/\b(\d{2}-\d{3})\b/.exec(s))){out.postcode=m[1];out.country=out.country||'PL';}
+  if((m=/\b(\d{6})\b/.exec(s))){out.postcode=m[1];out.country=out.country||'CN';}
+  else if((m=/\b(\d{2}-\d{3})\b/.exec(s))){out.postcode=m[1];out.country=out.country||'PL';}
   else if((m=/\b(\d{4})\s?([A-Z]{2})\b/.exec(s))&&!/\d{5}/.test(s)){out.postcode=m[1]+' '+m[2].toUpperCase();out.country=out.country||'NL';}
-  else if((m=/\b(?:D-|DE-)?(\d{5})\b/.exec(s))){out.postcode=m[1];out.country=out.country||'DE';}
+  else if((m=/\b(?:D-|DE-)(\d{5})\b/.exec(s))){out.postcode=m[1];out.country=out.country||'DE';}
+  else if((m=/\b(\d{5})\b/.exec(s))){out.postcode=m[1];}
   else if((m=/\b(\d{4})\b/.exec(s))){out.postcode=m[1];}
   if(out.postcode){
     const idx=s.indexOf(m[0]);const before=s.slice(0,idx).trim().replace(/[,\-–]\s*$/,'').trim();let after=s.slice(idx+m[0].length).trim().replace(/^[,\-–\s]+/,'');
     after=after.replace(/\b(DE|NL|PL|BE|FR|AT|CZ|ES|IT|CH|DK|LU|HU|SK|GB|SE)\b\.?$/i,'').trim();
-    for(const w of LOC_WORDS){after=after.replace(w[1],'').trim();}
+    for(const w of LOC_WORDS){after=after.replace(w[2]||w[1],'').trim();}
     after=after.replace(/[,\s]+$/,'').trim();
-    const cityM=/^([A-Za-zÀ-ž' \-]+?)(?:[,\s]+|$)/.exec(after);if(cityM)out.city=cityM[1].trim();
+    const cityM=/^([A-Za-zÀ-ž'\-]+(?:\s+(?:an|am|im|in|auf|bei|de|la|le|en|sur|les|du|des|aan|op|bij|unter|ob)(?:\s+(?:der|den|dem|la|le|les|de))?\s+[A-Za-zÀ-ž'\-]+)*)/.exec(after);if(cityM)out.city=cityM[1].trim();
 
     const hm=/^(.*?)[\s,]+(\d+[A-Za-z]?(?:\s?[-\/]\s?\d+[A-Za-z]?)?)\s*(?:,|$)/.exec(before+',');
     if(hm){
@@ -3303,7 +3306,7 @@ function locSeed(){
 }
 
 function locMigrate(){
-  locSeed();const st={lines:0,resolved:0,dirty:0,created:0};const before=locAll().length;
+  locSeed();try{locRecheckGuessed();}catch(e){} const st={lines:0,resolved:0,dirty:0,created:0};const before=locAll().length;
   for(const o of ordItems){if(o.deleted)continue;let ch=false;
     for(const s of (o.svc||[])){
       const tos=(s.addrTos&&s.addrTos.length?s.addrTos:(s.addrTo?[s.addrTo]:[]));
@@ -3319,6 +3322,9 @@ function locMigrate(){
   }
   st.created=locAll().length-before;return st;
 }
+
+function locRecheckGuessed(){let n=0;for(const L of locAll()){if(L.inactive||L.incomplete||L.country!=='DE'||L.locode)continue;const raws=[L.name].concat(L.alias||[]).join(' | ');if(!/germany|deutschland|\bDE\b|\bD-\d/i.test(raws)&&L.countryConfirmed!==true){L.incomplete=true;L.countryGuessed='DE';L.country='';n++;}}return n;}
+window.locRecheckGuessed=locRecheckGuessed;
 function locDirtyLines(){const out=[];for(const o of ordItems){if(o.deleted||o.type==='inq')continue;for(const s of (o.svc||[])){if(!(s.addrFrom||s.addrTo))continue;const ids=[s.locFrom].concat(s.locTos||[]).filter(Boolean);const bad=s.addrDirty||!ids.length||ids.some(function(id){return !locComplete(locById(id));});if(bad)out.push({o:o,s:s});}}return out;}
 window.locComplete=locComplete;window.locAll=locAll;window.locFmt=locFmt;window.locParse=locParse;window.locResolve=locResolve;window.locUpsert=locUpsert;window.locSeed=locSeed;window.locMigrate=locMigrate;window.locDirtyLines=locDirtyLines;window.locPcValid=locPcValid;window.locKey=locKey;
 
@@ -3362,8 +3368,8 @@ function locFormOpen(prefill,cb){
     if(!L.name){err.textContent='名称必填';err.style.display='';return;}
     if(L.kind==='port'){if(!/^[A-Z]{5}$/.test(L.locode)){err.textContent='港口请填 5 位 UN/LOCODE（如 NLRTM）';err.style.display='';return;}}
     else{if(!L.postcode||!L.city){err.textContent='邮编和城市必填';err.style.display='';return;}if(!locPcValid(L.country,L.postcode)){err.textContent='邮编格式不符合 '+L.country+'（'+LOC_COUNTRY[L.country]+'）';err.style.display='';return;}}
-    let saved;
-    if(L.id){saved=locById(L.id);Object.assign(saved,L,{up:Date.now()});}
+    let saved;L.countryConfirmed=true;delete L.incomplete;
+    if(L.id){saved=locById(L.id);delete saved.incomplete;delete saved.countryGuessed;Object.assign(saved,L,{up:Date.now()});}
     else{const dup=locLive().find(function(x){return locKey(x)===locKey(L);});if(dup&&!confirm('已有相同邮编/门牌的地点「'+locShort(dup)+'」，仍要新建？')){saved=dup;}else saved=locUpsert(L);}
     metaSave().then(function(){try{locDatalist();}catch(e){}ovl.remove();cb&&cb(saved);}).catch(function(e){err.textContent='保存失败：'+(e.message||e);err.style.display='';});
   };
@@ -3391,6 +3397,51 @@ function locCardEnsure(){
   const mb=card.querySelector('#locMigBtn');if(mb)mb.onclick=async function(){mb.disabled=true;try{const st=locMigrate();await metaSave();await ordSave();toast('迁移完成：'+st.lines+' 条派送行，'+st.resolved+' 条已标准化，新建地点 '+st.created+'，待清理 '+st.dirty);locCardEnsure();try{renderORD();}catch(e){}}catch(e){toast('迁移失败：'+(e.message||e));}mb.disabled=false;};
 }
 window.locCardEnsure=locCardEnsure;
+
+function locSplitStreet(s){const m=/^(.*?)[\s,]+(\d+[A-Za-z]?(?:\s?[-\/]\s?\d+[A-Za-z]?)?)\s*$/.exec(String(s||'').trim());return m?{street:m[1].trim(),houseNo:m[2].replace(/\s/g,'')}:{street:String(s||'').trim(),houseNo:''};}
+function locBlock(opts){
+  opts=opts||{};const st=opts.st||'';const el=document.createElement('div');el.className='loc-block';el.dataset.role=opts.role||'to';
+  el.style.cssText='display:flex;gap:4px;flex-wrap:wrap;align-items:center;width:100%;padding:4px 6px;border:1px dashed var(--line);border-radius:8px';
+  const lab=document.createElement('span');lab.textContent=opts.label||'';lab.style.cssText='font-size:11px;color:var(--ink-soft);min-width:52px';
+  const iName=document.createElement('input');iName.placeholder=opts.role==='from'?'起运地名称（可选）':'地点名称 / 联想（可选）';iName.title='地点名称；输入名称或城市从地点簿联想，选中后下面四项自动填';iName.style.cssText=st+';flex:1.2;min-width:150px';iName.autocomplete='off';if(opts.datalist)iName.setAttribute('list',opts.datalist);
+  const iStreet=document.createElement('input');iStreet.placeholder='街道 门牌 *';iStreet.title='具体地址：街道与门牌号，如 Rietwijkeroordweg 52';iStreet.style.cssText=st+';flex:1.4;min-width:170px';
+  const iPc=document.createElement('input');iPc.placeholder='邮编 *';iPc.title='邮编';iPc.style.cssText=st+';width:88px';
+  const iCity=document.createElement('input');iCity.placeholder='城市 *';iCity.title='城市';iCity.style.cssText=st+';flex:1;min-width:110px';
+  const iCountry=document.createElement('select');iCountry.title='国家 *';iCountry.style.cssText=st+';width:128px';
+  {const op=document.createElement('option');op.value='';op.textContent='国家 *';iCountry.appendChild(op);for(const c of Object.keys(LOC_COUNTRY)){const o=document.createElement('option');o.value=c;o.textContent=c+' '+LOC_CN[c];iCountry.appendChild(o);}}
+  const err=document.createElement('span');err.style.cssText='font-size:11px;color:var(--bad);width:100%;display:none';
+  for(const x of [iName,iStreet,iPc,iCity,iCountry])x.onclick=function(e){e.stopPropagation();};
+  el.append(lab,iName,iStreet,iPc,iCity,iCountry,err);
+  const b={el:el,iName:iName,iStreet:iStreet,iPc:iPc,iCity:iCity,iCountry:iCountry,err:err,locId:''};
+  b.read=function(){const sp=locSplitStreet(iStreet.value);return {name:iName.value.trim(),street:sp.street,houseNo:sp.houseNo,postcode:iPc.value.trim(),city:iCity.value.trim(),country:iCountry.value};};
+  b.isEmpty=function(){return !iName.value.trim()&&!iStreet.value.trim()&&!iPc.value.trim()&&!iCity.value.trim()&&!iCountry.value;};
+  b.set=function(L){b.locId='';if(!L){b.clear();return;}
+    if(typeof L==='string'){const R=locResolve(L,false,false);if(R){b.set(R);return;}const p=locParse(L);iName.value=p.name||(p.ok?'':L);iStreet.value=[p.street,p.houseNo].filter(Boolean).join(' ');iPc.value=p.postcode||'';iCity.value=p.city||'';iCountry.value=p.country||'';return;}
+    b.locId=L.id||'';iName.value=L.name||'';iStreet.value=L.kind==='port'?(L.locode||''):[L.street,L.houseNo].filter(Boolean).join(' ')+(L.extra?' ('+L.extra+')':'');iPc.value=L.postcode||'';iCity.value=L.city||'';iCountry.value=L.country||'';};
+  b.clear=function(){b.locId='';for(const x of [iName,iStreet,iPc,iCity])x.value='';iCountry.value='';err.style.display='none';};
+  b.validate=function(){const r=b.read();const L=b.locId?locById(b.locId):null;if(L&&L.kind==='port'&&L.locode)return '';
+    const miss=[];if(!iStreet.value.trim())miss.push('街道门牌');if(!r.postcode)miss.push('邮编');if(!r.city)miss.push('城市');if(!r.country)miss.push('国家');
+    if(miss.length)return '地址不完整：请填写 '+miss.join('、');
+    if(!locPcValid(r.country,r.postcode))return '邮编 '+r.postcode+' 不符合 '+r.country+'（'+LOC_COUNTRY[r.country]+'）的格式';
+    return '';};
+  b.showErr=function(m){err.textContent=m||'';err.style.display=m?'':'none';};
+  b.toLoc=function(customer,role){const r=b.read();if(b.locId){const L=locById(b.locId);if(L&&L.name===r.name&&(L.kind==='port'||(L.postcode===r.postcode&&L.city===r.city&&L.country===r.country)))return L;}
+    const L=locUpsert({name:r.name||'',kind:role==='from'?'warehouse':'customer',street:r.street,houseNo:r.houseNo,postcode:r.postcode,city:r.city,country:r.country});
+    if(L.incomplete)delete L.incomplete;return L;};
+
+  iName.addEventListener('change',function(){const L=locResolve(iName.value,false,false);if(L)b.set(L);});
+  iName.addEventListener('input',function(){if(!iName.value.trim())return;const L=locLive().find(function(x){return locFmt(x)===iName.value.trim();});if(L)b.set(L);});
+  return b;
+}
+window.locBlock=locBlock;window.locSplitStreet=locSplitStreet;
+function locOriginSelect(st){
+  const sel=document.createElement('select');sel.title='起运地（港口/仓库）';sel.style.cssText=st+';min-width:200px';
+  const fill=function(cur){sel.innerHTML='';const o0=document.createElement('option');o0.value='';o0.textContent='起运地 * 请选择';sel.appendChild(o0);
+    for(const L of locLive().filter(locIsOrigin).sort(function(a,b){return (b.useCount||0)-(a.useCount||0)||String(a.name||'').localeCompare(String(b.name||''));})){const op=document.createElement('option');op.value=L.id;op.textContent=(L.name||'')+(L.locode?' '+L.locode:'')+(L.city?' · '+L.city:'');sel.appendChild(op);}
+    const ox=document.createElement('option');ox.value='__other';ox.textContent='其他（手填四项）';sel.appendChild(ox);if(cur!=null)sel.value=cur;};
+  fill('');sel.refill=fill;sel.onclick=function(e){e.stopPropagation();};return sel;
+}
+window.locOriginSelect=locOriginSelect;
 
 const METRICS={
   lineNet:function(s){return svcLineNet(s);},
@@ -3458,83 +3509,113 @@ function metricsApplyStatic(){
 }
 window.metricI=metricI;
 
-function laneZoneOf(L,text){
-  if(L&&L.kind==='port'&&L.locode)return {zone:L.locode,country:L.country||'',city:L.city||'',label:(L.name||L.locode)};
-  const src=L&&!L.incomplete?L:((typeof locParse==='function')?locParse(text||(L&&L.name)||''):null);
-  if(src&&(src.country||src.postcode)){
-    if(src.kind==='port'&&src.locode)return {zone:src.locode,country:src.country||'',city:src.city||'',label:src.name||src.locode};
-    const pc=String(src.postcode||'').replace(/\s/g,'');const c=src.country||'??';
-    const z=c+'-'+(pc?pc.slice(0,2):'??');return {zone:z,country:c,city:src.city||'',label:z+(src.city?' '+src.city:'')};
-  }
-  return {zone:'未知',country:'',city:'',label:(L&&L.name)||text||'未知'};
+const LANE_MODE={FTL:'整车 FTL',LTL:'零担 LTL','20GP':"20' 集装箱",'40HQ':"40' 集装箱",VAN:'厢车',OTHER:'其他'};
+function laneCountryName(c){return c?((LOC_CN[c]||'')+' '+c).trim():'';}
+function lanePlace(L,text){
+
+  const r={country:'',countryName:'',zone:'未知',city:'',place:'',locode:'',incomplete:false,id:L?L.id:''};
+  const src=(L&&!L.incomplete)?L:((typeof locParse==='function')?locParse(text||(L&&L.name)||''):null);
+  if(src&&(src.country||src.postcode||src.locode)){
+    r.country=src.country||'';r.countryName=laneCountryName(r.country);r.city=src.city||'';r.place=(L&&L.name)||src.name||'';
+    if((src.kind==='port'||(L&&L.kind==='port'))&&src.locode){r.locode=src.locode;r.zone=src.locode;r.place=r.place||src.locode;}
+    else{const pc=String(src.postcode||'').replace(/\s/g,'');r.zone=(r.country||'??')+'-'+(pc?pc.slice(0,2):'??');}
+  }else{r.place=(L&&L.name)||text||'未知';r.incomplete=true;}
+  r.labelCountry=r.countryName||'未知';
+  r.labelZone=r.zone+(r.locode?' '+(r.place||''):(r.city?' '+r.city:''));
+  r.labelCity=(r.countryName?r.countryName+' · ':'')+(r.city||r.place||'未知');
+  r.labelPlace=(r.countryName?r.countryName+' · ':'')+(r.place||r.city||'未知')+(r.locode?' '+r.locode:'')+(r.city&&r.place&&r.place!==r.city?' ('+r.city+')':'');
+  r.full=(L&&!L.incomplete)?locFmt(L):(text||(L&&L.name)||'');
+  return r;
+}
+function laneSupplierOf(o){
+
+  const ap=(typeof ordApLinked==='function')?ordApLinked(o).filter(function(x){return x.supplier;}):[];
+  if(ap.length){const m={};for(const x of ap){const n=(typeof apNetOf==='function'?apNetOf(x):null);const v=n!=null?n:(Number(x.amount)||0);m[x.supplier]=(m[x.supplier]||0)+Math.abs(v);}
+    const ks=Object.keys(m).sort(function(a,b){return m[b]-m[a];});const tot=ks.reduce(function(a,k){return a+m[k];},0)||1;return {name:ks[0],share:Math.round(m[ks[0]]/tot*100),all:ks,src:'ap'};}
+  const q=ordSelQuote(o);if(q&&q.supplier)return {name:q.supplier,share:100,all:[q.supplier],src:'quote'};
+  const any=(o.quotes||[]).find(function(x){return x.supplier;});if(any)return {name:any.supplier,share:100,all:[any.supplier],src:'quote?'};
+  return {name:'',share:0,all:[],src:''};
 }
 function laneRowsBuild(opt){
   opt=opt||{};const m0=opt.from||'',m1=opt.to||'';const rows=[];
   for(const o of ordItems){
     if(o.deleted||o.type==='inq'||o.flag==='cancelled')continue;
-    const mon=String(o.createdAt?ymLocal(new Date(o.createdAt)):'');
+    const mon=o.createdAt?ymLocal(new Date(o.createdAt)):'';
     if(m0&&mon<m0)continue;if(m1&&mon>m1)continue;
     if(opt.customer&&o.customer!==opt.customer)continue;
     const dl=(o.svc||[]).filter(function(s){return s.addrFrom||s.addrTo||(s.addrTos&&s.addrTos.length);});
     if(!dl.length)continue;
-    const q=ordSelQuote(o);const sup=(q&&q.supplier)||'';if(opt.supplier&&sup!==opt.supplier)continue;
+    const sp=laneSupplierOf(o);if(opt.supplier&&sp.name!==opt.supplier)continue;
     const cost=ordCost(o);const prof=ordProfit(o);const sale=Number(o.salePrice)||0;
     const totalQty=dl.reduce(function(a,s){return a+(Number(s.qty)||1);},0)||1;
     for(const s of dl){
       const qty=Number(s.qty)||1;const share=qty/totalQty;
       const fromL=s.locFrom?locById(s.locFrom):null;const toIds=(s.locTos&&s.locTos.length)?s.locTos:[null];
       const toTexts=(s.addrTos&&s.addrTos.length)?s.addrTos:[s.addrTo];
-      const fz=laneZoneOf(fromL,s.addrFrom);
-      toIds.forEach(function(id,i){const tL=id?locById(id):null;const tz=laneZoneOf(tL,toTexts[i]||toTexts[0]);const w=share/toIds.length;
-        rows.push({o:o,s:s,from:fz,to:tz,qty:qty/toIds.length,sale:sale*w,cost:(cost&&cost.v!=null&&cost.cur!=='混合')?cost.v*w:null,gm:prof?prof.v*w:null,supplier:sup,mon:mon,customer:o.customer||''});});
+      const fz=lanePlace(fromL,s.addrFrom);
+      toIds.forEach(function(id,i){const tL=id?locById(id):null;const tz=lanePlace(tL,toTexts[i]||toTexts[0]);const w=share/toIds.length;
+        rows.push({o:o,s:s,from:fz,to:tz,qty:qty/toIds.length,sale:sale*w,cost:(cost&&cost.v!=null&&cost.cur!=='混合')?cost.v*w:null,gm:prof?prof.v*w:null,supplier:sp.name,supAll:sp.all,mon:mon,customer:o.customer||'',owner:o.owner||'',date:o.createdAt?ymdLocal(new Date(o.createdAt)):'',mode:s.mode||'',pallets:(s.pallets!=null?Number(s.pallets):null)*(toIds.length>1?w/share:1)||null,weightKg:(s.weightKg!=null?Number(s.weightKg):null)});});
     }
   }
   return rows;
 }
-function laneAggregate(rows,level){
-
-  const key=function(z){return level==='country'?(z.country||z.zone):(level==='city'?(z.country+' '+(z.city||z.zone)):z.zone);};
+function laneKeyOf(z,level){return level==='country'?z.labelCountry:(level==='city'?z.labelCity:(level==='place'?z.labelPlace:z.labelZone));}
+function laneAggregate(rows,levelTo,levelFrom){
+  levelTo=levelTo||'zone';levelFrom=levelFrom||'zone';
   const g={};const months=new Set();
-  for(const r of rows){months.add(r.mon);const k=r.from.zone+' → '+key(r.to);const a=g[k]=g[k]||{lane:k,from:r.from.zone,to:key(r.to),trips:0,orders:new Set(),sale:0,cost:0,costN:0,gm:0,gmN:0,sup:{},cust:{},months:new Set()};
-    a.trips+=r.qty;a.orders.add(r.o.id);a.sale+=r.sale;if(r.cost!=null){a.cost+=r.cost;a.costN++;}if(r.gm!=null){a.gm+=r.gm;a.gmN++;}a.sup[r.supplier||'—']=(a.sup[r.supplier||'—']||0)+r.qty;a.cust[r.customer]=(a.cust[r.customer]||0)+r.qty;a.months.add(r.mon);}
-  const span=Math.max(1,months.size);
-  const out=Object.values(g).map(function(a){const sups=Object.keys(a.sup).sort(function(x,y){return a.sup[y]-a.sup[x];});const custs=Object.keys(a.cust).sort(function(x,y){return a.cust[y]-a.cust[x];});
-    return {lane:a.lane,from:a.from,to:a.to,trips:Math.round(a.trips*100)/100,orders:a.orders.size,sale:Math.round(a.sale*100)/100,cost:a.costN?Math.round(a.cost*100)/100:null,gm:a.gmN?Math.round(a.gm*100)/100:null,gmPct:(a.gmN&&a.sale)?Math.round(a.gm/a.sale*1000)/10:null,perTrip:a.costN&&a.trips?Math.round(a.cost/a.trips*100)/100:null,monthly:Math.round(a.trips/span*10)/10,topSup:sups[0]||'—',supN:sups.length,topCust:custs.slice(0,3).join('、'),custN:custs.length,charter:(a.trips/span)>=8};});
+  for(const r of rows){months.add(r.mon);const kf=laneKeyOf(r.from,levelFrom),kt=laneKeyOf(r.to,levelTo);const k=kf+' → '+kt;
+    const a=g[k]=g[k]||{lane:k,from:kf,to:kt,fromP:r.from,toP:r.to,trips:0,orders:new Set(),sale:0,cost:0,costN:0,gm:0,gmN:0,sup:{},cust:{},modes:{},pallets:0,palN:0,kg:0,kgN:0,byMon:{},places:new Set(),placeN:{},fromPlaceN:{},rows:[]};
+    a.trips+=r.qty;a.orders.add(r.o.id);a.sale+=r.sale;if(r.cost!=null){a.cost+=r.cost;a.costN++;}if(r.gm!=null){a.gm+=r.gm;a.gmN++;}
+    a.sup[r.supplier||'—']=(a.sup[r.supplier||'—']||0)+r.qty;a.cust[r.customer]=(a.cust[r.customer]||0)+r.qty;if(r.mode)a.modes[r.mode]=(a.modes[r.mode]||0)+r.qty;
+    if(r.pallets!=null){a.pallets+=r.pallets;a.palN++;}if(r.weightKg!=null){a.kg+=r.weightKg;a.kgN++;}a.byMon[r.mon]=(a.byMon[r.mon]||0)+r.qty;const pn=r.to.place||r.to.city||'';a.places.add(pn);a.placeN[pn]=(a.placeN[pn]||0)+r.qty;const fp=r.from.place||r.from.city||'';a.fromPlaceN[fp]=(a.fromPlaceN[fp]||0)+r.qty;a.rows.push(r);}
+  const span=Math.max(1,months.size);const monthList=Array.from(months).filter(Boolean).sort();
+  const out=Object.values(g).map(function(a){const sups=Object.keys(a.sup).sort(function(x,y){return a.sup[y]-a.sup[x];});const custs=Object.keys(a.cust).sort(function(x,y){return a.cust[y]-a.cust[x];});const modes=Object.keys(a.modes).sort(function(x,y){return a.modes[y]-a.modes[x];});
+    return {lane:a.lane,from:a.from,to:a.to,fromP:a.fromP,toP:a.toP,trips:Math.round(a.trips*100)/100,orders:a.orders.size,sale:Math.round(a.sale*100)/100,cost:a.costN?Math.round(a.cost*100)/100:null,gm:a.gmN?Math.round(a.gm*100)/100:null,gmPct:(a.gmN&&a.sale)?Math.round(a.gm/a.sale*1000)/10:null,perTrip:a.costN&&a.trips?Math.round(a.cost/a.trips*100)/100:null,monthly:Math.round(a.trips/span*10)/10,
+      topSup:sups[0]||'—',topSupShare:a.trips?Math.round((a.sup[sups[0]]||0)/a.trips*100):0,supN:sups.filter(function(x){return x!=='—';}).length,sups:sups.map(function(x){return {name:x,trips:Math.round(a.sup[x]*100)/100};}),
+      topCust:custs.slice(0,3).join('、'),custN:custs.length,fromPlace:Object.keys(a.fromPlaceN).sort(function(x,y){return a.fromPlaceN[y]-a.fromPlaceN[x];})[0]||'',toPlace:Object.keys(a.placeN).sort(function(x,y){return a.placeN[y]-a.placeN[x];})[0]||'',modes:modes.map(function(m){return (LANE_MODE[m]||m)+' '+Math.round(a.modes[m]);}).join(' / '),pallets:a.palN?Math.round(a.pallets):null,kg:a.kgN?Math.round(a.kg):null,byMon:a.byMon,placesN:a.places.size,charter:(a.trips/span)>=8,rows:a.rows};});
   out.sort(function(x,y){return y.trips-x.trips||y.sale-x.sale;});
-  return {rows:out,months:span,trips:Math.round(rows.reduce(function(a,r){return a+r.qty;},0)*100)/100,sale:Math.round(rows.reduce(function(a,r){return a+r.sale;},0)*100)/100};
+  return {rows:out,months:span,monthList:monthList,trips:Math.round(rows.reduce(function(a,r){return a+r.qty;},0)*100)/100,sale:Math.round(rows.reduce(function(a,r){return a+r.sale;},0)*100)/100};
 }
-window.laneRowsBuild=laneRowsBuild;window.laneAggregate=laneAggregate;window.laneZoneOf=laneZoneOf;
+window.laneRowsBuild=laneRowsBuild;window.laneAggregate=laneAggregate;window.lanePlace=lanePlace;window.laneSupplierOf=laneSupplierOf;
 function laneOpen(){
   const old=document.getElementById('laneOvl');if(old)old.remove();
   const ovl=document.createElement('div');ovl.id='laneOvl';ovl.style.cssText='position:fixed;inset:0;background:rgba(20,28,26,.45);z-index:2400;display:flex;align-items:center;justify-content:center';
-  const card=document.createElement('div');card.style.cssText='background:var(--card,#fff);border-radius:14px;padding:18px 22px;width:min(1140px,97vw);max-height:92vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px';
+  const card=document.createElement('div');card.style.cssText='background:var(--card,#fff);border-radius:14px;padding:18px 22px;width:min(1240px,97vw);max-height:92vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px';
   const months=Array.from(new Set(ordItems.filter(function(o){return !o.deleted&&o.createdAt;}).map(function(o){return ymLocal(new Date(o.createdAt));}))).sort();
   const custs=Array.from(new Set(ordItems.filter(function(o){return !o.deleted&&o.customer;}).map(function(o){return o.customer;}))).sort();
-  const sups=Array.from(new Set(ordItems.map(function(o){const q=ordSelQuote(o);return q&&q.supplier;}).filter(Boolean))).sort();
-  const sel=function(id,opts,first){return '<select id="'+id+'" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12px"><option value="">'+first+'</option>'+opts.map(function(x){return '<option value="'+esc(x)+'">'+esc(x)+'</option>';}).join('')+'</select>';};
-  card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:700;font-size:15px">🗺 线路分析（起运区 → 目的区）</div><button class="btn-ghost" id="laneClose" type="button">关闭</button></div>'+
-    '<div style="font-size:11.5px;color:var(--ink-soft);margin:6px 0 10px">车次 = 派送行数量；区 = 港口 LOCODE 或 国家-邮编前两位（货代报价表口径）；售价/成本/毛利按订单口径，多条派送行按数量分摊；月均 ≥ 8 车标为<b>包车候选</b>。只读。</div>'+
+  const sups=Array.from(new Set(ordItems.filter(function(o){return !o.deleted;}).map(function(o){return laneSupplierOf(o).name;}).filter(Boolean))).sort();
+  const sel=function(id,opts,first,vals){return '<select id="'+id+'" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12px"><option value="">'+first+'</option>'+opts.map(function(x,i){return '<option value="'+esc(vals?vals[i]:x)+'">'+esc(x)+'</option>';}).join('')+'</select>';};
+  const LV=['国家','邮编区','城市','地点'],LVV=['country','zone','city','place'];
+  card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:700;font-size:15px">🗺 线路分析（起运 → 目的）</div><button class="btn-ghost" id="laneClose" type="button">关闭</button></div>'+
+    '<div style="font-size:11.5px;color:var(--ink-soft);margin:6px 0 10px">车次 = 派送行数量；区 = 港口 LOCODE 或 国家-邮编前两位；售价/成本/毛利按订单口径（成本以应付发票为准，未录发票的单显示"—"），多条派送行按数量分摊；供应商与成本同源（应付发票 → 报价）；月均 ≥ 8 车 = <b>包车候选</b>。点行展开运次明细。只读。</div>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+sel('laneM0',months,'起始月')+sel('laneM1',months,'截止月')+sel('laneCust',custs,'全部客户')+sel('laneSup',sups,'全部供应商')+
-    '<select id="laneLevel" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12px"><option value="zone">目的：邮编区</option><option value="country">目的：国家</option><option value="city">目的：城市</option></select>'+
-    '<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" id="laneCharter"> 只看包车候选</label><button class="btn-ghost" id="laneXls" type="button">导出 Excel</button></div>'+
+    '<label style="font-size:12px">起运按 '+sel('laneLvFrom',LV,'邮编区',LVV).replace('value=""','value="zone"')+'</label><label style="font-size:12px">目的按 '+sel('laneLvTo',LV,'邮编区',LVV).replace('value=""','value="zone"')+'</label>'+
+    '<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" id="laneCharter"> 只看包车候选</label><button class="btn-ghost" id="laneXls" type="button">导出 Excel（3 表）</button></div>'+
     '<div id="laneSum" style="margin-bottom:8px;font-weight:600"></div><div id="laneOut"></div>';
   ovl.appendChild(card);document.body.appendChild(ovl);
   ovl.onclick=function(e){if(e.target===ovl)ovl.remove();};card.querySelector('#laneClose').onclick=function(){ovl.remove();};
-  let last=null;
+  let last=null,lastList=[];
   const run=function(){
     const q=function(id){return card.querySelector('#'+id);};
     const rows=laneRowsBuild({from:q('laneM0').value,to:q('laneM1').value,customer:q('laneCust').value,supplier:q('laneSup').value});
-    last=laneAggregate(rows,q('laneLevel').value);
-    let list=last.rows;if(q('laneCharter').checked)list=list.filter(function(r){return r.charter;});
-    q('laneSum').textContent='线路 '+list.length+' 条 · 车次 '+last.trips+' · 售价合计 '+fmt(last.sale)+' EUR · 跨 '+last.months+' 个月';
-    let h='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--n-wash)"><th style="text-align:left;padding:5px">起运</th><th style="text-align:left">目的</th><th class="amount">车次</th><th class="amount">月均</th><th class="amount">订单</th><th class="amount">售价</th><th class="amount">成本</th><th class="amount">毛利</th><th class="amount">毛利%</th><th class="amount">单车成本</th><th style="text-align:left">主要供应商</th><th style="text-align:left">主要客户</th><th></th></tr></thead><tbody>';
-    for(const r of list){h+='<tr'+(r.charter?' style="background:var(--warn-bg)"':'')+'><td style="padding:4px 5px;font-weight:600">'+esc(r.from)+'</td><td style="font-weight:600">'+esc(r.to)+'</td><td class="amount">'+r.trips+'</td><td class="amount">'+r.monthly+'</td><td class="amount">'+r.orders+'</td><td class="amount">'+fmt(r.sale)+'</td><td class="amount">'+(r.cost==null?'—':fmt(r.cost))+'</td><td class="amount">'+(r.gm==null?'—':fmt(r.gm))+'</td><td class="amount">'+(r.gmPct==null?'—':r.gmPct+'%')+'</td><td class="amount">'+(r.perTrip==null?'—':fmt(r.perTrip))+'</td><td>'+esc(r.topSup)+(r.supN>1?' <span style="color:var(--ink-soft)">+'+(r.supN-1)+'</span>':'')+'</td><td style="font-size:11.5px">'+esc(r.topCust)+(r.custN>3?' …':'')+'</td><td>'+(r.charter?'<span style="color:var(--warn);font-weight:700">包车候选</span>':'')+'</td></tr>';}
+    last=laneAggregate(rows,q('laneLvTo').value||'zone',q('laneLvFrom').value||'zone');
+    let list=last.rows;if(q('laneCharter').checked)list=list.filter(function(r){return r.charter;});lastList=list;
+    q('laneSum').textContent='线路 '+list.length+' 条 · 车次 '+last.trips+' · 售价合计 '+fmt(last.sale)+' EUR · 跨 '+last.months+' 个月（'+last.monthList.join('、')+'）';
+    let h='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--n-wash)"><th style="text-align:left;padding:5px">起运</th><th style="text-align:left">起运地点</th><th style="text-align:left">目的</th><th style="text-align:left">目的地点（主要）</th><th class="amount">车次</th><th class="amount">月均</th><th class="amount">订单</th><th class="amount">托盘/件</th><th class="amount">重量 kg</th><th style="text-align:left">车型</th><th class="amount">售价</th><th class="amount">成本</th><th class="amount">毛利%</th><th class="amount">单车成本</th><th style="text-align:left">主要供应商</th><th style="text-align:left">主要客户</th><th></th></tr></thead><tbody>';
+    list.forEach(function(r,ix){h+='<tr class="lane-row" data-ix="'+ix+'" style="cursor:pointer'+(r.charter?';background:var(--warn-bg)':'')+'"><td style="padding:4px 5px;font-weight:600">'+esc(r.from)+'</td><td style="font-size:11.5px">'+esc(r.fromPlace)+'</td><td style="font-weight:600">'+esc(r.to)+'</td><td style="font-size:11.5px">'+esc(r.toPlace)+(r.placesN>1?' <span style="color:var(--ink-soft)">+'+(r.placesN-1)+'</span>':'')+'</td><td class="amount">'+r.trips+'</td><td class="amount">'+r.monthly+'</td><td class="amount">'+r.orders+'</td><td class="amount">'+(r.pallets==null?'—':r.pallets)+'</td><td class="amount">'+(r.kg==null?'—':fmt(r.kg))+'</td><td style="font-size:11px">'+esc(r.modes||'—')+'</td><td class="amount">'+fmt(r.sale)+'</td><td class="amount">'+(r.cost==null?'—':fmt(r.cost))+'</td><td class="amount">'+(r.gmPct==null?'—':r.gmPct+'%')+'</td><td class="amount">'+(r.perTrip==null?'—':fmt(r.perTrip))+'</td><td>'+esc(r.topSup)+(r.topSup!=='—'?' <span style="color:var(--ink-soft)">'+r.topSupShare+'%</span>':'')+(r.supN>1?' <span style="color:var(--ink-soft)">+'+(r.supN-1)+'</span>':'')+'</td><td style="font-size:11.5px">'+esc(r.topCust)+(r.custN>3?' …':'')+'</td><td>'+(r.charter?'<span style="color:var(--warn);font-weight:700">包车候选</span>':'')+'</td></tr>';
+      h+='<tr class="lane-det" data-ix="'+ix+'" style="display:none"><td colspan="17" style="padding:6px 10px;background:var(--n-wash)"><div style="font-size:11.5px;margin-bottom:4px"><b>供应商构成：</b>'+esc(r.sups.map(function(s){return s.name+' '+s.trips+' 车';}).join(' · '))+'　<b>月度：</b>'+esc(last.monthList.map(function(m){return m.slice(5)+'月 '+Math.round((r.byMon[m]||0)*10)/10;}).join(' · '))+'</div><table style="width:100%;border-collapse:collapse;font-size:11.5px"><thead><tr><th style="text-align:left">日期</th><th style="text-align:left">成单号</th><th style="text-align:left">客户</th><th style="text-align:left">起运地点</th><th style="text-align:left">目的地点</th><th class="amount">车次</th><th style="text-align:left">车型</th><th class="amount">托盘</th><th class="amount">kg</th><th class="amount">售价</th><th class="amount">成本</th><th style="text-align:left">供应商</th><th style="text-align:left">负责人</th></tr></thead><tbody>'+
+        r.rows.slice().sort(function(a,b){return String(b.date).localeCompare(String(a.date));}).map(function(x){return '<tr><td>'+esc(x.date)+'</td><td>'+esc(x.o.orderNo)+'</td><td>'+esc(x.customer)+'</td><td>'+esc(x.from.full)+'</td><td>'+esc(x.to.full)+'</td><td class="amount">'+(Math.round(x.qty*100)/100)+'</td><td>'+esc(LANE_MODE[x.mode]||x.mode||'')+'</td><td class="amount">'+(x.pallets==null?'':Math.round(x.pallets))+'</td><td class="amount">'+(x.weightKg==null?'':fmt(x.weightKg))+'</td><td class="amount">'+fmt(x.sale)+'</td><td class="amount">'+(x.cost==null?'—':fmt(x.cost))+'</td><td>'+esc(x.supplier||'—')+'</td><td>'+esc(x.owner)+'</td></tr>';}).join('')+'</tbody></table></td></tr>';});
     q('laneOut').innerHTML=list.length?h+'</tbody></table>':'<div style="color:var(--ink-soft);padding:12px">没有带地址的派送行（先在地点簿「⟳ 迁移历史地址」）</div>';
+    q('laneOut').querySelectorAll('.lane-row').forEach(function(tr){tr.onclick=function(){const d=q('laneOut').querySelector('.lane-det[data-ix="'+tr.dataset.ix+'"]');if(d)d.style.display=d.style.display==='none'?'':'none';};});
   };
-  ['laneM0','laneM1','laneCust','laneSup','laneLevel','laneCharter'].forEach(function(id){card.querySelector('#'+id).onchange=run;});
-  card.querySelector('#laneXls').onclick=async function(){if(!last)return;const head=['起运','目的','车次','月均车次','订单数','售价','成本','毛利','毛利%','单车成本','主要供应商','供应商数','主要客户','客户数','包车候选'];
-    const aoa=[head].concat(last.rows.map(function(r){return [r.from,r.to,r.trips,r.monthly,r.orders,r.sale,r.cost??'',r.gm??'',r.gmPct??'',r.perTrip??'',r.topSup,r.supN,r.topCust,r.custN,r.charter?'是':''];}));
-    try{await ensureXLSX();const ws=XLSX.utils.aoa_to_sheet(aoa);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'线路分析');XLSX.writeFile(wb,'IMG-Europe-线路分析-'+todayStr()+'.xlsx');}catch(e){toast('导出失败：'+(e.message||e));}};
+  ['laneM0','laneM1','laneCust','laneSup','laneLvFrom','laneLvTo','laneCharter'].forEach(function(id){card.querySelector('#'+id).onchange=run;});
+  card.querySelector('#laneXls').onclick=async function(){if(!last)return;
+    const h1=['起运国家','起运地点','起运城市','起运区/LOCODE','目的国家','目的区','目的城市','目的地点数','车次','月均车次','订单数','托盘/件','重量kg','车型构成','售价','成本','毛利','毛利%','单车成本','主要供应商','主供应商占比%','供应商数','主要客户','客户数','包车候选'];
+    const a1=[h1].concat(lastList.map(function(r){return [r.fromP.countryName,r.fromP.place,r.fromP.city,r.fromP.zone,r.toP.countryName,r.toP.zone,r.toP.city,r.placesN,r.trips,r.monthly,r.orders,r.pallets??'',r.kg??'',r.modes,r.sale,r.cost??'',r.gm??'',r.gmPct??'',r.perTrip??'',r.topSup,r.topSupShare,r.supN,r.topCust,r.custN,r.charter?'是':''];}));
+    const h2=['日期','成单号','客户','负责人','起运国家','起运地点','起运地址','目的国家','目的城市','目的地点','目的地址','车次','车型','托盘/件','重量kg','售价(分摊)','成本(分摊)','供应商'];
+    const a2=[h2];for(const r of lastList)for(const x of r.rows)a2.push([x.date,x.o.orderNo,x.customer,x.owner,x.from.countryName,x.from.place,x.from.full,x.to.countryName,x.to.city,x.to.place,x.to.full,Math.round(x.qty*100)/100,LANE_MODE[x.mode]||x.mode||'',x.pallets==null?'':Math.round(x.pallets),x.weightKg??'',Math.round(x.sale*100)/100,x.cost==null?'':Math.round(x.cost*100)/100,x.supplier||'']);
+    const h3=['起运','目的'].concat(last.monthList,['合计']);const a3=[h3].concat(lastList.map(function(r){return [r.from,r.to].concat(last.monthList.map(function(m){return Math.round((r.byMon[m]||0)*10)/10;}),[r.trips]);}));
+    try{await ensureXLSX();const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(a1),'线路汇总');XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(a2),'运次明细');XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(a3),'月度趋势');XLSX.writeFile(wb,'IMG-Europe-线路分析-'+todayStr()+'.xlsx');}catch(e){toast('导出失败：'+(e.message||e));}};
   run();
 }
 window.laneOpen=laneOpen;
@@ -8270,6 +8351,7 @@ function metaCloudStart(){
   },function(){});
 }
 
+window.ordItemsGet=function(){return ordItems;};
 function ordSelQuote(o){return (o.quotes||[]).find(q=>q.qid===o.selectedQuoteId)||null;}
 function ordApLinked(o){return apItems.filter(x=>!x.deleted&&x.orderNo&&x.orderNo===o.orderNo);}
 function ordArLinked(o){return payments.filter(p=>!p.deleted&&p.orderNo&&p.orderNo===o.orderNo);}
@@ -9042,7 +9124,10 @@ function ordDetail(o){
           if(iAF){iAF.value=s.addrFrom||'';
             const _t=(s.addrTos&&s.addrTos.length?s.addrTos:(s.addrTo?[s.addrTo]:[]));
             iAT.value=_t[0]||'';iAT2.value=_t[1]||'';iAT3.value=_t[2]||'';
-            iAT2.style.display=_t.length>1?'':'none';iAT3.style.display=_t.length>2?'':'none';
+            try{const h=window._addrComposeFor&&window._addrComposeFor();if(h){const fL=s.locFrom?locById(s.locFrom):null;h.fromSel.refill('');
+                if(fL&&locIsOrigin(fL)&&locComplete(fL)){h.fromSel.value=fL.id;h.fromBlk.el.style.display='none';h.fromBlk.set(fL);}else{h.fromSel.value='__other';h.fromBlk.el.style.display='';h.fromBlk.set(fL||s.addrFrom||'');}
+                const ids=s.locTos||[];for(let i=0;i<3;i++){const b=h.toBlks[i];const L=ids[i]?locById(ids[i]):null;if(_t[i]||L){b.el.style.display='';b.set(L||_t[i]);}else{b.el.style.display=i===0?'':'none';b.clear();}}}}catch(e){}
+            try{iMode.value=s.mode||'';iPal.value=s.pallets!=null?s.pallets:'';iWt.value=s.weightKg!=null?s.weightKg:'';}catch(e){}
             addrRowSync();}
           iName.focus();};
         row.appendChild(ed);
@@ -9064,7 +9149,8 @@ function ordDetail(o){
         const _tos=(s.addrTos&&s.addrTos.length?s.addrTos:(s.addrTo?[s.addrTo]:[]));
         if(s.addrFrom||_tos.length){
           const tosTxt=_tos.length>1?_tos.map(function(a,ix){return '收'+'①②③'[ix]+' '+esc(a);}).join(' ／ '):('收 '+esc(_tos[0]||'—'));
-          sub.innerHTML='📍 发 '+esc(s.addrFrom||'—')+' → '+tosTxt+((o.type!=='inq'&&(!s.addrFrom||!_tos.length))?' <span style="color:var(--bad);font-weight:700">⚠ 缺收发货地址</span>':'');
+          const shp=[s.mode?({FTL:'整车',LTL:'零担','20GP':"20'",'40HQ':"40'",VAN:'厢车',OTHER:'其他'}[s.mode]||s.mode):'',s.pallets!=null?s.pallets+' 托/件':'',s.weightKg!=null?fmt(s.weightKg)+' kg':''].filter(Boolean).join(' · ');
+          sub.innerHTML='📍 发 '+esc(s.addrFrom||'—')+' → '+tosTxt+(shp?' <span style="color:var(--info)">🚚 '+esc(shp)+'</span>':'')+((o.type!=='inq'&&(!s.addrFrom||!_tos.length))?' <span style="color:var(--bad);font-weight:700">⚠ 缺收发货地址</span>':'');
         }else if(o.type!=='inq'){
           sub.innerHTML='<span style="color:var(--bad);font-weight:700" title="点右侧✏载入编辑行补填">⚠ 缺收发货地址</span>';
         }
@@ -9156,7 +9242,7 @@ function ordDetail(o){
         const lib=meta.svcLib.find(x=>x.name===nm2||(x.en&&x.en.toLowerCase()===nm2.toLowerCase()));
 
         const _isDel=svcIsDelivery(lib?lib.name:nm2,lib?(lib.en||''):'');
-        if(_isDel&&o.type!=='inq'&&(!iAF.value.trim()||addrTosGet().length===0)){addrRowSync();toast('派送费须填写收发货地址（发货地址与至少一个收货地址必填）');return;}
+        if(_isDel&&o.type!=='inq'){addrRowSync();const okA=addrCompose();if(!okA){toast(_addrErr||'派送费须填写收发货地址（发货地与至少一个收货地必填）');return;}}
         const _prRaw=iPrice.value.trim(),_prN=parseAmt(_prRaw);
         if(_prRaw!==''&&isNaN(_prN)){toast('价格格式无效：'+_prRaw+'（请用 1234,56 或 1234.56）');iPrice.focus();return;}
         const item={
@@ -9170,15 +9256,13 @@ function ordDetail(o){
          else{item.disc=_p;}}
         let _tos=_isDel?addrTosGet():[];
         if(_isDel&&o.type!=='inq'){
-          const fL=iAF.value.trim()?locResolve(iAF.value.trim(),true,true):null;
-          const tL=_tos.map(function(t){return locResolve(t,true,true);});
+          const fL=_lastLocs.from;const tL=_lastLocs.tos;
           item.locFrom=fL?fL.id:undefined;item.locTos=tL.length?tL.map(function(x){return x.id;}):undefined;
           if(fL){if(fL.kind==='other'||fL.kind==='customer')fL.kind='warehouse';locNoteUse(fL,o.customer,'from');}tL.forEach(function(x){locNoteUse(x,o.customer,'to');});
-          if(fL)iAF.value=locFmt(fL);_tos=tL.map(locFmt);
-          const inc=[fL].concat(tL).filter(function(x){return x&&!locComplete(x);});
-          if(inc.length){item.addrDirty=true;toast('地址「'+inc.map(function(x){return x.name;}).join('」「')+'」未含邮编/城市/国家，已记为待补全（基础资料「📍 地点簿」可补）');}else delete item.addrDirty;
+          if(fL)iAF.value=locFmt(fL);_tos=tL.map(locFmt);delete item.addrDirty;
           try{metaSave();}catch(e){}
         }
+        if(_isDel){item.mode=iMode.value||undefined;item.pallets=iPal.value!==''?Number(iPal.value):undefined;item.weightKg=iWt.value!==''?Number(iWt.value):undefined;}
         item.addrFrom=_isDel?(iAF.value.trim()||undefined):undefined;
         item.addrTo=_tos.length?_tos[0]:undefined;
         item.addrTos=_tos.length>1?_tos:undefined;
@@ -9206,21 +9290,56 @@ function ordDetail(o){
       addrRow.style.cssText='display:none;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center';
       iAF=document.createElement('input');iAF.placeholder='发货地址 / Pickup address';iAF.style.cssText=st+';flex:1;min-width:180px';
       iAT=document.createElement('input');iAT.placeholder='收货地址 / Delivery address';iAT.style.cssText=st+';flex:1;min-width:180px';
-      const addrHint=document.createElement('span');addrHint.textContent='📍 派送费须填写收发货地址（从地点簿选择，输入名称/城市联想；选不到点「＋ 地点」新建；收货地址最多3个）';addrHint.style.cssText='font-size:11px;color:var(--brass);width:100%';
+      const addrHint=document.createElement('span');addrHint.textContent='📍 派送费须填写收发货地址：起运地从下拉选（港口/仓库），收货地依次填 街道门牌 / 邮编 / 城市 / 国家（四项必填；输入名称可从地点簿联想自动填）；收货地址最多3个';addrHint.style.cssText='font-size:11px;color:var(--brass);width:100%';
+
+      const fromSel=locOriginSelect(st);const fromBlk=locBlock({role:'from',label:'发货地',st:st});fromBlk.el.style.display='none';
+      fromSel.onchange=function(){if(fromSel.value==='__other'){fromBlk.el.style.display='';fromBlk.clear();}else{fromBlk.el.style.display='none';const L=fromSel.value?locById(fromSel.value):null;fromBlk.set(L||null);}};
+      const toBlks=[locBlock({role:'to',label:'收货地①',st:st,datalist:'locListTo'}),locBlock({role:'to',label:'收货地②',st:st,datalist:'locListTo'}),locBlock({role:'to',label:'收货地③',st:st,datalist:'locListTo'})];
+      toBlks[1].el.style.display='none';toBlks[2].el.style.display='none';
+      const fromWrap=document.createElement('div');fromWrap.style.cssText='display:flex;gap:6px;align-items:center;width:100%;flex-wrap:wrap';const fromLab=document.createElement('span');fromLab.textContent='发货地';fromLab.style.cssText='font-size:11px;color:var(--ink-soft);min-width:52px';fromWrap.append(fromLab,fromSel);
       iAT2=document.createElement('input');iAT2.placeholder='收货地址②(可选)';iAT2.style.cssText=st+';flex:1;min-width:180px;display:none';
       iAT3=document.createElement('input');iAT3.placeholder='收货地址③(可选)';iAT3.style.cssText=st+';flex:1;min-width:180px;display:none';
+      iAF.style.display='none';iAT.style.display='none';
       const bAddrPlus=document.createElement('button');bAddrPlus.className='btn-sm';bAddrPlus.type='button';bAddrPlus.textContent='＋';bAddrPlus.title='再加一个收货地址（最多3个）';
       bAddrPlus.onclick=e=>{e.stopPropagation();
-        if(iAT2.style.display==='none')iAT2.style.display='';
-        else if(iAT3.style.display==='none'){iAT3.style.display='';bAddrPlus.style.display='none';}
+        if(toBlks[1].el.style.display==='none')toBlks[1].el.style.display='';
+        else if(toBlks[2].el.style.display==='none'){toBlks[2].el.style.display='';bAddrPlus.style.display='none';}
       };
+
+      let _addrErr='';const _lastLocs={from:null,tos:[]};
+      const blockToLoc=function(blk,hidden,role,required){
+        _addrErr='';
+        if(blk.isEmpty()){const t=String(hidden.value||'').trim();if(!t){if(required)_addrErr='请填写'+(role==='from'?'发货地':'收货地');return null;}
+          const L=locResolve(t,true,false);if(!L||!locComplete(L)){const p=locParse(t);blk.set(t);blk.el.style.display='';_addrErr='地址不完整：请依次填写 街道门牌 / 邮编 / 城市 / 国家（已把能识别的部分填入）';blk.showErr(_addrErr);return null;}
+          hidden.value=locFmt(L);return L;}
+        const v=blk.validate();if(v){_addrErr=v;blk.showErr(v);return null;}blk.showErr('');
+        const L=blk.toLoc(o.customer,role);hidden.value=locFmt(L);return L;};
+      const addrCompose=function(){
+        _lastLocs.from=null;_lastLocs.tos=[];
+        if(fromSel.value&&fromSel.value!=='__other'){const L=locById(fromSel.value);if(L){iAF.value=locFmt(L);_lastLocs.from=L;}}
+        else{if(fromSel.value==='__other'||!fromBlk.isEmpty()||iAF.value.trim()){const L=blockToLoc(fromBlk,iAF,'from',true);if(!L)return false;_lastLocs.from=L;}else{_addrErr='请选择发货地（起运地）';return false;}}
+        const hid=[iAT,iAT2,iAT3];
+        for(let i=0;i<3;i++){const blk=toBlks[i];const vis=blk.el.style.display!=='none';
+          if(!vis&&!hid[i].value.trim()){hid[i].value='';continue;}
+          if(blk.isEmpty()&&!hid[i].value.trim()){if(i===0){_addrErr='请填写收货地①';return false;}hid[i].value='';continue;}
+          const L=blockToLoc(blk,hid[i],'to',i===0);if(!L)return false;_lastLocs.tos.push(L);}
+        if(!_lastLocs.tos.length){_addrErr='请填写收货地①';return false;}
+        return true;};
       addrTosGet=function(){return [iAT,iAT2,iAT3].map(function(x){return String(x.value||'').trim();}).filter(Boolean);};
+      window._addrComposeFor=function(sid){return {compose:addrCompose,err:function(){return _addrErr;},locs:_lastLocs,fromSel:fromSel,fromBlk:fromBlk,toBlks:toBlks};};
+
+      const iMode=document.createElement('select');iMode.title='运输方式 / 车型';iMode.style.cssText=st+';width:118px';
+      for(const v of [['','车型'],['FTL','整车 FTL'],['LTL','零担 LTL'],['20GP',"20' 集装箱"],['40HQ',"40' 集装箱"],['VAN','厢车'],['OTHER','其他']]){const op=document.createElement('option');op.value=v[0];op.textContent=v[1];iMode.appendChild(op);}
+      const iPal=document.createElement('input');iPal.type='number';iPal.min='0';iPal.step='1';iPal.placeholder='托盘/件';iPal.title='托盘数或件数';iPal.style.cssText=st+';width:78px';
+      const iWt=document.createElement('input');iWt.type='number';iWt.min='0';iWt.step='1';iWt.placeholder='重量 kg';iWt.title='毛重 kg';iWt.style.cssText=st+';width:86px';
+      for(const el of [iMode,iPal,iWt])el.onclick=e=>e.stopPropagation();
       for(const el of [iAF,iAT,iAT2,iAT3]){el.dataset.init='';el.onclick=e=>e.stopPropagation();el.autocomplete='off';}
       iAF.setAttribute('list','locListFrom');for(const el of [iAT,iAT2,iAT3])el.setAttribute('list','locListTo');
       try{locDatalist(o.customer);}catch(e){}
       const bLoc=document.createElement('button');bLoc.className='btn-sm';bLoc.type='button';bLoc.textContent='＋ 地点';bLoc.title='按标准格式新建地点（名称/街道门牌/邮编/城市/国家）并填入';
       bLoc.onclick=e=>{e.stopPropagation();const target=[iAF,iAT,iAT2,iAT3].find(function(x){return x.style.display!=='none'&&!x.value.trim();})||iAT;const pre=(typeof locParse==='function')?locParse(target.value):null;locFormOpen(pre&&pre.ok?{name:pre.name,kind:pre.kind,street:pre.street,houseNo:pre.houseNo,extra:pre.extra,postcode:pre.postcode,city:pre.city,country:pre.country,locode:pre.locode}:null,function(L){target.value=locFmt(L);});};
-      addrRow.append(addrHint,iAF,iAT,iAT2,iAT3,bAddrPlus,bLoc);
+      const shipWrap=document.createElement('div');shipWrap.style.cssText='display:flex;gap:6px;align-items:center;width:100%;flex-wrap:wrap';const shipLab=document.createElement('span');shipLab.textContent='运量';shipLab.style.cssText='font-size:11px;color:var(--ink-soft);min-width:52px';shipWrap.append(shipLab,iMode,iPal,iWt,bAddrPlus,bLoc);
+      addrRow.append(addrHint,fromWrap,fromBlk.el,toBlks[0].el,toBlks[1].el,toBlks[2].el,iAF,iAT,iAT2,iAT3,shipWrap);
       addrRow.onclick=e=>e.stopPropagation();
       addrRowSync=function(){
         const nmX=iName.value.trim();
@@ -9229,7 +9348,7 @@ function ordDetail(o){
       };
       iName.addEventListener('input',addrRowSync);
       svcBox.appendChild(addrRow);
-      kbFlow([iName,iQty,iPrice,iAF,iAT,iAT2,iAT3],function(){bAdd.click();});
+      kbFlow([iName,iQty,iPrice,fromSel,toBlks[0].iName,toBlks[0].iStreet,toBlks[0].iPc,toBlks[0].iCity,toBlks[0].iCountry],function(){bAdd.click();});
     }
     svcBox.onclick=e=>e.stopPropagation();
     left.appendChild(svcBox);
@@ -15908,7 +16027,54 @@ Object.assign(I18N,{
 "待补全":{en:"Incomplete",de:"Unvollständig"},
 "次数":{en:"Uses",de:"Nutzungen"},
 "🗺 线路分析":{en:"🗺 Lane analysis",de:"🗺 Relationsanalyse"},
-"起运区 → 目的区 车次/售价/成本/毛利/供应商，包车候选":{en:"Origin zone → destination zone: trips/revenue/cost/margin/suppliers, charter candidates",de:"Abgangs- → Zielzone: Fahrten/Umsatz/Kosten/Marge/Lieferanten, Charter-Kandidaten"}
+"起运区 → 目的区 车次/售价/成本/毛利/供应商，包车候选":{en:"Origin zone → destination zone: trips/revenue/cost/margin/suppliers, charter candidates",de:"Abgangs- → Zielzone: Fahrten/Umsatz/Kosten/Marge/Lieferanten, Charter-Kandidaten"},
+"车型":{en:"Mode",de:"Fahrzeug"},
+"整车 FTL":{en:"Full truck (FTL)",de:"Komplettladung (FTL)"},
+"零担 LTL":{en:"Groupage (LTL)",de:"Teilladung (LTL)"},
+"厢车":{en:"Van",de:"Transporter"},
+"运输方式 / 车型":{en:"Mode / vehicle",de:"Verkehrsart / Fahrzeug"},
+"托盘数或件数":{en:"Pallets or pieces",de:"Paletten oder Stück"},
+"托盘/件":{en:"Pallets/pcs",de:"Pal./Stk."},
+"毛重 kg":{en:"Gross weight kg",de:"Bruttogewicht kg"},
+"重量 kg":{en:"Weight kg",de:"Gewicht kg"},
+"起运地点":{en:"Origin place",de:"Abgangsort"},
+"目的地点（主要）":{en:"Destination place (main)",de:"Zielort (Haupt)"},
+"起运地名称（可选）":{en:"Origin name (optional)",de:"Name Abgangsort (optional)"},
+"地点名称 / 联想（可选）":{en:"Place name / lookup (optional)",de:"Ortsname / Suche (optional)"},
+"街道 门牌 *":{en:"Street No. *",de:"Straße Nr. *"},
+"邮编 *":{en:"Postcode *",de:"PLZ *"},
+"城市 *":{en:"City *",de:"Ort *"},
+"国家 *":{en:"Country *",de:"Land *"},
+"发货地":{en:"Pick-up",de:"Abholung"},
+"收货地①":{en:"Delivery ①",de:"Lieferung ①"},
+"收货地②":{en:"Delivery ②",de:"Lieferung ②"},
+"收货地③":{en:"Delivery ③",de:"Lieferung ③"},
+"运量":{en:"Volume",de:"Menge"},
+"起运地 * 请选择":{en:"Origin * please choose",de:"Abgangsort * bitte wählen"},
+"其他（手填四项）":{en:"Other (enter the four fields)",de:"Andere (vier Felder eingeben)"},
+"起运地（港口/仓库）":{en:"Origin (port/warehouse)",de:"Abgangsort (Hafen/Lager)"},
+"📍 派送费须填写收发货地址：起运地从下拉选（港口/仓库），收货地依次填 街道门牌 / 邮编 / 城市 / 国家（四项必填；输入名称可从地点簿联想自动填）；收货地址最多3个":{en:"📍 Delivery lines need addresses: choose the origin (port/warehouse) from the list; for delivery enter street no. / postcode / city / country (all four required; typing a name fills them from the location book); up to 3 delivery addresses",de:"📍 Zustellzeilen brauchen Adressen: Abgangsort (Hafen/Lager) aus der Liste wählen; Lieferadresse mit Straße Nr. / PLZ / Ort / Land (alle vier Pflicht; ein Name füllt sie aus dem Ortsverzeichnis); bis zu 3 Lieferadressen"},
+"地点名称；输入名称或城市从地点簿联想，选中后下面四项自动填":{en:"Place name; type a name or city to look up the location book, selecting fills the four fields below",de:"Ortsname; Name oder Ort eingeben, Auswahl füllt die vier Felder darunter"},
+"具体地址：街道与门牌号，如 Rietwijkeroordweg 52":{en:"Street and house number, e.g. Rietwijkeroordweg 52",de:"Straße und Hausnummer, z. B. Rietwijkeroordweg 52"},
+"邮编":{en:"Postcode",de:"PLZ"},
+"城市":{en:"City",de:"Ort"},
+"DE 德国":{en:"DE Germany",de:"DE Deutschland"},
+"NL 荷兰":{en:"NL Netherlands",de:"NL Niederlande"},
+"PL 波兰":{en:"PL Poland",de:"PL Polen"},
+"BE 比利时":{en:"BE Belgium",de:"BE Belgien"},
+"FR 法国":{en:"FR France",de:"FR Frankreich"},
+"AT 奥地利":{en:"AT Austria",de:"AT Österreich"},
+"CZ 捷克":{en:"CZ Czech Republic",de:"CZ Tschechien"},
+"ES 西班牙":{en:"ES Spain",de:"ES Spanien"},
+"IT 意大利":{en:"IT Italy",de:"IT Italien"},
+"CH 瑞士":{en:"CH Switzerland",de:"CH Schweiz"},
+"DK 丹麦":{en:"DK Denmark",de:"DK Dänemark"},
+"LU 卢森堡":{en:"LU Luxembourg",de:"LU Luxemburg"},
+"HU 匈牙利":{en:"HU Hungary",de:"HU Ungarn"},
+"SK 斯洛伐克":{en:"SK Slovakia",de:"SK Slowakei"},
+"GB 英国":{en:"GB United Kingdom",de:"GB Vereinigtes Königreich"},
+"SE 瑞典":{en:"SE Sweden",de:"SE Schweden"},
+"CN 中国":{en:"CN China",de:"CN China"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
@@ -16073,6 +16239,7 @@ I18N_RULES.push(
 [/^🧾\ 税额≠明细（(\d+(?:[.,]\d+)?)）$/,{en:"🧾 VAT ≠ lines ($1)",de:"🧾 USt ≠ Positionen ($1)"}],
 [/^📍\ 地点簿（(\d+(?:[.,]\d+)?)）$/,{en:"📍 Locations ($1)",de:"📍 Orte ($1)"}],
 [/^📍\ 派送费须填写收发货地址（从地点簿选择，输入名称\/城市联想；选不到点「＋\ 地点」新建；收货地址最多(\d+(?:[.,]\d+)?)个）$/,{en:"📍 Delivery lines need pick-up and delivery addresses (choose from the location book by typing name/city; click \"＋ Location\" to add; up to $1 delivery addresses)",de:"📍 Zustellzeilen brauchen Abhol- und Lieferadresse (aus dem Ortsverzeichnis per Name/Ort wählen; „＋ Ort\" für neue; bis zu $1 Lieferadressen)"}],
+[/^(\d+(?:[.,]\d+)?)'\ 集装箱$/,{en:"$1' container",de:"$1'-Container"}],
 [/^休假中 · 代办 (.+)$/,{en:"On leave · deputy $1",de:"Abwesend · Vertretung $1"}],
 [/^默认 (.+)$/,{en:"Default $1",de:"Standard $1"}],
 [/^代办中（(.+) 休假）$/,{en:"Covering ($1 on leave)",de:"Vertretung ($1 abwesend)"}],
