@@ -990,7 +990,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v36.6</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v36.7</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1644,7 +1644,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=36.6;
+const APP_VERSION=36.7;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -3079,20 +3079,37 @@ window.inboxPendingGet=function(){return _inboxPending;};window.inboxLocalGet=fu
 
 const NOS_ROOT=DB_PREFIX+'img-ap/nos/';
 function nosKey(no){return String(no||'').trim().replace(/[.#$\/\[\]]/g,'_');}
+
+var _noClaimSoft=0;
+async function noClaimSoft(no,id,why){
+  const ref=rtdb.ref(NOS_ROOT+nosKey(no));let cur=null;
+  try{const s=await _withTimeout(ref.once('value'),8000,'占号表读取');cur=s&&s.val();}
+  catch(e){console.warn('noClaim 读超时，放行（本地查重兜底）',no,e&&e.message);_noClaimSoft++;return 'pass';}
+  if(cur&&cur.id&&cur.id!==id)throw new Error('成单号 '+no+' 已被 '+(cur.by||'他人')+' 使用（云端登记），请换号或先刷新页面');
+  try{await _withTimeout(ref.set({id:id,by:(session&&session.name)||'',at:Date.now(),soft:true,why:why||''}),10000,'占号登记');}
+  catch(e){console.warn('noClaim 软登记超时，放行',no,e&&e.message);_noClaimSoft++;return 'pass';}
+  _noClaimSoft++;return 'soft';
+}
 async function noClaim(no,id){
   if(!USE_CLOUD||!rtdb||!no||!id)return 'skip';
   const ref=rtdb.ref(NOS_ROOT+nosKey(no));let holder=null;
-  const r=await _withTimeout(new Promise(function(res,rej){
+  const txMs=(typeof _netSlow!=='undefined'&&_netSlow===true)?4000:10000;
+  let r;
+  try{r=await _withTimeout(new Promise(function(res,rej){
     ref.transaction(function(cur){if(!cur||cur.id===id)return {id:id,by:(session&&session.name)||'',at:Date.now()};holder=cur;return;},
       function(err,committed){if(err)rej(err);else res(committed);});
-  }),10000,'成单号占号');
+  }),txMs,'成单号占号');}
+  catch(e){if(!/超时/.test(e&&e.message||''))throw e;return noClaimSoft(no,id,'tx-timeout');}
   if(r===true)return 'ok';
   if(r===false&&holder&&holder.id!==id)throw new Error('成单号 '+no+' 已被 '+(holder.by||'他人')+' 使用（云端登记），请换号或先刷新页面');
   return 'ok';
 }
+window.noClaimSoftCount=function(){return _noClaimSoft;};
 async function noRelease(no,id){
   if(!USE_CLOUD||!rtdb||!no)return;
-  try{await _withTimeout(new Promise(function(res){rtdb.ref(NOS_ROOT+nosKey(no)).transaction(function(cur){if(cur&&(!id||cur.id===id))return null;return cur;},function(){res();});}),10000,'释放占号');}catch(e){console.warn('noRelease',e&&e.message);}
+  const ref=rtdb.ref(NOS_ROOT+nosKey(no));
+  try{await _withTimeout(new Promise(function(res){ref.transaction(function(cur){if(cur&&(!id||cur.id===id))return null;return cur;},function(){res();});}),(typeof _netSlow!=='undefined'&&_netSlow===true)?4000:10000,'释放占号');}
+  catch(e){try{const s=await _withTimeout(ref.once('value'),6000,'读');const cur=s&&s.val();if(cur&&(!id||cur.id===id))await _withTimeout(ref.remove(),8000,'删');}catch(e2){console.warn('noRelease',e2&&e2.message);}}
 }
 
 async function nosBackfill(){
