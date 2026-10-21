@@ -745,6 +745,7 @@ td{font-size:12.5px}
     <span class="spacer"></span>
     <span class="user-chip"><b id="userName"></b><span class="tag" id="userRoleTag"></span></span>
     <span class="tag" id="storeStatus" style="background:rgba(255,255,255,.15);border-radius:20px;padding:2px 10px;font-size:12px"></span>
+    <span class="tag" id="syncBadge" title="待同步到云端的改动（已保存在本机）" style="display:none;cursor:pointer;background:var(--warn-bg);color:var(--warn);border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600;margin-right:6px" onclick="outboxOpen()"></span>
     <span class="tag" id="inboxBadge" style="display:none;background:var(--warn-bg);color:var(--warn);border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700"></span>
     <button class="link-btn" id="ntfBtn" type="button" style="display:none;position:relative" title="通知"><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><span class="mod-dot" id="ntfDot" style="display:none;position:absolute;top:-4px;right:-6px">0</span></button>
     <button class="link-btn" id="logBtn" type="button" style="display:none" title="操作日志"><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg></button>
@@ -1019,7 +1020,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v37.0</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v37.1</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1673,7 +1674,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=37.0;
+const APP_VERSION=37.1;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1729,9 +1730,10 @@ function cloudPush(){
 
       CLOUD_LAST_AT=Date.now();
       if(STORE_MODE==='v2'){
+        if(typeof outboxOn==='function'&&outboxOn()){outboxEnqueue(CLOUD_PATH,'save');return;}
         v2ReadMerge(CLOUD_PATH,mergeRemote).then(function(ok){if(!ok)throw new Error('read');return v2Write(CLOUD_PATH,payments,'到账');})
           .then(function(){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();try{render();}catch(e){}})
-          .catch(function(e){console.warn('cloud push v2:',e.message);cloudFail(e);});
+          .catch(function(e){console.warn('cloud push v2:',e.message);if(typeof outboxFallback==='function'&&outboxFallback(CLOUD_PATH,e))return;cloudFail(e);});
         return;
       }
       const _snap=JSON.parse(JSON.stringify(payments));
@@ -1810,7 +1812,7 @@ function applyRemote(s){
 function cloudStart(){
   if(!USE_CLOUD||!rtdb)return;
   try{rtdb.ref('.info/connected').on('value',function(snap){CLOUD_CONN=!!snap.val();updateBadge();});}catch(e){}
-  storeModeReady().then(function(m){if(m==='v2')v2Subscribe(CLOUD_PATH,function(s){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();CLOUD_LAST_AT=s._at||Date.now();applyRemote(s);updateBadge();});else cloudStartV1();});
+  storeModeReady().then(function(m){if(m==='v2')v2Subscribe(CLOUD_PATH,function(s){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();CLOUD_LAST_AT=s._at||Date.now();applyRemote(s);updateBadge();},function(){return payments;});else cloudStartV1();});
 }
 function cloudStartV1(){
   rtdb.ref(CLOUD_PATH).on('value',function(snap){
@@ -2372,6 +2374,7 @@ function enterApp(){
   ariLoad().then(()=>{ariCloudStart();ariAlertUpdate();});
 
   if(USE_CLOUD&&rtdb){setTimeout(function(){try{nosBackfill();}catch(e){}},6000);}
+  try{outboxRegister(CLOUD_PATH,'到账',async function(){const ok=await v2ReadMerge(CLOUD_PATH,mergeRemote);if(!ok)throw new Error('read');await v2Write(CLOUD_PATH,payments,'到账');CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();try{render();}catch(e){}});setTimeout(function(){try{outboxRestore();}catch(e){}},2500);}catch(e){}
   if(USE_CLOUD&&rtdb){netProbe().then(function(){
     try{inboxListen('orders',async function(recs){ordMergeRemote(recs);await ordSave();});}catch(e){}
     try{inboxListen('ap',async function(recs){apMergeRemote(recs);await apSave();});}catch(e){}
@@ -3366,8 +3369,9 @@ function locMigrate(){
       const tos=(s.addrTos&&s.addrTos.length?s.addrTos:(s.addrTo?[s.addrTo]:[]));
       if(!s.addrFrom&&!tos.length)continue;st.lines++;
       let ok=true;
-      if(s.addrFrom){const L=locResolve(s.addrFrom,true,true);if(L){if(L.kind==='other'||L.kind==='customer')L.kind='warehouse';  locNoteUse(L,o.customer,'from');if(s.locFrom!==L.id||s.addrFrom!==locFmt(L)){s.locFrom=L.id;s.addrFrom=locFmt(L);ch=true;}}else ok=false;}
-      const ids=[],txt=[];for(const t of tos){const L=locResolve(t,true,true);if(L){locNoteUse(L,o.customer,'to');ids.push(L.id);txt.push(locFmt(L));}else{ok=false;ids.push(null);txt.push(t);}}
+
+      if(s.addrFrom){const E=s.locFrom?locById(s.locFrom):null;const L=(E&&locComplete(E))?E:locResolve(s.addrFrom,true,true);if(L){if(L.kind==='other'||L.kind==='customer')L.kind='warehouse';locNoteUse(L,o.customer,'from');if(s.locFrom!==L.id||s.addrFrom!==locFmt(L)){s.locFrom=L.id;s.addrFrom=locFmt(L);ch=true;}}else ok=false;}
+      const ids=[],txt=[];tos.forEach(function(t,i){const E=(s.locTos&&s.locTos[i])?locById(s.locTos[i]):null;const L=(E&&locComplete(E))?E:locResolve(t,true,true);if(L){locNoteUse(L,o.customer,'to');ids.push(L.id);txt.push(locFmt(L));}else{ok=false;ids.push(null);txt.push(t);}});
       if(tos.length){const same=JSON.stringify(s.locTos||[])===JSON.stringify(ids)&&JSON.stringify(txt)===JSON.stringify(tos);if(!same){s.locTos=ids;s.addrTo=txt[0];s.addrTos=txt.length>1?txt:undefined;ch=true;}}
       if(ok){const Ls=[s.locFrom].concat(s.locTos||[]).map(locById);ok=Ls.every(function(x){return !x||locComplete(x);});}
       if(ok){if(s.addrDirty){delete s.addrDirty;ch=true;}st.resolved++;}else{if(!s.addrDirty){s.addrDirty=true;ch=true;}st.dirty++;}
@@ -3702,6 +3706,77 @@ function laneOpen(){
 window.laneOpen=laneOpen;
 if($('laneBtn'))$('laneBtn').onclick=laneOpen;
 
+var _obx={jobs:{},pending:{},fails:{},lastErr:{},running:false,timer:null,autoOn:false,stats:{ok:0,fail:0}};
+const OBX_LS='img-outbox-pending';
+function outboxOn(){
+  try{const f=localStorage.getItem('img-outbox');if(f==='1')return true;if(f==='0')return false;}catch(e){}
+  return (typeof _netSlow!=='undefined'&&_netSlow===true)||_obx.autoOn===true;
+}
+function outboxRegister(path,label,fn){_obx.jobs[path]={label:label,fn:fn};}
+function outboxPersist(){try{localStorage.setItem(OBX_LS,JSON.stringify(_obx.pending));}catch(e){}}
+function outboxEnqueue(path,why){
+  if(!_obx.pending[path])_obx.pending[path]={at:Date.now(),why:why||''};
+  outboxPersist();outboxBadge();outboxKick(50);
+}
+function outboxPendingList(){return Object.keys(_obx.pending).map(function(p){return {path:p,label:(_obx.jobs[p]||{}).label||p,at:_obx.pending[p].at,fails:_obx.fails[p]||0,err:_obx.lastErr[p]||''};}).sort(function(a,b){return a.at-b.at;});}
+function outboxBackoff(n){return [5000,15000,45000,120000][Math.min(Math.max(n-1,0),3)];}
+function outboxKick(ms){if(_obx.timer)clearTimeout(_obx.timer);_obx.timer=setTimeout(function(){_obx.timer=null;outboxRun();},ms==null?0:ms);}
+var _obxNextAt={};
+async function outboxRun(){
+  if(_obx.running)return;if(!USE_CLOUD||!rtdb)return;
+  _obx.running=true;const now0=Date.now();
+  try{
+    for(const it of outboxPendingList()){
+      const job=_obx.jobs[it.path];if(!job){delete _obx.pending[it.path];continue;}
+      if((_obxNextAt[it.path]||0)>Date.now())continue;
+      try{await job.fn();delete _obx.pending[it.path];_obx.fails[it.path]=0;delete _obx.lastErr[it.path];delete _obxNextAt[it.path];_obx.stats.ok++;}
+      catch(e){const n=(_obx.fails[it.path]||0)+1;_obx.fails[it.path]=n;_obx.lastErr[it.path]=String(e&&e.message||e);_obx.stats.fail++;_obxNextAt[it.path]=Date.now()+outboxBackoff(n);console.warn('outbox',it.path,'失败',n,_obx.lastErr[it.path]);}
+      outboxPersist();outboxBadge();
+    }
+  }finally{_obx.running=false;outboxPersist();outboxBadge();}
+  const rest=Object.keys(_obx.pending);if(rest.length){const soonest=Math.min.apply(null,rest.map(function(p){return _obxNextAt[p]||Date.now();}));outboxKick(Math.max(300,soonest-Date.now()));}
+}
+function outboxBadge(){
+  const el=document.getElementById('syncBadge');if(!el)return;
+  const list=outboxPendingList();if(!list.length){el.style.display='none';return;}
+  const age=Math.round((Date.now()-list[0].at)/60000);const anyFail=list.some(function(x){return x.fails>0;});
+  el.textContent='⏳ 待同步 '+list.length+(age>=1?'（最早 '+age+' 分钟）':'');el.style.display='';el.title=list.map(function(x){return x.label+(x.fails?'：已重试 '+x.fails+' 次，'+x.err:'');}).join('\n')+'\n点击查看/立即重试';
+  el.style.background=anyFail?'var(--bad-bg,#fde8e8)':'var(--warn-bg)';el.style.color=anyFail?'var(--bad)':'var(--warn)';
+}
+function outboxOpen(){
+  const old=document.getElementById('obxOvl');if(old)old.remove();
+  const list=outboxPendingList();
+  const ovl=document.createElement('div');ovl.id='obxOvl';ovl.style.cssText='position:fixed;inset:0;background:rgba(20,28,26,.45);z-index:2600;display:flex;align-items:center;justify-content:center';
+  const card=document.createElement('div');card.style.cssText='background:var(--card,#fff);border-radius:14px;padding:18px 20px;width:min(560px,96vw);box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px';
+  card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:700;font-size:14px">⏳ 待同步到云端</div><button class="btn-ghost" id="obxClose" type="button">关闭</button></div>'+
+    '<div style="font-size:11.5px;color:var(--ink-soft);margin:6px 0 10px">你的改动已保存在本机，正在后台同步；不用重复保存。同步完成前请不要清浏览器缓存。模式：'+(outboxOn()?'队列（慢链路/手动）':'直连')+'</div>'+
+    (list.length?'<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--n-wash)"><th style="text-align:left;padding:4px">台账</th><th style="text-align:left">等待</th><th style="text-align:left">重试</th><th style="text-align:left">最近错误</th></tr></thead><tbody>'+list.map(function(x){return '<tr><td style="padding:4px">'+esc(x.label)+'</td><td>'+Math.round((Date.now()-x.at)/1000)+' s</td><td>'+x.fails+'</td><td style="font-size:11px;color:var(--bad)">'+esc(x.err||'')+'</td></tr>';}).join('')+'</tbody></table>':'<div style="color:var(--ok);padding:8px">✓ 全部已同步</div>')+
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn-ghost" id="obxRetry" type="button">立即重试</button></div>';
+  ovl.appendChild(card);document.body.appendChild(ovl);
+  ovl.onclick=function(e){if(e.target===ovl)ovl.remove();};card.querySelector('#obxClose').onclick=function(){ovl.remove();};
+  card.querySelector('#obxRetry').onclick=function(){outboxRetryNow();setTimeout(outboxOpen,800);};
+}
+
+function outboxRestore(){
+  try{const p=JSON.parse(localStorage.getItem(OBX_LS)||'{}');for(const k in p){
+    if(!_obx.jobs[k]&&/^file:/.test(k)){const fid=k.slice(5);let o=null;try{o=JSON.parse(localStorage.getItem('img-obx-file-'+fid)||'null');}catch(e){}
+      if(o&&typeof apStoreFileChunked==='function'){outboxRegister(k,'附件 '+(o.name||fid),(function(fid,o){return async function(){await apStoreFileChunked(fid,o);};})(fid,o));}}
+    if(_obx.jobs[k])_obx.pending[k]=p[k];}}catch(e){}
+  outboxBadge();if(Object.keys(_obx.pending).length)outboxKick(3000);
+}
+function outboxPendingFor(path){return !!_obx.pending[path];}
+
+function outboxFallback(path,e){
+  const m=String(e&&e.message||e);
+  if(!/超时|timeout|read-timeout|network/i.test(m))return false;
+  _obx.autoOn=true;outboxEnqueue(path,'直连超时：'+m.slice(0,60));
+  try{toast('线路较慢：已保存到本机，后台同步中（页眉「⏳ 待同步」可查看）');}catch(e2){}
+  return true;
+}
+function outboxRetryNow(){_obxNextAt={};outboxKick(0);}
+try{window.addEventListener('online',function(){_obxNextAt={};outboxKick(1000);});}catch(e){}
+window.outboxRetryNow=outboxRetryNow;window.outboxOn=outboxOn;window.outboxEnqueue=outboxEnqueue;window.outboxPendingList=outboxPendingList;window.outboxOpen=outboxOpen;window.outboxRun=outboxRun;window.outboxPendingFor=outboxPendingFor;window.outboxStats=function(){return _obx.stats;};
+
 function exportRows(){
   const list=filtered();
   if(!list.length){toast('当前筛选下没有可导出的数据');return null;}
@@ -4006,36 +4081,6 @@ async function fileStoreAny(fid,file,metaIn){
   meta.store='db';return meta;
 }
 window.fileStoreAny=fileStoreAny;
-
-async function filesMigrateToGS(opts){
-  opts=opts||{};if(!opts.iKnowChinaCannotReadStorage){toast('已停用：Storage 对中国大陆不可达，迁移会让中国端读不到附件');return null;}
-  if(!session||session.name!=='Emma'){toast('附件迁移仅 Emma 可执行');return null;}
-  if(!(await gsProbeOnce())){toast('Storage 不可用，无法迁移');return null;}
-  const targets=[];
-  for(const [list,save,label] of [[apItems,apSave,'应付'],[ariItems,ariSaveAll,'应收'],[ordItems,ordSave,'订单']]){
-    for(const it of list){if(it.deleted)continue;for(const f of (it.files||[])){if(f&&f.fid&&f.store!=='gs')targets.push({f:f,it:it,save:save,label:label});}}
-  }
-  const rep={total:targets.length,done:0,failed:0,bytes:0,errors:[]};
-  const limit=opts.limit||targets.length;
-  for(let i=0;i<Math.min(limit,targets.length);i++){
-    const t=targets[i];
-    try{
-      const blob=await apRtdbBlob(t.f.fid);if(!blob)throw new Error('数据库副本不存在');
-      const file=new File([blob],t.f.name||'file',{type:t.f.type||blob.type||'application/octet-stream'});
-      const gs=await apPutFileGS(t.f.fid,file);
-
-      const back=await apGetFileGSBlob({bucket:gs.bucket,path:gs.path});
-      if(!back||(blob.size&&back.size&&Math.abs(back.size-blob.size)>0&&!opts.skipSizeCheck))throw new Error('回读校验失败');
-      t.f.store='gs';t.f.bucket=gs.bucket;t.f.path=gs.path;t.f.dual=false;t.f.migratedAt=Date.now();t.it.up=Date.now();
-      await t.save();
-      if(USE_CLOUD&&rtdb)await rtdb.ref(AP_FILES+'/'+t.f.fid).remove();
-      rep.done++;rep.bytes+=blob.size||0;
-      if(opts.onProgress)opts.onProgress(rep,t);
-    }catch(e){rep.failed++;rep.errors.push((t.label)+' '+(t.f.name||t.f.fid)+'：'+(e.message||e));if(opts.onProgress)opts.onProgress(rep,t);}
-  }
-  return rep;
-}
-window.filesMigrateToGS=filesMigrateToGS;
 function filesStoreStats(){
   const st={db:0,gs:0,dbBytes:0,gsBytes:0,n:0};
   for(const list of [apItems,ariItems,ordItems])for(const it of list){if(it.deleted)continue;for(const f of (it.files||[])){if(!f||!f.fid)continue;st.n++;if(f.store==='gs'){st.gs++;st.gsBytes+=f.size||0;}else{st.db++;st.dbBytes+=f.size||0;}}}
@@ -4141,9 +4186,13 @@ async function apSave(){
   try{
 
     if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){
+      const j0=JSON.stringify(apItems);await store.set(AP_KEY,j0);_apLastJson=j0;
+      if(outboxOn()){outboxEnqueue(AP_PATH,'save');return true;}
+      try{
       const ok=await v2ReadMerge(AP_PATH,apMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());
       const j2=JSON.stringify(apItems);await store.set(AP_KEY,j2);
       await v2Write(AP_PATH,apItems,'应付');return true;
+      }catch(e){if(outboxFallback(AP_PATH,e))return true;throw e;}
     }
     const _merged=await cloudReadMerge(AP_PATH,AP_KEY,apMergeRemote);
     const j=JSON.stringify(apItems);
@@ -4218,6 +4267,7 @@ function apPush(){
   },400);
 }
 window.apSave=apSave;
+outboxRegister(AP_PATH,'应付',async function(){const ok=await v2ReadMerge(AP_PATH,apMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());const j=JSON.stringify(apItems);await store.set(AP_KEY,j);_apLastJson=j;await v2Write(AP_PATH,apItems,'应付');try{if(session)renderAP();}catch(e){}});
 function apApplyRemote(s){
   try{cloudAtNote('ap',s&&s._at);}catch(e){}
   try{rcBigInvalidate();}catch(e){}
@@ -4233,7 +4283,7 @@ function apApplyRemote(s){
 }
 function apCloudStart(){
   if(!USE_CLOUD||!rtdb)return;
-  storeModeReady().then(function(m){if(m==='v2')v2Subscribe(AP_PATH,apApplyRemote);else apCloudStartV1();});
+  storeModeReady().then(function(m){if(m==='v2')v2Subscribe(AP_PATH,apApplyRemote,function(){return apItems;});else apCloudStartV1();});
 }
 function apCloudStartV1(){
   rtdb.ref(AP_PATH).on('value',function(snap){
@@ -4290,6 +4340,13 @@ const AP_LABEL={new:'待录入',unpaid:'待付款',partial:'部分付款',paid:'
 const AP_CLASS={new:'new',unpaid:'pending',partial:'partial',paid:'paid',overdue:'overdue',soon:'soon'};
 
 async function apStoreFile(fid,obj){
+  if(USE_CLOUD&&rtdb&&typeof outboxOn==='function'&&outboxOn()){
+    _apFileMem[fid]=obj;
+    try{if(String(obj.data||'').length<=1572864)localStorage.setItem(obxFileKey(fid),JSON.stringify(obj));}catch(e){}
+    outboxRegister('file:'+fid,'附件 '+(obj.name||fid),async function(){let o=_apFileMem[fid];if(!o){try{o=JSON.parse(localStorage.getItem(obxFileKey(fid))||'null');}catch(e){}}if(!o)throw new Error('附件本机副本丢失（浏览器缓存被清），请重新上传');await apStoreFileChunked(fid,o);});
+    outboxEnqueue('file:'+fid,'file');
+    return true;
+  }
   if(USE_CLOUD&&rtdb){
     const kb=Math.round(String(obj&&obj.data||'').length/1024);const ms=window.__apFileTimeoutMs||Math.min(120000,20000+kb*100);
     const ref=rtdb.ref(AP_FILES+'/'+fid);
@@ -4307,7 +4364,7 @@ async function apFetchFile(fid){
   if(_apFileMem[fid])return _apFileMem[fid];
   if(USE_CLOUD&&rtdb){
     const s=await rtdb.ref(AP_FILES+'/'+fid).once('value');
-    const v=s.val();
+    const v=apFileAssemble(s.val());
     if(v)_apFileMem[fid]=v;
     return v;
   }
@@ -5150,6 +5207,54 @@ function ensureExcelJS(){
 window.apFileBlob=apFileBlob;
 window.apHandleUpload=apHandleUpload;
 
+async function filesMigrateToGS(opts){
+  opts=opts||{};if(!opts.iKnowChinaCannotReadStorage){toast('已停用：Storage 对中国大陆不可达，迁移会让中国端读不到附件');return null;}
+  if(!session||session.name!=='Emma'){toast('附件迁移仅 Emma 可执行');return null;}
+  if(!(await gsProbeOnce())){toast('Storage 不可用，无法迁移');return null;}
+  const targets=[];
+  for(const [list,save,label] of [[apItems,apSave,'应付'],[ariItems,ariSaveAll,'应收'],[ordItems,ordSave,'订单']]){
+    for(const it of list){if(it.deleted)continue;for(const f of (it.files||[])){if(f&&f.fid&&f.store!=='gs')targets.push({f:f,it:it,save:save,label:label});}}
+  }
+  const rep={total:targets.length,done:0,failed:0,bytes:0,errors:[]};
+  const limit=opts.limit||targets.length;
+  for(let i=0;i<Math.min(limit,targets.length);i++){
+    const t=targets[i];
+    try{
+      const blob=await apRtdbBlob(t.f.fid);if(!blob)throw new Error('数据库副本不存在');
+      const file=new File([blob],t.f.name||'file',{type:t.f.type||blob.type||'application/octet-stream'});
+      const gs=await apPutFileGS(t.f.fid,file);
+
+      const back=await apGetFileGSBlob({bucket:gs.bucket,path:gs.path});
+      if(!back||(blob.size&&back.size&&Math.abs(back.size-blob.size)>0&&!opts.skipSizeCheck))throw new Error('回读校验失败');
+      t.f.store='gs';t.f.bucket=gs.bucket;t.f.path=gs.path;t.f.dual=false;t.f.migratedAt=Date.now();t.it.up=Date.now();
+      await t.save();
+      if(USE_CLOUD&&rtdb)await rtdb.ref(AP_FILES+'/'+t.f.fid).remove();
+      rep.done++;rep.bytes+=blob.size||0;
+      if(opts.onProgress)opts.onProgress(rep,t);
+    }catch(e){rep.failed++;rep.errors.push((t.label)+' '+(t.f.name||t.f.fid)+'：'+(e.message||e));if(opts.onProgress)opts.onProgress(rep,t);}
+  }
+  return rep;
+}
+window.filesMigrateToGS=filesMigrateToGS;
+
+const OBX_FILE_PART=65536;
+function obxFileKey(fid){return 'img-obx-file-'+fid;}
+async function apStoreFileChunked(fid,obj){
+  const ref=rtdb.ref(AP_FILES+'/'+fid);const data=String(obj.data||'');const n=Math.ceil(data.length/OBX_FILE_PART)||1;
+  let start=0;try{start=parseInt(localStorage.getItem('img-obx-filepos-'+fid)||'0',10)||0;}catch(e){}
+  for(let i=start;i<n;i++){const part={};part['parts/'+String(i).padStart(4,'0')]=data.slice(i*OBX_FILE_PART,(i+1)*OBX_FILE_PART);
+    await _withTimeout(ref.update(part),window.__apFileTimeoutMs||30000,'附件分片 '+(i+1)+'/'+n);try{localStorage.setItem('img-obx-filepos-'+fid,String(i+1));}catch(e){}}
+  const meta={};for(const k in obj){if(k!=='data')meta[k]=obj[k];}meta.chunked=true;meta.partsN=n;meta.dataLen=data.length;
+  await _withTimeout(ref.update(meta),window.__apFileTimeoutMs||30000,'附件元数据');
+  try{localStorage.removeItem('img-obx-filepos-'+fid);localStorage.removeItem(obxFileKey(fid));}catch(e){}
+}
+function apFileAssemble(v){
+  if(!v||!v.chunked)return v;const parts=v.parts||{};const keys=Object.keys(parts).sort();let data='';for(const k of keys)data+=parts[k];
+  if(v.dataLen!=null&&data.length!==v.dataLen)return null;
+  const o={};for(const k in v){if(k!=='parts'&&k!=='chunked'&&k!=='partsN'&&k!=='dataLen')o[k]=v[k];}o.data=data;return o;
+}
+window.apFileAssemble=apFileAssemble;window.apStoreFile=function(f,o){return apStoreFile(f,o);};
+
 function rcBigModel(d1,d2,label){
   const R=rcBigRows();
   const inR=function(d){return d>=d1&&d<=d2;};
@@ -5819,6 +5924,8 @@ function healthCalc(){
   add('stubDated','待开票存根带日期或金额',ariItems.filter(function(x){return !x.deleted&&!x.invNo&&!x.storno&&!x.cancelledBy&&(x.invDate||(Number(x.gross)||0)||(Number(x.net)||0));}).length,'warn','存根应无日期与金额；请核对是否漏填发票号（报表已排除存根）','ari');
 
   try{const m={};for(const o of ordItems){if(o.deleted||!o.orderNo)continue;(m[o.orderNo]=m[o.orderNo]||[]).push(o);}const dups=Object.keys(m).filter(k=>m[k].length>1);add('ordDupNo','成单号重复',dups.length,'bad',dups.length?('重复：'+dups.slice(0,5).join('、')+'。请在订单详情「编辑」改号或删除其中一张；慢链路端新建前先刷新'):'','ord');}catch(e){}
+
+  try{const L=(typeof outboxPendingList==='function')?outboxPendingList():[];const old=L.length?Math.round((Date.now()-L[0].at)/60000):0;add('syncPend','本机改动待同步到云端',L.length,old>10?'bad':'warn',L.length?('最早 '+old+' 分钟：'+L.map(function(x){return x.label;}).join('、')+'（页眉「⏳ 待同步」可立即重试）'):'','');}catch(e){}
 
   try{const n=(typeof locDirtyLines==='function')?locDirtyLines().length:0;add('addrDirty','派送行地址未归入地点簿',n,'warn',n?'基础资料「📍 地点簿」→「⟳ 迁移历史地址」，剩余的到订单详情 ✏ 重新选择或新建地点':'','base');}catch(e){}
 
@@ -8089,7 +8196,7 @@ async function v2Write(path,items,label){
     const ids=Object.keys(upd);v2OwnMark(path,ids);const CH=40;
     for(let i=0;i<ids.length;i+=CH){const part={};for(const id of ids.slice(i,i+CH))part[id]=upd[id];if(i+CH>=ids.length)part['_meta']=meta;
       _v2WriteStats.chunks++;try{_v2WriteStats.bytes+=JSON.stringify(part).length;}catch(e){}
-      await _withTimeout(rtdb.ref(v2Path(path)).update(part),45000,(label||'')+'逐条写入'+(ids.length>CH?('（第 '+(Math.floor(i/CH)+1)+'/'+Math.ceil(ids.length/CH)+' 块）'):''));}
+      await _withTimeout(rtdb.ref(v2Path(path)).update(part),window.__txTimeoutMs||45000,(label||'')+'逐条写入'+(ids.length>CH?('（第 '+(Math.floor(i/CH)+1)+'/'+Math.ceil(ids.length/CH)+' 块）'):''));}
     _v2WriteStats.n+=n;
   }
 
@@ -8099,14 +8206,23 @@ async function v2Write(path,items,label){
 
 var _v2OwnIds={},_v2SubStats={};
 function v2OwnMark(path,ids){const m=_v2OwnIds[path]=_v2OwnIds[path]||{};const t=Date.now();for(const id of ids)m[id]=t;}
-function v2Subscribe(path,applyFn){
+
+var _v2DeltaOn=true;
+function v2SinceGet(path){try{const v=parseInt(localStorage.getItem('img-v2since-'+path)||'0',10);return isFinite(v)?v:0;}catch(e){return 0;}}
+function v2SinceSet(path,ts){try{localStorage.setItem('img-v2since-'+path,String(ts));}catch(e){}}
+function v2Subscribe(path,applyFn,getLocal){
   const ref=rtdb.ref(v2Path(path));const cache={};let meta={},ready=false,timer=null,dirty=false;
-  const st=_v2SubStats[path]={events:0,bytes:0,applies:0};
+  const st=_v2SubStats[path]={events:0,bytes:0,applies:0,mode:'full'};
+  const since=v2SinceGet(path);const local=(typeof getLocal==='function')?(getLocal()||[]):[];
+  const delta=_v2DeltaOn&&since>0&&local.length>0&&!(typeof localStorage!=='undefined'&&localStorage.getItem('img-v2delta')==='0');
+  if(delta){for(const r of local){if(r&&r.id)cache[r.id]=r;}st.mode='delta';}
+  const q=delta?ref.orderByChild('up').startAt(Math.max(0,since-300000)):ref;
   function flush(){
     timer=null;
     const arr=v2ArrayOf(cache);
     const last=_v2Last[path]={};for(const r of arr)last[r.id]=v2Canon(r);
     if(!dirty)return;dirty=false;st.applies++;
+    let mx=0;for(const r of arr){const u=Number(r.up||r._up||0);if(u>mx)mx=u;}if(mx)v2SinceSet(path,mx);
     applyFn({json:JSON.stringify(arr),_at:meta._at||Date.now(),_by:meta._by||'',_client:meta._client||''});
   }
   function sched(){if(!ready)return;if(timer)clearTimeout(timer);timer=setTimeout(flush,200);}
@@ -8119,10 +8235,11 @@ function v2Subscribe(path,applyFn){
     if(own&&own[k]&&(Date.now()-own[k])<5000){delete own[k];}else if(!same)dirty=true;
     sched();
   }
-  ref.on('child_added',onChild,function(err){cloudFail(err);});
-  ref.on('child_changed',onChild,function(err){cloudFail(err);});
-  ref.on('child_removed',function(snap){const k=snap.key;st.events++;if(k==='_meta')return;delete cache[k];dirty=true;sched();},function(err){cloudFail(err);});
-  ref.once('value').then(function(s){
+  q.on('child_added',onChild,function(err){cloudFail(err);});
+  q.on('child_changed',onChild,function(err){cloudFail(err);});
+  q.on('child_removed',function(snap){const k=snap.key;st.events++;if(k==='_meta')return;delete cache[k];dirty=true;sched();},function(err){cloudFail(err);});
+  if(delta){ref.child('_meta').on('value',function(s){meta=s.val()||{};sched();},function(){});}
+  q.once('value').then(function(s){
     const v=s.val()||{};for(const k in v){if(k==='_meta')meta=v[k]||{};else cache[k]=v[k];}
     ready=true;dirty=true;flush();
   }).catch(function(err){cloudFail(err);});
@@ -8168,9 +8285,13 @@ async function ordSave(){
   if(roGuard())return false;
   try{
     if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){
-      const ok=await v2ReadMerge(ORD_PATH,ordMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());
-      const j2=JSON.stringify(ordItems);await store.set(ORD_KEY,j2);_ordLastJson=j2;
-      await v2Write(ORD_PATH,ordItems,'订单');return true;
+      const j0=JSON.stringify(ordItems);await store.set(ORD_KEY,j0);_ordLastJson=j0;
+      if(outboxOn()){outboxEnqueue(ORD_PATH,'save');return true;}
+      try{
+        const ok=await v2ReadMerge(ORD_PATH,ordMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());
+        const j2=JSON.stringify(ordItems);await store.set(ORD_KEY,j2);_ordLastJson=j2;
+        await v2Write(ORD_PATH,ordItems,'订单');return true;
+      }catch(e){if(outboxFallback(ORD_PATH,e))return true;throw e;}
     }
     const _merged=await cloudReadMerge(ORD_PATH,ORD_KEY,ordMergeRemote);
     const j=JSON.stringify(ordItems);
@@ -8190,6 +8311,7 @@ async function ordSave(){
     return true;
   }catch(e){console.error('ordSave:',e);throw e;}
 }
+window.ordSave=ordSave;
 function ordApplyRemote(s){
   try{cloudAtNote('orders',s&&s._at);}catch(e){}
   try{rcBigInvalidate();}catch(e){}
@@ -8203,9 +8325,10 @@ function ordApplyRemote(s){
   let _notified=false;try{_notified=openDetailNotify(_snap,ordItems,'订单',s._by);}catch(e){}
   if(!_notified&&s._by&&s._by!==(session&&session.name))toast('☁ 订单台账已同步 '+s._by+' 的更新');
 }
+outboxRegister(ORD_PATH,'订单',async function(){const ok=await v2ReadMerge(ORD_PATH,ordMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());const j=JSON.stringify(ordItems);await store.set(ORD_KEY,j);_ordLastJson=j;await v2Write(ORD_PATH,ordItems,'订单');try{if(session)renderORD();}catch(e){}});
 function ordCloudStart(){
   if(!USE_CLOUD||!rtdb)return;
-  storeModeReady().then(function(m){if(m==='v2')v2Subscribe(ORD_PATH,ordApplyRemote);else ordCloudStartV1();});
+  storeModeReady().then(function(m){if(m==='v2')v2Subscribe(ORD_PATH,ordApplyRemote,function(){return ordItems;});else ordCloudStartV1();});
 }
 function ordCloudStartV1(){
   rtdb.ref(ORD_PATH).on('value',function(snap){
@@ -10781,9 +10904,13 @@ async function ariSaveAll(){
   try{alcInvalidate();}catch(e){}
   try{
     if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){
+      const j0=JSON.stringify(ariItems);await store.set(ARI_KEY,j0);
+      if(outboxOn()){outboxEnqueue(ARI_PATH,'save');return true;}
+      try{
       const ok=await v2ReadMerge(ARI_PATH,ariMerge);if(!ok)throw new Error(cloudReadFailMsg());
       const j2=JSON.stringify(ariItems);await store.set(ARI_KEY,j2);
       await v2Write(ARI_PATH,ariItems,'应收发票');return true;
+      }catch(e){if(outboxFallback(ARI_PATH,e))return true;throw e;}
     }
     const _merged=await cloudReadMerge(ARI_PATH,ARI_KEY,ariMerge);
     await store.set(ARI_KEY,JSON.stringify(ariItems));
@@ -10817,7 +10944,7 @@ function ariApplyRemote(s){
 }
 function ariCloudStart(){
   if(!USE_CLOUD||!rtdb)return;
-  storeModeReady().then(function(m){if(m==='v2')v2Subscribe(ARI_PATH,ariApplyRemote);else ariCloudStartV1();});
+  storeModeReady().then(function(m){if(m==='v2')v2Subscribe(ARI_PATH,ariApplyRemote,function(){return ariItems;});else ariCloudStartV1();});
 }
 function ariCloudStartV1(){
   rtdb.ref(ARI_PATH).on('value',function(snap){
@@ -12642,6 +12769,8 @@ function ariVatFixOpen(){
 window.ariVatFixOpen=ariVatFixOpen;
 if($('ariVatBtn'))$('ariVatBtn').onclick=ariVatFixOpen;
 if($('ariReconBtn'))$('ariReconBtn').onclick=function(){try{arReconOpen();}catch(e){toast(e.message||e);}};
+
+outboxRegister(ARI_PATH,'应收发票',async function(){const ok=await v2ReadMerge(ARI_PATH,ariMerge);if(!ok)throw new Error(cloudReadFailMsg());const j=JSON.stringify(ariItems);await store.set(ARI_KEY,j);await v2Write(ARI_PATH,ariItems,'应收发票');try{if(session)renderARI();}catch(e){}});
 
 const HR_PATH=DB_PREFIX+'img-hr/state';
 const HR_KEY='img-hr-state';
@@ -16176,7 +16305,11 @@ Object.assign(I18N,{
 "SK 斯洛伐克":{en:"SK Slovakia",de:"SK Slowakei"},
 "GB 英国":{en:"GB United Kingdom",de:"GB Vereinigtes Königreich"},
 "SE 瑞典":{en:"SE Sweden",de:"SE Schweden"},
-"CN 中国":{en:"CN China",de:"CN China"}
+"CN 中国":{en:"CN China",de:"CN China"},
+"待同步到云端的改动（已保存在本机）":{en:"Changes waiting to sync to the cloud (saved on this device)",de:"Änderungen, die noch in die Cloud synchronisiert werden (lokal gespeichert)"},
+"⏳ 待同步到云端":{en:"⏳ Waiting to sync",de:"⏳ Wartet auf Synchronisierung"},
+"立即重试":{en:"Retry now",de:"Jetzt erneut versuchen"},
+"本机改动待同步到云端":{en:"Local changes waiting to sync",de:"Lokale Änderungen warten auf Synchronisierung"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
