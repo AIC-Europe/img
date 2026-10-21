@@ -41,7 +41,7 @@
 //# sourceMappingURL=firebase-storage-compat.js.map
 
 </script>
-<script>(function(){try{if(window.firebase&&!firebase.SDK_VERSION)return; /* 测试桩（无 SDK_VERSION）不走兜底 */ var need=!(window.firebase&&firebase.app&&firebase.auth&&firebase.database&&firebase.storage);if(!need)return;var el=document.getElementById('fbVendor');if(!el||!el.textContent||el.textContent.length<1000)return;window.__FB_VENDOR_FALLBACK=true;(0,eval)(el.textContent);console.warn('Firebase SDK 由内嵌副本加载（CDN 不可达）');}catch(e){console.error('Firebase 内嵌副本加载失败',e);}})();</script>
+<script id="fbFallback">(function(){try{if(window.firebase&&!firebase.SDK_VERSION)return; /* 测试桩（无 SDK_VERSION）不走兜底 */ var need=!(window.firebase&&firebase.app&&firebase.auth&&firebase.database&&firebase.storage);if(!need)return;var el=document.getElementById('fbVendor');if(!el||!el.textContent||el.textContent.length<1000)return;window.__FB_VENDOR_FALLBACK=true;(0,eval)(el.textContent);console.warn('Firebase SDK 由内嵌副本加载（CDN 不可达）');}catch(e){console.error('Firebase 内嵌副本加载失败',e);}})();</script>
 <script>
 /* 云端配置：IMG 公司 img-ledger 项目，独立路径 img-ar/，与原有平台数据完全隔离 */
 var FIREBASE_CONFIG={
@@ -1019,7 +1019,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v36.8</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v36.9</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1673,7 +1673,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=36.8;
+const APP_VERSION=36.9;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -4133,6 +4133,7 @@ function apStampUp(){
     if(_apUpSnap&&_apUpSnap.get(it.id)!==j)it.up=now;}
   _apUpSnap=snap;
 }
+window.apItemsGet=function(){return apItems;};
 async function apSave(){
   rcBigInvalidate();
   try{apStampUp();}catch(e){}
@@ -4216,6 +4217,7 @@ function apPush(){
     }catch(e){cloudFail(e);}
   },400);
 }
+window.apSave=apSave;
 function apApplyRemote(s){
   try{cloudAtNote('ap',s&&s._at);}catch(e){}
   try{rcBigInvalidate();}catch(e){}
@@ -8061,16 +8063,25 @@ async function v2ReadMerge(path,mergeFn){
   try{
     const s=await Promise.race([rtdb.ref(v2Path(path)).once('value'),new Promise(function(_,rej){setTimeout(function(){rej(new Error('read-timeout'));},12000);})]);
     const arr=v2ArrayOf(s.val());
-    const last=_v2Last[path]={};for(const r of arr)last[r.id]=JSON.stringify(r);
+    const last=_v2Last[path]={};for(const r of arr)last[r.id]=v2Canon(r);
     if(arr.length)mergeFn(arr);
     return true;
   }catch(e){_cloudLastErr={path:path,perm:cloudErrIsPerm(e),msg:String(e&&e.message||e)};console.error('v2 read:',e&&e.message);return false;}
 }
+
+function v2Canon(v){if(v===null||typeof v!=='object')return JSON.stringify(v);if(Array.isArray(v))return '['+v.map(v2Canon).join(',')+']';const ks=Object.keys(v).filter(function(k){return v[k]!==undefined;}).sort();return '{'+ks.map(function(k){return JSON.stringify(k)+':'+v2Canon(v[k]);}).join(',')+'}';}
+var _v2WriteStats={n:0,chunks:0,bytes:0};
 async function v2Write(path,items,label){
   const last=_v2Last[path]||(_v2Last[path]={});const upd={};let n=0;
-  for(const r of items){const id=r&&r.id;if(!id)continue;const j=JSON.stringify(r);if(last[id]!==j){upd[id]=JSON.parse(j);last[id]=j;n++;}}
+  for(const r of items){const id=r&&r.id;if(!id)continue;const j=v2Canon(r);if(last[id]!==j){upd[id]=JSON.parse(JSON.stringify(r));last[id]=j;n++;}}
   const meta={_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID,n:n,label:label||''};
-  if(n){upd['_meta']=meta;v2OwnMark(path,Object.keys(upd).filter(function(k){return k!=='_meta';}));await _withTimeout(rtdb.ref(v2Path(path)).update(upd),45000,(label||'')+'逐条写入');}
+  if(n){
+    const ids=Object.keys(upd);v2OwnMark(path,ids);const CH=40;
+    for(let i=0;i<ids.length;i+=CH){const part={};for(const id of ids.slice(i,i+CH))part[id]=upd[id];if(i+CH>=ids.length)part['_meta']=meta;
+      _v2WriteStats.chunks++;try{_v2WriteStats.bytes+=JSON.stringify(part).length;}catch(e){}
+      await _withTimeout(rtdb.ref(v2Path(path)).update(part),45000,(label||'')+'逐条写入'+(ids.length>CH?('（第 '+(Math.floor(i/CH)+1)+'/'+Math.ceil(ids.length/CH)+' 块）'):''));}
+    _v2WriteStats.n+=n;
+  }
 
   if(typeof _netSlow==='undefined'||_netSlow!==true){try{await _withTimeout(rtdb.ref(path).set({json:JSON.stringify(items),_at:meta._at,_by:meta._by,_client:CLOUD_CLIENT_ID,_shadow:true}),20000,'影子回写');}catch(e){console.warn('shadow v1:',e&&e.message);}}
   return n;
@@ -8084,7 +8095,7 @@ function v2Subscribe(path,applyFn){
   function flush(){
     timer=null;
     const arr=v2ArrayOf(cache);
-    const last=_v2Last[path]={};for(const r of arr)last[r.id]=JSON.stringify(r);
+    const last=_v2Last[path]={};for(const r of arr)last[r.id]=v2Canon(r);
     if(!dirty)return;dirty=false;st.applies++;
     applyFn({json:JSON.stringify(arr),_at:meta._at||Date.now(),_by:meta._by||'',_client:meta._client||''});
   }
@@ -8106,7 +8117,7 @@ function v2Subscribe(path,applyFn){
     ready=true;dirty=true;flush();
   }).catch(function(err){cloudFail(err);});
 }
-window.v2SubStatsGet=function(){return _v2SubStats;};
+window.v2SubStatsGet=function(){return _v2SubStats;};window.v2WriteStatsGet=function(){return _v2WriteStats;};window.v2Canon=v2Canon;
 let _cloudLastErr=null;
 function cloudReadFailMsg(){
   if(_cloudLastErr&&_cloudLastErr.perm){const node=String(_cloudLastErr.path||'').replace(/^.*?(img-[a-z]+).*$/,'$1');return '数据库规则未开放节点「'+node+'」（PERMISSION_DENIED）——请在 Firebase 控制台 Realtime Database → Rules 为该节点加 ".read": true, ".write": true 后重试。本次未写入任何数据。';}
