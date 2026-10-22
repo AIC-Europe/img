@@ -1020,7 +1020,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v37.1</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v37.3</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1674,7 +1674,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=37.1;
+const APP_VERSION=37.3;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -1704,6 +1704,7 @@ const CLOUD_CLIENT_ID='c'+Date.now()+Math.random().toString(36).slice(2,8);
 let CLOUD_CONN=false,CLOUD_LAST_AT=0,CLOUD_ERR='',CLOUD_LAST_SYNC=0,_cloudApplying=false,_cloudPushT=null,_cloudSeeding=false,_pendingRemote=null,_permToastShown=false;
 
 function cloudFail(e){
+  try{if(typeof errlogPush==='function')errlogPush('cloud',(e&&e.message)||String(e),'');}catch(e2){}
 
   try{
     const msg=String((e&&(e.message||e.code))||'');
@@ -1730,10 +1731,10 @@ function cloudPush(){
 
       CLOUD_LAST_AT=Date.now();
       if(STORE_MODE==='v2'){
-        if(typeof outboxOn==='function'&&outboxOn()){outboxEnqueue(CLOUD_PATH,'save');return;}
+        if(typeof outboxOn==='function'&&outboxOn()){try{v2MarkDirty(CLOUD_PATH,payments);}catch(e){}outboxEnqueue(CLOUD_PATH,'save');return;}
         v2ReadMerge(CLOUD_PATH,mergeRemote).then(function(ok){if(!ok)throw new Error('read');return v2Write(CLOUD_PATH,payments,'到账');})
           .then(function(){CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();try{render();}catch(e){}})
-          .catch(function(e){console.warn('cloud push v2:',e.message);if(typeof outboxFallback==='function'&&outboxFallback(CLOUD_PATH,e))return;cloudFail(e);});
+          .catch(function(e){console.warn('cloud push v2:',e.message);if(typeof outboxFallback==='function'&&outboxFallback(CLOUD_PATH,e,payments))return;cloudFail(e);});
         return;
       }
       const _snap=JSON.parse(JSON.stringify(payments));
@@ -1793,6 +1794,9 @@ function cloudVerifyIds(path,ids){
 }
 function cloudVerifyMsg(miss,label){return '云端未写入 '+miss.length+' 条'+label+'记录（网络不稳，常见于中国端）。本地已保留，请稍后重试保存；若反复出现请刷新页面后重试。';}
 window.keepUnsavedLocal=keepUnsavedLocal;window.ensureSnap=ensureSnap;window.cloudVerifyIds=cloudVerifyIds;window.unsavedKeptGet=function(){return _unsavedKept;};
+
+function payFixBankCustomer(){let n=0;try{for(const p of payments){if(p.deleted||!p.bankTx||!(p.linkIds||[]).length)continue;const x=(typeof ariItems!=='undefined')?ariItems.find(i=>i.id===p.linkIds[0]):null;if(x&&x.customer&&x.customer!==p.customer){if(!p.payer)p.payer=p.customer;p.customer=x.customer;p.up=Date.now();n++;}}}catch(e){}return n;}
+window.payFixBankCustomer=payFixBankCustomer;window.paymentsGet=function(){return payments;};
 function applyRemote(s){
   try{cloudAtNote('pay',s&&s._at);}catch(e){}
   try{setTimeout(homeRefreshIfVisible,0);}catch(e){}
@@ -2374,7 +2378,8 @@ function enterApp(){
   ariLoad().then(()=>{ariCloudStart();ariAlertUpdate();});
 
   if(USE_CLOUD&&rtdb){setTimeout(function(){try{nosBackfill();}catch(e){}},6000);}
-  try{outboxRegister(CLOUD_PATH,'到账',async function(){const ok=await v2ReadMerge(CLOUD_PATH,mergeRemote);if(!ok)throw new Error('read');await v2Write(CLOUD_PATH,payments,'到账');CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();try{render();}catch(e){}});setTimeout(function(){try{outboxRestore();}catch(e){}},2500);}catch(e){}
+  try{if(session&&session.role==='finance'&&typeof errlogLoad==='function'){setTimeout(function(){errlogLoad();},5000);setInterval(function(){errlogLoad();},600000);}}catch(e){}
+  try{outboxRegister(CLOUD_PATH,'到账',async function(){const ok=await v2ReadMergeDelta(CLOUD_PATH,mergeRemote);if(!ok)throw new Error('read');await v2Write(CLOUD_PATH,payments,'到账');CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();try{render();}catch(e){}});setTimeout(function(){try{outboxRestore();}catch(e){}},2500);}catch(e){}
   if(USE_CLOUD&&rtdb){netProbe().then(function(){
     try{inboxListen('orders',async function(recs){ordMergeRemote(recs);await ordSave();});}catch(e){}
     try{inboxListen('ap',async function(recs){apMergeRemote(recs);await apSave();});}catch(e){}
@@ -3026,7 +3031,7 @@ var _inboxLocal={orders:new Set(),ap:new Set(),ari:new Set(),pay:new Set()};
 var _inboxPending={orders:[],ap:[],ari:[],pay:[]};
 var _cloudAt={orders:0,ap:0,ari:0,pay:0};
 var _netSlow=null,_netRtt=null,_inboxMerging={};
-function _withTimeout(p,ms,label){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error((label||'云端操作')+'超时（'+Math.round(ms/1000)+' s）'));},ms);})]);}
+function _withTimeout(p,ms,label){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){try{if(typeof errlogPush==='function')errlogPush('timeout',(label||'')+' 超时 '+Math.round(ms/1000)+'s','');}catch(e){}rej(new Error((label||'云端操作')+'超时（'+Math.round(ms/1000)+' s）'));},ms);})]);}
 function cloudAtNote(k,at){const a=Number(at)||0;if(a>(_cloudAt[k]||0))_cloudAt[k]=a;}
 function inboxDelta(k,snap){
 
@@ -3766,9 +3771,10 @@ function outboxRestore(){
 }
 function outboxPendingFor(path){return !!_obx.pending[path];}
 
-function outboxFallback(path,e){
+function outboxFallback(path,e,items){
   const m=String(e&&e.message||e);
   if(!/超时|timeout|read-timeout|network/i.test(m))return false;
+  try{if(items&&typeof v2MarkDirty==='function')v2MarkDirty(path,items);}catch(e2){}
   _obx.autoOn=true;outboxEnqueue(path,'直连超时：'+m.slice(0,60));
   try{toast('线路较慢：已保存到本机，后台同步中（页眉「⏳ 待同步」可查看）');}catch(e2){}
   return true;
@@ -3776,6 +3782,38 @@ function outboxFallback(path,e){
 function outboxRetryNow(){_obxNextAt={};outboxKick(0);}
 try{window.addEventListener('online',function(){_obxNextAt={};outboxKick(1000);});}catch(e){}
 window.outboxRetryNow=outboxRetryNow;window.outboxOn=outboxOn;window.outboxEnqueue=outboxEnqueue;window.outboxPendingList=outboxPendingList;window.outboxOpen=outboxOpen;window.outboxRun=outboxRun;window.outboxPendingFor=outboxPendingFor;window.outboxStats=function(){return _obx.stats;};
+
+var _errlog={n:0,seen:{},items:[],loaded:0};
+const ERRLOG_PATH=DB_PREFIX+'img-ap/errlog';
+function errlogPush(kind,msg,where){
+  try{
+    msg=String(msg||'').slice(0,300);if(!msg)return;
+    const key=kind+'|'+msg.slice(0,80);const now=Date.now();
+    if(_errlog.seen[key]&&now-_errlog.seen[key]<300000)return;_errlog.seen[key]=now;
+    if(_errlog.n>=30)return;_errlog.n++;
+    if(!USE_CLOUD||!rtdb)return;
+    const rec={ts:now,by:(typeof session!=='undefined'&&session&&session.name)||'',ver:String(APP_VERSION),slow:(typeof _netSlow!=='undefined'&&_netSlow===true),kind:kind,msg:msg,where:String(where||'').slice(0,120),ua:(navigator.userAgent||'').slice(0,60)};
+    try{rec.at=firebase.database.ServerValue.TIMESTAMP;}catch(e){rec.at=now;}
+    const id=String(now)+'_'+Math.random().toString(36).slice(2,6);
+    rtdb.ref(ERRLOG_PATH+'/'+id).set(rec).catch(function(){});
+  }catch(e){}
+}
+window.errlogPush=errlogPush;
+try{
+  window.addEventListener('error',function(ev){try{errlogPush('js',(ev&&ev.message)||'error',(ev&&ev.filename?ev.filename.split('/').pop()+':'+ev.lineno:''));}catch(e){}});
+  window.addEventListener('unhandledrejection',function(ev){try{const r=ev&&ev.reason;errlogPush('promise',(r&&r.message)||String(r||'rejection'),'');}catch(e){}});
+}catch(e){}
+
+async function errlogLoad(){
+  if(!USE_CLOUD||!rtdb)return [];
+  try{const s=await _withTimeout(rtdb.ref(ERRLOG_PATH).limitToLast(100).once('value'),10000,'错误日志读取');const v=s&&s.val()||{};
+    const cut=Date.now()-86400000;_errlog.items=Object.keys(v).map(function(k){const r=v[k]||{};r.id=k;r.t=Number(r.at||r.ts||0);return r;}).filter(function(r){return r.t>=cut;}).sort(function(a,b){return b.t-a.t;});_errlog.loaded=Date.now();
+    if(typeof session!=='undefined'&&session&&session.name==='Emma'){const old=Object.keys(v).filter(function(k){return Number((v[k]||{}).at||(v[k]||{}).ts||0)<Date.now()-7*86400000;});if(old.length){const upd={};old.forEach(function(k){upd[k]=null;});rtdb.ref(ERRLOG_PATH).update(upd).catch(function(){});}}
+    return _errlog.items;
+  }catch(e){return _errlog.items;}
+}
+function errlogItems(){return _errlog.items;}
+window.errlogLoad=errlogLoad;window.errlogItems=errlogItems;
 
 function exportRows(){
   const list=filtered();
@@ -4187,12 +4225,12 @@ async function apSave(){
 
     if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){
       const j0=JSON.stringify(apItems);await store.set(AP_KEY,j0);_apLastJson=j0;
-      if(outboxOn()){outboxEnqueue(AP_PATH,'save');return true;}
+      if(outboxOn()){v2MarkDirty(AP_PATH,apItems);outboxEnqueue(AP_PATH,'save');return true;}
       try{
       const ok=await v2ReadMerge(AP_PATH,apMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());
       const j2=JSON.stringify(apItems);await store.set(AP_KEY,j2);
       await v2Write(AP_PATH,apItems,'应付');return true;
-      }catch(e){if(outboxFallback(AP_PATH,e))return true;throw e;}
+      }catch(e){if(outboxFallback(AP_PATH,e,apItems))return true;throw e;}
     }
     const _merged=await cloudReadMerge(AP_PATH,AP_KEY,apMergeRemote);
     const j=JSON.stringify(apItems);
@@ -4267,7 +4305,7 @@ function apPush(){
   },400);
 }
 window.apSave=apSave;
-outboxRegister(AP_PATH,'应付',async function(){const ok=await v2ReadMerge(AP_PATH,apMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());const j=JSON.stringify(apItems);await store.set(AP_KEY,j);_apLastJson=j;await v2Write(AP_PATH,apItems,'应付');try{if(session)renderAP();}catch(e){}});
+outboxRegister(AP_PATH,'应付',async function(){const ok=await v2ReadMergeDelta(AP_PATH,apMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());const j=JSON.stringify(apItems);await store.set(AP_KEY,j);_apLastJson=j;await v2Write(AP_PATH,apItems,'应付');try{if(session)renderAP();}catch(e){}});
 function apApplyRemote(s){
   try{cloudAtNote('ap',s&&s._at);}catch(e){}
   try{rcBigInvalidate();}catch(e){}
@@ -5924,6 +5962,9 @@ function healthCalc(){
   add('stubDated','待开票存根带日期或金额',ariItems.filter(function(x){return !x.deleted&&!x.invNo&&!x.storno&&!x.cancelledBy&&(x.invDate||(Number(x.gross)||0)||(Number(x.net)||0));}).length,'warn','存根应无日期与金额；请核对是否漏填发票号（报表已排除存根）','ari');
 
   try{const m={};for(const o of ordItems){if(o.deleted||!o.orderNo)continue;(m[o.orderNo]=m[o.orderNo]||[]).push(o);}const dups=Object.keys(m).filter(k=>m[k].length>1);add('ordDupNo','成单号重复',dups.length,'bad',dups.length?('重复：'+dups.slice(0,5).join('、')+'。请在订单详情「编辑」改号或删除其中一张；慢链路端新建前先刷新'):'','ord');}catch(e){}
+
+  try{const E=(typeof errlogItems==='function')?errlogItems():[];const byUser={};for(const r of E){byUser[r.by||'?']=(byUser[r.by||'?']||0)+1;}const top=E.slice(0,5).map(function(r){return (r.by||'?')+' '+new Date(r.t).toLocaleTimeString().slice(0,5)+' '+(r.kind||'')+'：'+String(r.msg||'').slice(0,60);});
+    add('errlog24','客户端错误（近 24 小时）',E.length,E.length>=10?'bad':'warn',E.length?(Object.keys(byUser).map(function(u){return u+' '+byUser[u];}).join('、')+'\n'+top.join('\n')):'','');}catch(e){}
 
   try{const L=(typeof outboxPendingList==='function')?outboxPendingList():[];const old=L.length?Math.round((Date.now()-L[0].at)/60000):0;add('syncPend','本机改动待同步到云端',L.length,old>10?'bad':'warn',L.length?('最早 '+old+' 分钟：'+L.map(function(x){return x.label;}).join('、')+'（页眉「⏳ 待同步」可立即重试）'):'','');}catch(e){}
 
@@ -8176,6 +8217,15 @@ function storeModeReady(){
 function v2Path(p){return p+'_v2';}
 const _v2Last={};
 function v2ArrayOf(v){return Object.keys(v||{}).filter(function(k){return k!=='_meta';}).map(function(k){return v[k];}).filter(function(r){return r&&r.id;});}
+
+async function v2ReadMergeDelta(path,mergeFn){
+  const since=v2SinceGet(path);if(!since)return v2ReadMerge(path,mergeFn);
+  try{
+    const s=await Promise.race([rtdb.ref(v2Path(path)).orderByChild('_sv').startAt(Math.max(0,since-120000)).once('value'),new Promise(function(_,rej){setTimeout(function(){rej(new Error('read-timeout'));},12000);})]);
+    const arr=v2ArrayOf(s.val()||{});const last=_v2Last[path]||(_v2Last[path]={});for(const r of arr)last[r.id]=v2Canon(r);
+    if(arr.length)mergeFn(arr);return true;
+  }catch(e){_cloudLastErr={path:path,perm:cloudErrIsPerm(e),msg:String(e&&e.message||e)};console.error('v2 delta read:',e&&e.message);return false;}
+}
 async function v2ReadMerge(path,mergeFn){
   try{
     const s=await Promise.race([rtdb.ref(v2Path(path)).once('value'),new Promise(function(_,rej){setTimeout(function(){rej(new Error('read-timeout'));},12000);})]);
@@ -8186,17 +8236,26 @@ async function v2ReadMerge(path,mergeFn){
   }catch(e){_cloudLastErr={path:path,perm:cloudErrIsPerm(e),msg:String(e&&e.message||e)};console.error('v2 read:',e&&e.message);return false;}
 }
 
-function v2Canon(v){if(v===null||typeof v!=='object')return JSON.stringify(v);if(Array.isArray(v))return '['+v.map(v2Canon).join(',')+']';const ks=Object.keys(v).filter(function(k){return v[k]!==undefined;}).sort();return '{'+ks.map(function(k){return JSON.stringify(k)+':'+v2Canon(v[k]);}).join(',')+'}';}
+function v2Canon(v,top){if(v===null||typeof v!=='object')return JSON.stringify(v);if(Array.isArray(v))return '['+v.map(function(x){return v2Canon(x,false);}).join(',')+']';const ks=Object.keys(v).filter(function(k){return v[k]!==undefined&&!(top!==false&&k==='_sv');}).sort(); return '{'+ks.map(function(k){return JSON.stringify(k)+':'+v2Canon(v[k]);}).join(',')+'}';}
 var _v2WriteStats={n:0,chunks:0,bytes:0};
+
+var _v2Dirty={};
+function v2DirtyGet(path){if(!_v2Dirty[path]){let a=[];try{a=JSON.parse(localStorage.getItem('img-v2dirty-'+path)||'[]');}catch(e){}_v2Dirty[path]=new Set(a);}return _v2Dirty[path];}
+function v2DirtySave(path){try{localStorage.setItem('img-v2dirty-'+path,JSON.stringify(Array.from(v2DirtyGet(path))));}catch(e){}}
+function v2MarkDirty(path,items){const d=v2DirtyGet(path);const last=_v2Last[path]||{};let n=0;for(const r of (items||[])){const id=r&&r.id;if(!id)continue;if(last[id]!==v2Canon(r)){if(!d.has(id)){d.add(id);n++;}}}if(n)v2DirtySave(path);return n;}
+window.v2MarkDirty=v2MarkDirty;window.v2DirtyGet=v2DirtyGet;
 async function v2Write(path,items,label){
   const last=_v2Last[path]||(_v2Last[path]={});const upd={};let n=0;
-  for(const r of items){const id=r&&r.id;if(!id)continue;const j=v2Canon(r);if(last[id]!==j){upd[id]=JSON.parse(JSON.stringify(r));last[id]=j;n++;}}
-  const meta={_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID,n:n,label:label||''};
+  const SV=(window.firebase&&firebase.database&&firebase.database.ServerValue)?firebase.database.ServerValue.TIMESTAMP:Date.now();
+  const dirty=v2DirtyGet(path);
+  const canon={};for(const r of items){const id=r&&r.id;if(!id)continue;const j=v2Canon(r);if(last[id]!==j||dirty.has(id)){const c=JSON.parse(JSON.stringify(r));c._sv=SV;upd[id]=c;canon[id]=j;n++;}}
+  const meta={_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID,n:n,label:label||'',_sv:SV,ids:Object.keys(upd).slice(0,200)};
   if(n){
     const ids=Object.keys(upd);v2OwnMark(path,ids);const CH=40;
     for(let i=0;i<ids.length;i+=CH){const part={};for(const id of ids.slice(i,i+CH))part[id]=upd[id];if(i+CH>=ids.length)part['_meta']=meta;
       _v2WriteStats.chunks++;try{_v2WriteStats.bytes+=JSON.stringify(part).length;}catch(e){}
-      await _withTimeout(rtdb.ref(v2Path(path)).update(part),window.__txTimeoutMs||45000,(label||'')+'逐条写入'+(ids.length>CH?('（第 '+(Math.floor(i/CH)+1)+'/'+Math.ceil(ids.length/CH)+' 块）'):''));}
+      await _withTimeout(rtdb.ref(v2Path(path)).update(part),window.__txTimeoutMs||45000,(label||'')+'逐条写入'+(ids.length>CH?('（第 '+(Math.floor(i/CH)+1)+'/'+Math.ceil(ids.length/CH)+' 块）'):''));
+      for(const id of ids.slice(i,i+CH)){last[id]=canon[id];dirty.delete(id);}v2DirtySave(path);}
     _v2WriteStats.n+=n;
   }
 
@@ -8208,21 +8267,23 @@ var _v2OwnIds={},_v2SubStats={};
 function v2OwnMark(path,ids){const m=_v2OwnIds[path]=_v2OwnIds[path]||{};const t=Date.now();for(const id of ids)m[id]=t;}
 
 var _v2DeltaOn=true;
-function v2SinceGet(path){try{const v=parseInt(localStorage.getItem('img-v2since-'+path)||'0',10);return isFinite(v)?v:0;}catch(e){return 0;}}
-function v2SinceSet(path,ts){try{localStorage.setItem('img-v2since-'+path,String(ts));}catch(e){}}
+
+function v2SinceGet(path){try{const v=parseInt(localStorage.getItem('img-v2sv-'+path)||'0',10);return isFinite(v)?v:0;}catch(e){return 0;}}
+function v2SinceSet(path,ts){try{if(ts>v2SinceGet(path))localStorage.setItem('img-v2sv-'+path,String(ts));}catch(e){}}
+try{if(localStorage.getItem('img-v2delta-ver')!==String(APP_VERSION)){localStorage.removeItem('img-v2delta');localStorage.setItem('img-v2delta-ver',String(APP_VERSION));}}catch(e){}
 function v2Subscribe(path,applyFn,getLocal){
-  const ref=rtdb.ref(v2Path(path));const cache={};let meta={},ready=false,timer=null,dirty=false;
+  const ref=rtdb.ref(v2Path(path));const cache={};const serverSeen={};let meta={},ready=false,timer=null,dirty=false;
   const st=_v2SubStats[path]={events:0,bytes:0,applies:0,mode:'full'};
   const since=v2SinceGet(path);const local=(typeof getLocal==='function')?(getLocal()||[]):[];
   const delta=_v2DeltaOn&&since>0&&local.length>0&&!(typeof localStorage!=='undefined'&&localStorage.getItem('img-v2delta')==='0');
   if(delta){for(const r of local){if(r&&r.id)cache[r.id]=r;}st.mode='delta';}
-  const q=delta?ref.orderByChild('up').startAt(Math.max(0,since-300000)):ref;
+  const q=delta?ref.orderByChild('_sv').startAt(Math.max(0,since-120000)):ref;
   function flush(){
     timer=null;
     const arr=v2ArrayOf(cache);
-    const last=_v2Last[path]={};for(const r of arr)last[r.id]=v2Canon(r);
+    const dset=v2DirtyGet(path);const last=_v2Last[path]={};for(const r of arr){if(!serverSeen[r.id]&&dset.has(r.id))continue;last[r.id]=v2Canon(r);}
     if(!dirty)return;dirty=false;st.applies++;
-    let mx=0;for(const r of arr){const u=Number(r.up||r._up||0);if(u>mx)mx=u;}if(mx)v2SinceSet(path,mx);
+    let mx=0;for(const r of arr){const u=Number(r._sv||0);if(u>mx)mx=u;}if(mx)v2SinceSet(path,mx);else if(!delta&&ready)v2SinceSet(path,Date.now()-600000);
     applyFn({json:JSON.stringify(arr),_at:meta._at||Date.now(),_by:meta._by||'',_client:meta._client||''});
   }
   function sched(){if(!ready)return;if(timer)clearTimeout(timer);timer=setTimeout(flush,200);}
@@ -8230,7 +8291,7 @@ function v2Subscribe(path,applyFn,getLocal){
     const k=snap.key,v=snap.val();st.events++;try{st.bytes+=JSON.stringify(v||'').length;}catch(e){}
     if(k==='_meta'){meta=v||{};sched();return;}
     let same=false;try{same=cache[k]!==undefined&&JSON.stringify(cache[k])===JSON.stringify(v);}catch(e){}
-    if(v===null||v===undefined)delete cache[k];else cache[k]=v;
+    if(v===null||v===undefined)delete cache[k];else{cache[k]=v;serverSeen[k]=true;}
     const own=_v2OwnIds[path];
     if(own&&own[k]&&(Date.now()-own[k])<5000){delete own[k];}else if(!same)dirty=true;
     sched();
@@ -8238,9 +8299,14 @@ function v2Subscribe(path,applyFn,getLocal){
   q.on('child_added',onChild,function(err){cloudFail(err);});
   q.on('child_changed',onChild,function(err){cloudFail(err);});
   q.on('child_removed',function(snap){const k=snap.key;st.events++;if(k==='_meta')return;delete cache[k];dirty=true;sched();},function(err){cloudFail(err);});
-  if(delta){ref.child('_meta').on('value',function(s){meta=s.val()||{};sched();},function(){});}
+
+  ref.child('_meta').on('value',function(s){meta=s.val()||{};sched();
+    try{if(!delta||!meta.ids||meta._client===CLOUD_CLIENT_ID)return;const ids=meta.ids.slice(0,200);const at=Number(meta._sv||meta._at||0);
+      setTimeout(function(){const miss=ids.filter(function(id){const c=cache[id];return !c||Number(c._sv||0)<at-1000;});if(!miss.length)return;st.recon=(st.recon||0)+miss.length;
+        miss.forEach(function(id){ref.child(id).once('value').then(function(cs){const v=cs.val();if(v){cache[id]=v;serverSeen[id]=true;dirty=true;sched();}}).catch(function(){});});},3000);}catch(e){}
+  },function(){});
   q.once('value').then(function(s){
-    const v=s.val()||{};for(const k in v){if(k==='_meta')meta=v[k]||{};else cache[k]=v[k];}
+    const v=s.val()||{};for(const k in v){if(k==='_meta')meta=v[k]||{};else{cache[k]=v[k];serverSeen[k]=true;}}
     ready=true;dirty=true;flush();
   }).catch(function(err){cloudFail(err);});
 }
@@ -8286,12 +8352,12 @@ async function ordSave(){
   try{
     if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){
       const j0=JSON.stringify(ordItems);await store.set(ORD_KEY,j0);_ordLastJson=j0;
-      if(outboxOn()){outboxEnqueue(ORD_PATH,'save');return true;}
+      if(outboxOn()){v2MarkDirty(ORD_PATH,ordItems);outboxEnqueue(ORD_PATH,'save');return true;}
       try{
         const ok=await v2ReadMerge(ORD_PATH,ordMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());
         const j2=JSON.stringify(ordItems);await store.set(ORD_KEY,j2);_ordLastJson=j2;
         await v2Write(ORD_PATH,ordItems,'订单');return true;
-      }catch(e){if(outboxFallback(ORD_PATH,e))return true;throw e;}
+      }catch(e){if(outboxFallback(ORD_PATH,e,ordItems))return true;throw e;}
     }
     const _merged=await cloudReadMerge(ORD_PATH,ORD_KEY,ordMergeRemote);
     const j=JSON.stringify(ordItems);
@@ -8325,7 +8391,7 @@ function ordApplyRemote(s){
   let _notified=false;try{_notified=openDetailNotify(_snap,ordItems,'订单',s._by);}catch(e){}
   if(!_notified&&s._by&&s._by!==(session&&session.name))toast('☁ 订单台账已同步 '+s._by+' 的更新');
 }
-outboxRegister(ORD_PATH,'订单',async function(){const ok=await v2ReadMerge(ORD_PATH,ordMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());const j=JSON.stringify(ordItems);await store.set(ORD_KEY,j);_ordLastJson=j;await v2Write(ORD_PATH,ordItems,'订单');try{if(session)renderORD();}catch(e){}});
+outboxRegister(ORD_PATH,'订单',async function(){const ok=await v2ReadMergeDelta(ORD_PATH,ordMergeRemote);if(!ok)throw new Error(cloudReadFailMsg());const j=JSON.stringify(ordItems);await store.set(ORD_KEY,j);_ordLastJson=j;await v2Write(ORD_PATH,ordItems,'订单');try{if(session)renderORD();}catch(e){}});
 function ordCloudStart(){
   if(!USE_CLOUD||!rtdb)return;
   storeModeReady().then(function(m){if(m==='v2')v2Subscribe(ORD_PATH,ordApplyRemote,function(){return ordItems;});else ordCloudStartV1();});
@@ -10707,7 +10773,7 @@ function renderBASE(){
   $('baseStSup').innerHTML=meta.suppliers.length+'<span class="s-unit"> 家</span>';
   $('baseStSvc').innerHTML=meta.svcLib.length+'<span class="s-unit"> 项</span>';
   const box=$('baseCards');box.innerHTML='';
-  box.appendChild(baseCard('👥 客户档案','clients',[{k:'contact',l:'联系人'},{k:'email',l:'邮箱'},{k:'vat',l:'VAT号'},{k:'country',l:'国家'},{k:'short',l:'简称（表格显示用，悬停看全名）'},{k:'addr',l:'地址(用 / 分隔·斜杠两侧留空格)'},{k:'prepaid',l:'预充值客户（填 是 开启，留空关闭）'}]));
+  box.appendChild(baseCard('👥 客户档案','clients',[{k:'contact',l:'联系人'},{k:'email',l:'邮箱'},{k:'vat',l:'VAT号'},{k:'country',l:'国家'},{k:'short',l:'简称（表格显示用，悬停看全名）'},{k:'bankNames',l:'银行付款户名（多个用 / 分隔；代付公司也填这里，确认流水时会自动学习）'},{k:'addr',l:'地址(用 / 分隔·斜杠两侧留空格)'},{k:'prepaid',l:'预充值客户（填 是 开启，留空关闭）'}]));
   box.appendChild(baseCard('🚚 供应商档案','suppliers',[{k:'contact',l:'联系人'},{k:'email',l:'邮箱'},{k:'vat',l:'VAT号'},{k:'iban',l:'IBAN'},{k:'addr',l:'地址(用 / 分隔·斜杠两侧留空格)'}]));
   box.appendChild(baseCard('🏷️ 服务项目库','svcLib',[{k:'en',l:'英文名称'},{k:'cat',l:'分类'}]));
   const tip=document.createElement('div');
@@ -10905,12 +10971,12 @@ async function ariSaveAll(){
   try{
     if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){
       const j0=JSON.stringify(ariItems);await store.set(ARI_KEY,j0);
-      if(outboxOn()){outboxEnqueue(ARI_PATH,'save');return true;}
+      if(outboxOn()){v2MarkDirty(ARI_PATH,ariItems);outboxEnqueue(ARI_PATH,'save');return true;}
       try{
       const ok=await v2ReadMerge(ARI_PATH,ariMerge);if(!ok)throw new Error(cloudReadFailMsg());
       const j2=JSON.stringify(ariItems);await store.set(ARI_KEY,j2);
       await v2Write(ARI_PATH,ariItems,'应收发票');return true;
-      }catch(e){if(outboxFallback(ARI_PATH,e))return true;throw e;}
+      }catch(e){if(outboxFallback(ARI_PATH,e,ariItems))return true;throw e;}
     }
     const _merged=await cloudReadMerge(ARI_PATH,ARI_KEY,ariMerge);
     await store.set(ARI_KEY,JSON.stringify(ariItems));
@@ -10929,6 +10995,7 @@ async function ariSaveAll(){
   }catch(e){console.error('ariSave:',e);throw e;}
 }
 function ariApplyRemote(s){
+  try{setTimeout(function(){try{if(typeof payFixBankCustomer==='function'&&payFixBankCustomer()>0){alcInvalidate();savePayments();renderARI();}}catch(e){}},1500);}catch(e){}
   try{cloudAtNote('ari',s&&s._at);}catch(e){}
   try{rcBigInvalidate();}catch(e){}
   try{setTimeout(homeRefreshIfVisible,0);}catch(e){}
@@ -11029,7 +11096,7 @@ function ariAllocMap(){
       for(const id of p.linkIds){
         const x=ariItems.find(i=>i.id===id&&!i.deleted);
         if(!x)continue;
-        if(x.currency===p.currency&&sameCust(x))hit.set(x.id,x);
+        if(x.currency===p.currency&&(sameCust(x)||p.bankTx||(typeof bankPayerIsCustomer==='function'&&(bankPayerIsCustomer(p.customer,x.customer)||bankPayerIsCustomer(p.payer,x.customer)))))hit.set(x.id,x);
         else xref.add(p.id);
       }
     }
@@ -11236,7 +11303,6 @@ function statGoBind(){
       renderAP();}
   };});
 }
-window.ariItemsGet=function(){return ariItems;};
 function renderARI(){
   setTimeout(stickyAll,0);
   try{const nb=$('ariNetBtn');if(nb){const n=(session&&session.role==='finance'&&typeof ariNetLineScan==='function')?ariNetLineScan().length:0;nb.style.display=n?'':'none';nb.textContent='🧮 净额≠明细（'+n+'）';}}catch(e){}
@@ -12770,7 +12836,8 @@ window.ariVatFixOpen=ariVatFixOpen;
 if($('ariVatBtn'))$('ariVatBtn').onclick=ariVatFixOpen;
 if($('ariReconBtn'))$('ariReconBtn').onclick=function(){try{arReconOpen();}catch(e){toast(e.message||e);}};
 
-outboxRegister(ARI_PATH,'应收发票',async function(){const ok=await v2ReadMerge(ARI_PATH,ariMerge);if(!ok)throw new Error(cloudReadFailMsg());const j=JSON.stringify(ariItems);await store.set(ARI_KEY,j);await v2Write(ARI_PATH,ariItems,'应收发票');try{if(session)renderARI();}catch(e){}});
+outboxRegister(ARI_PATH,'应收发票',async function(){const ok=await v2ReadMergeDelta(ARI_PATH,ariMerge);if(!ok)throw new Error(cloudReadFailMsg());const j=JSON.stringify(ariItems);await store.set(ARI_KEY,j);await v2Write(ARI_PATH,ariItems,'应收发票');try{if(session)renderARI();}catch(e){}});
+window.ariItemsGet=function(){return ariItems;};window.ariState=function(x){return ariState(x);};
 
 const HR_PATH=DB_PREFIX+'img-hr/state';
 const HR_KEY='img-hr-state';
@@ -13268,6 +13335,17 @@ async function bankImportParsed(parsed,srcName){
 window.bankImportParsed=bankImportParsed;window.bankParseRows=bankParseRows;
 
 const BANK_ACCT_AR='应收账款',BANK_ACCT_AP='应付账款',BANK_ACCT_FEE='财务费用';
+
+function bankNamesOf(cust){const c=(meta.clients||[]).find(function(x){return x.name===cust;});return c&&c.bankNames?String(c.bankNames).split('/').map(function(x){return x.trim();}).filter(Boolean):[];}
+function bankPayerIsCustomer(payer,cust){if(!payer||!cust)return false;const a=bankNorm(payer),b=bankNorm(cust);if(!a||!b)return false;if(a===b||a.includes(b)||b.includes(a))return true;return bankNamesOf(cust).some(function(n){const k=bankNorm(n);return k&&(k===a||a.includes(k)||k.includes(a));});}
+function bankPayerCustomers(payer){const a=bankNorm(payer);if(!a||a.length<4)return [];return (meta.clients||[]).filter(function(c){return bankNamesOf(c.name).some(function(n){const k=bankNorm(n);return k&&(k===a||a.includes(k)||k.includes(a));});}).map(function(c){return c.name;});}
+async function bankLearnPayer(payer,cust,ask){
+  if(!payer||!cust||bankPayerIsCustomer(payer,cust))return false;
+  const c=(meta.clients||[]).find(function(x){return x.name===cust;});if(!c)return false;
+  if(ask!==false){try{if(!confirm('把付款户名「'+payer+'」记为客户「'+cust+'」的银行付款户名？\n\n下次该户名打款将自动匹配到 '+cust+'。'))return false;}catch(e){return false;}}
+  const list=bankNamesOf(cust);list.push(payer);c.bankNames=list.join(' / ');c.up=Date.now();try{await metaSave();}catch(e){}return true;
+}
+window.bankNamesOf=bankNamesOf;window.bankPayerIsCustomer=bankPayerIsCustomer;window.bankPayerCustomers=bankPayerCustomers;window.bankLearnPayer=bankLearnPayer;
 function bankNorm(s){return String(s||'').toLowerCase().replace(/[\s\-_\.\/,;:#()（）&+]/g,'').replace(/\b(and|und)\b/g,'');}
 function bankTokens(s){return String(s||'').split(/[\s,;\/|，；]+/).map(t=>t.trim()).filter(t=>t.length>=4);}
 function bankRules(){return (meta&&Array.isArray(meta.bankRules))?meta.bankRules:[];}
@@ -13295,7 +13373,7 @@ function bankMatchAuto(tx){
     if(!cands.length){
 
       if(ords.length||invNos.length){tx.hint='附言含 '+[].concat(ords,invNos).join(' ')+'，平台未找到对应未结应收';}
-      else{const cp=bankNorm(tx.cpName);if(cp.length>=4){cands=ariItems.filter(x=>!x.deleted&&x.invNo&&ariState(x)!=='paid'&&(x.currency||'EUR')==='EUR'&&(bankNorm(x.customer).includes(cp)||cp.includes(bankNorm(x.customer))));basis='name';}}}
+      else{const cp=bankNorm(tx.cpName);if(cp.length>=4){const aliasC=bankPayerCustomers(tx.cpName);cands=ariItems.filter(x=>!x.deleted&&x.invNo&&ariState(x)!=='paid'&&(x.currency||'EUR')==='EUR'&&(bankNorm(x.customer).includes(cp)||cp.includes(bankNorm(x.customer))||aliasC.includes(x.customer)));basis='name';}}}
     const pick=bankPickByAmount(cands.map(x=>({id:x.id,no:x.invNo,open:Math.round(((Number(x.gross)||0)-ariPaid(x))*100)/100,cust:x.customer})),tx.amount);
     if(pick){tx.match={kind:'ar',acct:BANK_ACCT_AR,summary:(pick[0].cust||tx.cpName)+'业务款 '+pick.map(p=>p.no).join(' '),payee:pick[0].cust||tx.cpName,refs:pick.map(p=>({id:p.id,no:p.no,amount:p.open})),auto:true,basis:basis};tx.status='matched';return true;}
   }else{
@@ -13352,7 +13430,10 @@ async function bankConfirm(tx){
     const amt=Math.round(alloc.reduce((s2,a)=>s2+a.amount,0)*100)/100;
     if(amt>0.005){
       const own=(function(){try{const x=ariItems.find(i=>i.id===alloc[0].invId);return (typeof ariOwnerOf==='function')?ariOwnerOf(x):'';}catch(e){return '';}})();
-      payments.push({id:'pay'+Date.now()+Math.random().toString(36).slice(2,6),date:tx.date,customer:m.payee,amount:amt,currency:'EUR',method:'银行转账',ref:alloc.map(a=>a.invNo).join(' / '),status:'received',alloc:alloc,linkIds:alloc.map(a=>a.invId),bankTx:tx.id,bankTxNo:tx.txNo,
+
+      const invCust=(function(){try{const x=ariItems.find(i=>i.id===alloc[0].invId);return x&&x.customer||'';}catch(e){return '';}})();
+      try{if(invCust&&tx.cpName&&!bankPayerIsCustomer(tx.cpName,invCust))await bankLearnPayer(tx.cpName,invCust,true);}catch(e){}
+      payments.push({id:'pay'+Date.now()+Math.random().toString(36).slice(2,6),date:tx.date,customer:invCust||m.payee,payer:tx.cpName||m.payee,amount:amt,currency:'EUR',method:'银行转账',ref:alloc.map(a=>a.invNo).join(' / '),status:'received',alloc:alloc,linkIds:alloc.map(a=>a.invId),bankTx:tx.id,bankTxNo:tx.txNo,
         verify:{result:'ok',by:session.name,time:Date.now(),self:true},booking:{by:session.name,time:Date.now()},
         note:'银行流水自动核销 '+tx.txNo+(amt<tx.amount?('（流水 '+fmt(tx.amount)+'，其余已登记）'):''),owner:own||'',createdBy:session.name,createdAt:Date.now(),comments:[{author:session.name,role:'finance',text:'由银行流水 '+tx.txNo+' 自动生成并核销，已清。',time:Date.now()}],up:Date.now()});
     }
@@ -13409,7 +13490,7 @@ function renderBANK(){
   const stCol={pending:'var(--warn)',matched:'var(--info)',confirmed:'var(--ok)',ignored:'var(--muted)'};
   for(const x of renderCap(list,{id:'bankBody',appendChild:function(){}},10)){
     const m=x.match||{};
-    h+='<tr class="row" data-id="'+x.id+'"><td style="white-space:nowrap;font-family:var(--font-num)">'+esc(x.date)+'<div style="font-size:10.5px;color:var(--muted)">'+esc(x.time)+'</div></td><td title="'+esc(x.cpAcct)+'">'+esc(x.cpName||(x.type||'—'))+'</td>'+
+    h+='<tr class="row" data-id="'+x.id+'"><td style="white-space:nowrap;font-family:var(--font-num)">'+esc(x.date)+'<div style="font-size:10.5px;color:var(--muted)">'+esc(x.time)+'</div></td><td title="'+esc(x.cpAcct)+'">'+esc(x.cpName||(x.type||'—'))+(function(){const cs=x.cpName?bankPayerCustomers(x.cpName):[];return cs.length?' <span style="font-size:10.5px;color:var(--pine)">→ '+esc(cs.join(' / '))+'</span>':'';})()+'</td>'+
       '<td class="amount" style="color:var(--ok)">'+(x.amount>0?fmt(x.amount):'')+'</td><td class="amount" style="color:var(--bad)">'+(x.amount<0?fmt(-x.amount):'')+'</td>'+
       '<td style="font-size:11.5px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(x.memo+' '+x.note)+'">'+esc(x.memo)+(x.note?' <span style="color:var(--ink-soft)">'+esc(x.note)+'</span>':'')+'</td>'+
       '<td>'+esc(m.acct||'')+'</td><td style="font-size:11.5px">'+esc(m.summary||'')+'</td><td style="font-size:11px;color:var(--ink-soft)">'+bankRefCellHtml(x)+'</td>'+
@@ -16309,7 +16390,9 @@ Object.assign(I18N,{
 "待同步到云端的改动（已保存在本机）":{en:"Changes waiting to sync to the cloud (saved on this device)",de:"Änderungen, die noch in die Cloud synchronisiert werden (lokal gespeichert)"},
 "⏳ 待同步到云端":{en:"⏳ Waiting to sync",de:"⏳ Wartet auf Synchronisierung"},
 "立即重试":{en:"Retry now",de:"Jetzt erneut versuchen"},
-"本机改动待同步到云端":{en:"Local changes waiting to sync",de:"Lokale Änderungen warten auf Synchronisierung"}
+"本机改动待同步到云端":{en:"Local changes waiting to sync",de:"Lokale Änderungen warten auf Synchronisierung"},
+"银行付款户名（多个用 / 分隔；代付公司也填这里，确认流水时会自动学习）":{en:"Bank payer names (separate with /; third-party payers go here too; learned automatically when confirming bank lines)",de:"Bank-Zahlernamen (mit / trennen; auch Drittzahler; beim Bestätigen von Kontobewegungen automatisch gelernt)"},
+"客户端错误（近 24 小时）":{en:"Client errors (last 24 h)",de:"Client-Fehler (letzte 24 h)"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
