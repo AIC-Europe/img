@@ -1020,7 +1020,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v37.5</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v38.1</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1674,7 +1674,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=37.5;
+const APP_VERSION=38.1;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2379,6 +2379,7 @@ function enterApp(){
 
   if(USE_CLOUD&&rtdb){setTimeout(function(){try{nosBackfill();}catch(e){}},6000);}
   try{bkRestoreListen();verListen();}catch(e){}
+  try{ui2Init();}catch(e){}
   try{if(session&&session.role==='finance'&&typeof errlogLoad==='function'){setTimeout(function(){errlogLoad();},5000);setInterval(function(){errlogLoad();},600000);}}catch(e){}
   try{outboxRegister(CLOUD_PATH,'到账',async function(){const ok=await v2ReadMergeDelta(CLOUD_PATH,mergeRemote);if(!ok)throw new Error('read');await v2Write(CLOUD_PATH,payments,'到账');CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();try{render();}catch(e){}});setTimeout(function(){try{outboxRestore();}catch(e){}},2500);}catch(e){}
   if(USE_CLOUD&&rtdb){netProbe().then(function(){
@@ -5384,6 +5385,117 @@ function apFileAssemble(v){
   const o={};for(const k in v){if(k!=='parts'&&k!=='chunked'&&k!=='partsN'&&k!=='dataLen')o[k]=v[k];}o.data=data;return o;
 }
 window.apFileAssemble=apFileAssemble;window.apStoreFile=function(f,o){return apStoreFile(f,o);};
+
+const UI2_CSS=`
+.ui2-grp,.ui2-only{display:none}
+.ui2-foot{display:contents}
+html.ui2 .ui2-only{display:revert}
+@media (min-width:900px){
+html.ui2 header.topbar{position:fixed;left:0;top:0;bottom:0;width:216px;height:auto;flex-direction:column;align-items:stretch;gap:6px;padding:16px 12px;overflow-y:auto;z-index:45}
+html.ui2 .app{padding-left:216px}
+html.ui2 header.topbar .top-logo{align-self:flex-start}
+html.ui2 header.topbar .brand-mark{margin:-30px 0 6px 44px;font-size:16px}
+html.ui2 header.topbar .mod-nav{flex-direction:column;align-items:stretch;gap:2px;margin-top:6px}
+html.ui2 header.topbar .mod-btn{justify-content:flex-start;text-align:left;width:100%;border-radius:6px;padding:8px 10px;position:relative}
+html.ui2 header.topbar .mod-btn .mod-dot{position:static;margin-left:auto}
+html.ui2 header.topbar .mod-btn.active{background:rgba(255,255,255,.14);font-weight:600}
+html.ui2 .ui2-grp{display:block;font-size:11px;letter-spacing:.08em;color:#86A39A;padding:10px 10px 4px}
+html.ui2 header.topbar .spacer{flex:1}
+html.ui2 .ui2-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 6px 4px;border-top:1px solid rgba(255,255,255,.12)}
+html.ui2 .ui2-foot .user-chip{flex-basis:100%}
+html.ui2 .ui2-foot>.tag{font-size:11px!important;white-space:nowrap}
+html.ui2 #gsBtn{display:flex}
+}
+#gsBtn{display:none;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#B9CCC6;border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px;cursor:pointer;text-align:left}
+#gsBtn kbd{margin-left:auto;font-family:var(--font-num);font-size:11px;color:#8FA9A1;background:none;border:0}
+#gsOvl{position:fixed;inset:0;background:rgba(14,30,26,.45);z-index:3000;display:flex;justify-content:center;align-items:flex-start;padding-top:12vh}
+#gsBox{width:min(640px,94vw);background:var(--card);color:var(--ink);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.3);overflow:hidden}
+#gsIn{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--line);padding:14px 16px;font:inherit;font-size:15px;outline:none;background:transparent;color:var(--ink)}
+#gsRes{max-height:52vh;overflow-y:auto}
+.gs-grp{font-size:11px;color:var(--ink-soft);padding:8px 16px 4px;letter-spacing:.06em}
+.gs-row{display:flex;gap:10px;align-items:baseline;padding:8px 16px;cursor:pointer}
+.gs-row.on,.gs-row:hover{background:var(--n-wash,#EEF3F1)}
+.gs-row b{font-family:var(--font-num);font-weight:600;min-width:110px}
+.gs-row span{color:var(--ink-soft);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gs-foot{font-size:11.5px;color:var(--ink-soft);padding:8px 16px;border-top:1px solid var(--line);font-family:var(--font-num)}
+`;
+function ui2On(){try{return localStorage.getItem('img-ui2')!=='0';}catch(e){return true;}}
+function ui2Apply(){
+  const on=ui2On();document.documentElement.classList.toggle('ui2',on);
+  setTimeout(function(){try{stickyAll();}catch(e){}},60);
+  const b=document.getElementById('ui2Btn');if(b){b.textContent=on?'旧界面':'新界面';b.title=on?'切回旧界面':'切换到新界面（试用）';}
+}
+function ui2Toggle(){try{localStorage.setItem('img-ui2',ui2On()?'0':'1');}catch(e){}ui2Apply();}
+function ui2Init(){
+  if(document.getElementById('ui2Css'))return;
+  const st=document.createElement('style');st.id='ui2Css';st.textContent=UI2_CSS;document.head.appendChild(st);
+  const nav=document.querySelector('header.topbar .mod-nav');
+  if(nav){
+    const grp=(label,beforeId)=>{const t=document.getElementById(beforeId);if(!t)return;const g=document.createElement('div');g.className='ui2-grp';g.textContent=label;nav.insertBefore(g,t);};
+    grp('业务','tabORD');grp('财务','tabAR');grp('管理','tabHR');
+    const gs=document.createElement('button');gs.type='button';gs.id='gsBtn';gs.innerHTML='<svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><span>搜索</span><kbd>Ctrl K</kbd>';gs.title='搜索单号 / 发票 / 客户';
+    gs.onclick=function(){gsOpen();};nav.parentNode.insertBefore(gs,nav);
+  }
+  const hdr=document.querySelector('header.topbar');const sp=hdr&&hdr.querySelector('.spacer');
+  if(hdr&&sp&&!hdr.querySelector('.ui2-foot')){const f=document.createElement('div');f.className='ui2-foot';const items=[];let n=sp.nextElementSibling;while(n){items.push(n);n=n.nextElementSibling;}hdr.appendChild(f);items.forEach(function(x){f.appendChild(x);});}
+  const ref=document.getElementById('refreshBtn');
+  if(ref&&!document.getElementById('ui2Btn')){const b=document.createElement('button');b.type='button';b.className='link-btn';b.id='ui2Btn';b.onclick=ui2Toggle;ref.parentNode.insertBefore(b,ref);}
+  document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&(e.key==='k'||e.key==='K')){if(typeof session==='undefined'||!session)return;e.preventDefault();gsOpen();}});
+  ui2Apply();
+}
+
+function gsVisible(tabId){const t=document.getElementById(tabId);return !!t&&t.style.display!=='none';}
+function gsIndex(q){
+  q=String(q||'').trim().toLowerCase();if(q.length<2)return [];
+  const hit=s=>String(s||'').toLowerCase().includes(q);const out=[];const cap=8;
+  try{if(gsVisible('tabORD')){const r=ordItems.filter(o=>!o.deleted&&(hit(o.orderNo)||hit(o.inqNo)||hit(o.customer)||hit(o.owner))).slice(0,cap);
+    r.forEach(o=>out.push({g:o.type==='inq'?'询价单':'订单',k:'ord',no:o.orderNo||o.inqNo||'',sub:(o.customer||'')+(o.owner?' · '+o.owner:''),q:o.orderNo||o.inqNo||'',inq:o.type==='inq'}));}}catch(e){}
+  try{if(gsVisible('tabAR')){const r=ariItems.filter(x=>!x.deleted&&(hit(x.invNo)||hit(x.customer)||hit(x.orderNo))).slice(0,cap);
+    r.forEach(x=>out.push({g:'应收发票',k:'ari',no:x.invNo||'',sub:(x.customer||'')+(x.orderNo?' · '+x.orderNo:'')+' · '+fmt(Number(x.gross)||0),q:x.invNo||''}));}}catch(e){}
+  try{if(gsVisible('tabAP')){const r=apItems.filter(x=>!x.deleted&&(hit(x.invNo)||hit(x.supplier)||hit(x.orderNo))).slice(0,cap);
+    r.forEach(x=>out.push({g:'应付发票',k:'ap',no:x.invNo||'—',sub:(x.supplier||'')+(x.orderNo?' · '+x.orderNo:'')+' · '+fmt(Number(x.amount)||0),q:x.invNo||x.supplier||''}));}}catch(e){}
+  try{if(gsVisible('tabBANK')&&Array.isArray(bankItems)){const r=bankItems.filter(t=>hit(t.txNo)||hit(t.cpName)||hit(t.note)||hit(t.memo)).slice(0,cap);
+    r.forEach(t=>out.push({g:'银行流水',k:'bank',no:t.date||'',sub:(t.cpName||'')+' · '+fmt(Number(t.amount)||0),q:t.cpName||t.txNo||''}));}}catch(e){}
+  return out;
+}
+let _gsSel=0,_gsList=[];
+function gsOpen(){
+  if(document.getElementById('gsOvl'))return;
+  const ov=document.createElement('div');ov.id='gsOvl';ov.innerHTML='<div id="gsBox" role="dialog" aria-label="全局搜索"><input id="gsIn" type="text" placeholder="输入成单号、发票号、客户或供应商（至少 2 个字）" autocomplete="off"><div id="gsRes"></div><div class="gs-foot">↑↓ 选择 · Enter 打开 · Esc 关闭</div></div>';
+  document.body.appendChild(ov);
+  const inp=document.getElementById('gsIn');
+  ov.addEventListener('mousedown',function(e){if(e.target===ov)gsClose();});
+  inp.addEventListener('input',function(){_gsSel=0;gsRender(inp.value);});
+  inp.addEventListener('keydown',function(e){
+    if(e.key==='Escape'){gsClose();}
+    else if(e.key==='ArrowDown'){e.preventDefault();_gsSel=Math.min(_gsSel+1,_gsList.length-1);gsRender(inp.value,true);}
+    else if(e.key==='ArrowUp'){e.preventDefault();_gsSel=Math.max(_gsSel-1,0);gsRender(inp.value,true);}
+    else if(e.key==='Enter'){e.preventDefault();if(_gsList[_gsSel])gsGo(_gsList[_gsSel]);}
+  });
+  setTimeout(function(){inp.focus();},0);gsRender('');
+}
+function gsClose(){const o=document.getElementById('gsOvl');if(o)o.remove();}
+function gsRender(q,keep){
+  const box=document.getElementById('gsRes');if(!box)return;
+  if(!keep)_gsList=gsIndex(q);
+  if(String(q||'').trim().length<2){box.innerHTML='';return;}
+  if(!_gsList.length){box.innerHTML='<div class="gs-grp">没有找到</div>';return;}
+  let html='',last='';
+  _gsList.forEach(function(r,i){if(r.g!==last){html+='<div class="gs-grp">'+esc(r.g)+'</div>';last=r.g;}html+='<div class="gs-row'+(i===_gsSel?' on':'')+'" data-i="'+i+'"><b>'+esc(r.no)+'</b><span>'+esc(r.sub)+'</span></div>';});
+  box.innerHTML=html;
+  box.querySelectorAll('.gs-row').forEach(function(el){el.onclick=function(){gsGo(_gsList[Number(el.dataset.i)]);};});
+}
+function gsSetSearch(id,v){const el=document.getElementById(id);if(!el)return;el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}
+function gsGo(r){
+  gsClose();if(!r)return;
+  try{
+    if(r.k==='ord'){document.getElementById('tabORD').click();const sub=document.getElementById(r.inq?'subINQ':'subORD');if(sub)sub.click();gsSetSearch('ordFSearch',r.q);}
+    else if(r.k==='ari'){document.getElementById('tabAR').click();const s=document.getElementById('subARI');if(s)s.click();gsSetSearch('ariFSearch',r.q);}
+    else if(r.k==='ap'){document.getElementById('tabAP').click();gsSetSearch('apFSearch',r.q);}
+    else if(r.k==='bank'){document.getElementById('tabBANK').click();const el=document.querySelector('#bankView input[type="text"],#bankView input[type="search"]');if(el){el.value=r.q;el.dispatchEvent(new Event('input',{bubbles:true}));}}
+  }catch(e){}
+}
+window.ui2Init=ui2Init;window.ui2Toggle=ui2Toggle;window.ui2On=ui2On;window.gsOpen=gsOpen;window.gsIndex=gsIndex;window.gsGo=gsGo;
 
 function rcBigModel(d1,d2,label){
   const R=rcBigRows();
@@ -16543,7 +16655,23 @@ Object.assign(I18N,{
 "立即重试":{en:"Retry now",de:"Jetzt erneut versuchen"},
 "本机改动待同步到云端":{en:"Local changes waiting to sync",de:"Lokale Änderungen warten auf Synchronisierung"},
 "银行付款户名（多个用 / 分隔；代付公司也填这里，确认流水时会自动学习）":{en:"Bank payer names (separate with /; third-party payers go here too; learned automatically when confirming bank lines)",de:"Bank-Zahlernamen (mit / trennen; auch Drittzahler; beim Bestätigen von Kontobewegungen automatisch gelernt)"},
-"客户端错误（近 24 小时）":{en:"Client errors (last 24 h)",de:"Client-Fehler (letzte 24 h)"}
+"客户端错误（近 24 小时）":{en:"Client errors (last 24 h)",de:"Client-Fehler (letzte 24 h)"},
+"新界面":{en:"New UI",de:"Neue Oberfläche"},
+"旧界面":{en:"Classic UI",de:"Klassische Oberfläche"},
+"切换到新界面（试用）":{en:"Switch to the new UI (preview)",de:"Zur neuen Oberfläche wechseln (Vorschau)"},
+"切回旧界面":{en:"Back to the classic UI",de:"Zur klassischen Oberfläche"},
+"业务":{en:"Operations",de:"Operativ"},
+"财务":{en:"Finance",de:"Finanzen"},
+"管理":{en:"Admin",de:"Verwaltung"},
+"搜索单号 / 发票 / 客户":{en:"Search order / invoice / customer",de:"Auftrag / Rechnung / Kunde suchen"},
+"输入成单号、发票号、客户或供应商（至少 2 个字）":{en:"Order no., invoice no., customer or supplier (min. 2 chars)",de:"Auftrags-Nr., Rechnungs-Nr., Kunde oder Lieferant (mind. 2 Zeichen)"},
+"没有找到":{en:"No results",de:"Keine Treffer"},
+"询价单":{en:"Inquiries",de:"Anfragen"},
+"应收发票":{en:"AR invoices",de:"Ausgangsrechnungen"},
+"应付发票":{en:"AP invoices",de:"Eingangsrechnungen"},
+"银行流水":{en:"Bank lines",de:"Kontobewegungen"},
+"↑↓ 选择 · Enter 打开 · Esc 关闭":{en:"↑↓ select · Enter open · Esc close",de:"↑↓ wählen · Enter öffnen · Esc schließen"},
+"搜索":{en:"Search",de:"Suchen"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
