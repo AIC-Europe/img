@@ -1020,7 +1020,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v37.4</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v37.5</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1674,7 +1674,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=37.4;
+const APP_VERSION=37.5;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2378,6 +2378,7 @@ function enterApp(){
   ariLoad().then(()=>{ariCloudStart();ariAlertUpdate();});
 
   if(USE_CLOUD&&rtdb){setTimeout(function(){try{nosBackfill();}catch(e){}},6000);}
+  try{bkRestoreListen();verListen();}catch(e){}
   try{if(session&&session.role==='finance'&&typeof errlogLoad==='function'){setTimeout(function(){errlogLoad();},5000);setInterval(function(){errlogLoad();},600000);}}catch(e){}
   try{outboxRegister(CLOUD_PATH,'到账',async function(){const ok=await v2ReadMergeDelta(CLOUD_PATH,mergeRemote);if(!ok)throw new Error('read');await v2Write(CLOUD_PATH,payments,'到账');CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();try{render();}catch(e){}});setTimeout(function(){try{outboxRestore();}catch(e){}},2500);}catch(e){}
   if(USE_CLOUD&&rtdb){netProbe().then(function(){
@@ -3728,7 +3729,7 @@ function outboxBackoff(n){return [5000,15000,45000,120000][Math.min(Math.max(n-1
 function outboxKick(ms){if(_obx.timer)clearTimeout(_obx.timer);_obx.timer=setTimeout(function(){_obx.timer=null;outboxRun();},ms==null?0:ms);}
 var _obxNextAt={};
 async function outboxRun(){
-  if(_obx.running)return;if(!USE_CLOUD||!rtdb)return;
+  if(_obx.running||window.__restoreHalt)return;if(!USE_CLOUD||!rtdb)return;
   _obx.running=true;const now0=Date.now();
   try{
     for(const it of outboxPendingList()){
@@ -3779,6 +3780,8 @@ function outboxFallback(path,e,items){
   try{toast('线路较慢：已保存到本机，后台同步中（页眉「⏳ 待同步」可查看）');}catch(e2){}
   return true;
 }
+function outboxDiscardAll(){_obx.pending={};_obx.fails={};_obx.lastErr={};_obxNextAt={};outboxPersist();outboxBadge();}
+window.outboxDiscardAll=outboxDiscardAll;
 function outboxRetryNow(){_obxNextAt={};outboxKick(0);}
 try{window.addEventListener('online',function(){_obxNextAt={};outboxKick(1000);});}catch(e){}
 window.outboxRetryNow=outboxRetryNow;window.outboxOn=outboxOn;window.outboxEnqueue=outboxEnqueue;window.outboxPendingList=outboxPendingList;window.outboxOpen=outboxOpen;window.outboxRun=outboxRun;window.outboxPendingFor=outboxPendingFor;window.outboxStats=function(){return _obx.stats;};
@@ -3814,6 +3817,109 @@ async function errlogLoad(){
 }
 function errlogItems(){return _errlog.items;}
 window.errlogLoad=errlogLoad;window.errlogItems=errlogItems;
+
+function bkCollect(){
+  const d={payments:payments,apItems:apItems,ordItems:ordItems,ariItems:ariItems,meta:meta};
+  try{d.bankItems=bankItems;}catch(e){}
+  try{d.hrItems=hrItems;d.hrCfg=hrCfg||null;}catch(e){}
+  try{d.expItems=expItems;}catch(e){}
+  return d;
+}
+function bkCountsAll(d){
+  const c=a=>Array.isArray(a)?a.filter(x=>x&&!x.deleted).length:null;d=d||bkCollect();
+  return {ar:c(d.payments),ap:c(d.apItems),ord:c(d.ordItems),ari:c(d.ariItems),bank:c(d.bankItems),hr:c(d.hrItems),exp:c(d.expItems),
+    cli:d.meta&&c(d.meta.clients),sup:d.meta&&c(d.meta.suppliers),svc:d.meta&&c(d.meta.svcLib),loc:d.meta&&c(d.meta.locations)};
+}
+function bkCountsText(cc){
+  const p=[];const add=(k,l,u)=>{if(cc[k]!=null)p.push(l+' '+cc[k]+' '+u);};
+  add('ar','到账','笔');add('ap','应付','张');add('ord','订单','单');add('ari','应收发票','张');add('bank','银行流水','笔');add('hr','人事申请','条');add('exp','员工报销','条');
+  if(cc.cli!=null)p.push('基础资料（客户 '+(cc.cli||0)+' / 供应商 '+(cc.sup||0)+' / 服务库 '+(cc.svc||0)+(cc.loc!=null?' / 地点 '+cc.loc:'')+'）');
+  return p.join('、');
+}
+window.bkCollect=bkCollect;window.bkCountsAll=bkCountsAll;window.bkCountsText=bkCountsText;
+
+async function bkWriteLedger(path,key,arr){
+  const stamp={_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID};
+  await store.set(key,JSON.stringify(arr));
+  if(!USE_CLOUD||!rtdb)return;
+  const SV=(window.firebase&&firebase.database&&firebase.database.ServerValue)?firebase.database.ServerValue.TIMESTAMP:Date.now();
+  if(STORE_MODE==='v2'&&[CLOUD_PATH,AP_PATH,ORD_PATH,ARI_PATH].includes(path)){
+    const node={};for(const r of arr){if(!r||!r.id)continue;const c=JSON.parse(JSON.stringify(r));c._sv=SV;node[r.id]=c;}
+    node._meta=Object.assign({},stamp,{n:Object.keys(node).length,label:'restore',restoreAt:SV,_sv:SV});
+    await _withTimeout(rtdb.ref(v2Path(path)).set(node),90000,'恢复写入 '+path);
+    try{const last=_v2Last[path]={};for(const r of arr){if(r&&r.id)last[r.id]=v2Canon(r);}}catch(e){}
+  }else{
+    await _withTimeout(rtdb.ref(path).set(Object.assign({json:JSON.stringify(arr)},stamp)),90000,'恢复写入 '+path);
+  }
+}
+async function bkApplyAll(d){
+
+  await bkBroadcastRestore('start');await new Promise(function(r){setTimeout(r,window.__bkHaltWaitMs!=null?window.__bkHaltWaitMs:2000);});
+  if(Array.isArray(d.payments)){payments=d.payments;await bkWriteLedger(CLOUD_PATH,KEY_DATA,payments);}
+  if(Array.isArray(d.apItems)){apItems=d.apItems;await bkWriteLedger(AP_PATH,AP_KEY,apItems);}
+  if(Array.isArray(d.ordItems)){ordItems=d.ordItems;ordItems.forEach(ordMigrate);await bkWriteLedger(ORD_PATH,ORD_KEY,ordItems);}
+  if(Array.isArray(d.ariItems)){ariItems=d.ariItems;await bkWriteLedger(ARI_PATH,ARI_KEY,ariItems);}
+  if(d.meta&&typeof d.meta==='object'&&Array.isArray(d.meta.clients)){meta=Object.assign({clients:[],suppliers:[],svcLib:[]},d.meta);svcLibEnsure(meta);await bkWriteLedger(META_PATH,META_KEY,meta);}
+  if(Array.isArray(d.bankItems)){bankItems=d.bankItems;await bkWriteLedger(BANK_PATH,BANK_KEY,bankItems);}
+  if(Array.isArray(d.hrItems)){hrItems=d.hrItems;await bkWriteLedger(HR_PATH,HR_KEY,hrItems);}
+  if(d.hrCfg&&typeof d.hrCfg==='object'){hrCfg=d.hrCfg;try{if(USE_CLOUD&&rtdb)await _withTimeout(rtdb.ref(HR_CFG_PATH).set(hrCfg),30000,'恢复人事配置');}catch(e){}}
+  if(Array.isArray(d.expItems)){expItems=d.expItems;await bkWriteLedger(EXP_PATH,EXP_KEY,expItems);}
+  await bkBroadcastRestore('done');
+  try{render();renderAP();}catch(e){}
+  try{if(typeof renderORD==='function'&&$('ordView').style.display!=='none')renderORD();}catch(e){}
+  try{if(typeof renderARI==='function'&&$('arInvPane').style.display!=='none')renderARI();}catch(e){}
+  try{apAlertUpdate();if(typeof ariAlertUpdate==='function')ariAlertUpdate();if(typeof ordAlertUpdate==='function')ordAlertUpdate();}catch(e){}
+}
+window.bkApplyAll=bkApplyAll;
+
+const SYS_RESTORE=DB_PREFIX+'img-ap/sys/restoreAt';
+async function bkBroadcastRestore(phase){
+  if(!USE_CLOUD||!rtdb)return;
+  try{const cur=(await _withTimeout(rtdb.ref(SYS_RESTORE).once('value'),15000,'恢复广播')).val();const n=(cur&&Number(cur.n)||0)+1;
+    _bkRestoreBase=n;await _withTimeout(rtdb.ref(SYS_RESTORE).set({n:n,at:Date.now(),by:(session&&session.name)||'',client:CLOUD_CLIENT_ID,phase:phase||'done'}),20000,'恢复广播');}catch(e){}
+}
+var _bkRestoreBase=null;
+function bkRestoreListen(){
+  if(!USE_CLOUD||!rtdb)return;
+  rtdb.ref(SYS_RESTORE).on('value',function(s){
+    const v=s&&s.val();const n=v&&Number(v.n)||0;
+    if(_bkRestoreBase===null){_bkRestoreBase=n;return;}
+    if(n<=_bkRestoreBase)return;_bkRestoreBase=n;
+    if(v.client===CLOUD_CLIENT_ID)return;
+    window.__restoreHalt=true;
+    let pend=0;try{pend=(typeof outboxPendingList==='function')?outboxPendingList().length:0;}catch(e){}
+    try{if(typeof outboxDiscardAll==='function')outboxDiscardAll();}catch(e){}
+    try{
+      localStorage.removeItem('img-outbox-pending');
+      for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(/^img-v2sv-|^img-v2dirty-|^img-obx-file/.test(k))localStorage.removeItem(k);}
+    }catch(e){}
+    if(v.phase==='start'){try{alert('财务（'+(v.by||'')+'）正在从备份恢复平台数据，请稍候。'+(pend?'\n\n你本机有 '+pend+' 项尚未同步的改动，已作废，恢复完成后请核对并重新录入。':'')+'\n\n页面将重新加载。');}catch(e){}}
+    try{(window.__reloadHook||function(){location.reload();})();}catch(e){}
+  },function(){});
+}
+window.bkRestoreListen=bkRestoreListen;
+
+const SYS_MINVER=DB_PREFIX+'img-ap/sys/minVersion';
+window.__versionStale=false;
+function verStaleGuard(){if(window.__versionStale)throw new Error('平台已更新到新版本，请刷新页面（F5）后再保存');}
+function verListen(){
+  if(!USE_CLOUD||!rtdb)return;
+  rtdb.ref(SYS_MINVER).on('value',function(s){
+    const mv=Number(s&&s.val()||0);
+    if(mv&&APP_VERSION<mv-1e-9){
+      window.__versionStale=true;
+      if(!document.getElementById('verBanner2')){const b=document.createElement('div');b.id='verBanner2';b.setAttribute('role','alert');
+        b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:4000;background:#B42318;color:#fff;padding:10px 16px;font-size:14px;text-align:center';
+        b.innerHTML='平台已更新到 v'+mv+'（你当前是 v'+APP_VERSION+'）。为保证数据一致，旧版本页面已禁止保存，请 <b>刷新页面（F5）</b>。 <button type="button" style="margin-left:10px;padding:3px 12px;border:0;border-radius:4px;cursor:pointer" onclick="(window.__reloadHook||function(){location.reload();})()">立即刷新</button>';
+        document.body.appendChild(b);}
+    }
+  },function(){});
+
+  try{if(session&&session.role==='finance'&&!(typeof _netSlow!=='undefined'&&_netSlow===true)){
+    rtdb.ref(SYS_MINVER).once('value').then(function(s){const mv=Number(s&&s.val()||0);if(APP_VERSION>mv+1e-9)return rtdb.ref(SYS_MINVER).set(APP_VERSION);}).catch(function(){});}}catch(e){}
+}
+window.verListen=verListen;window.verStaleGuard=verStaleGuard;
+window.saveSnapshot=function(l){return saveSnapshot(l);};window.v2Write=function(a,b,c){return v2Write(a,b,c);};window.appVersion=function(){return APP_VERSION;};
 
 function exportRows(){
   const list=filtered();
@@ -3875,7 +3981,7 @@ function bkStamp(){const d=new Date();const z=n=>String(n).padStart(2,'0');
 
 $('backupBtn').onclick=()=>{
   const cc=bkCounts();
-  $('bkInfo').innerHTML='当前平台数据：到账 <b>'+cc.ar+'</b> 笔 · 应付 <b>'+cc.ap+'</b> 张 · 订单 <b>'+cc.ord+'</b> 单 · 应收发票 <b>'+cc.ari+'</b> 张 · 客户 <b>'+cc.cli+'</b> / 供应商 <b>'+cc.sup+'</b> / 服务库 <b>'+cc.svc+'</b><br><span style="font-size:11.5px;color:var(--ink-soft)">备份含以上全部台账与基础资料；发票 PDF 附件存于云端不在备份文件内。</span>';
+  $('bkInfo').innerHTML='当前平台数据：'+esc(bkCountsText(bkCountsAll()));
   $('bkOverlay').classList.add('open');
   loadSnapshots();
 
@@ -3896,11 +4002,10 @@ function bkCounts(){
     cli:c(meta.clients),sup:c(meta.suppliers),svc:c(meta.svcLib)};
 }
 $('bkExport').onclick=()=>{
-  const cc=bkCounts();
-  const data={_meta:{app:'IMG Europe 业财一体化平台',version:APP_VERSION,scope:'full',
+  const cc=bkCountsAll();
+  const data=Object.assign({_meta:{app:'IMG Europe 业财一体化平台',version:APP_VERSION,scope:'full',
       exportedAt:new Date().toISOString(),exportedBy:session.name,
-      counts:cc},
-    payments:payments,apItems:apItems,ordItems:ordItems,ariItems:ariItems,meta:meta};
+      counts:cc,storeMode:STORE_MODE}},bkCollect());
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   a.download=fnT('IMG-Europe-全平台备份-')+bkStamp()+'.json';
@@ -3908,7 +4013,7 @@ $('bkExport').onclick=()=>{
   meta.lastBackup={at:Date.now(),by:session.name};
   metaSave().catch(function(){});
   baseBackupHintUpdate();
-  toast('全平台备份已下载（到账'+cc.ar+'·应付'+cc.ap+'·订单'+cc.ord+'·应收发票'+cc.ari+'·基础资料'+(cc.cli+cc.sup+cc.svc)+'）');
+  toast('全平台备份已下载（'+bkCountsText(cc)+'）');
 };
 
 $('bkFile').onchange=function(){
@@ -3919,26 +4024,15 @@ $('bkFile').onchange=function(){
     try{data=JSON.parse(rd.result);}catch(e){toast('文件格式错误，无法解析');this.value='';return;}
     const arr=Array.isArray(data)?data:data.payments;
     if(!Array.isArray(arr)){toast('不是有效的备份文件');this.value='';return;}
-    const cnt=a=>Array.isArray(a)?a.filter(x=>!x.deleted).length:null;
-    const parts=[];
-    parts.push('到账 '+cnt(arr)+' 笔');
-    if(Array.isArray(data.apItems))parts.push('应付 '+cnt(data.apItems)+' 张');
-    if(Array.isArray(data.ordItems))parts.push('订单 '+cnt(data.ordItems)+' 单');
-    if(Array.isArray(data.ariItems))parts.push('应收发票 '+cnt(data.ariItems)+' 张');
-    if(data.meta&&Array.isArray(data.meta.clients))parts.push('基础资料 '+((cnt(data.meta.clients)||0)+(cnt(data.meta.suppliers)||0)+(cnt(data.meta.svcLib)||0))+' 条');
-    if(!confirm('确认用此备份覆盖当前云端数据？\n\n备份内容：'+parts.join('、')+'\n此操作影响所有人。')){this.value='';return;}
+    const D=Array.isArray(data)?{payments:arr}:data;
+    const bc=bkCountsAll(D),cur=bkCountsAll();
+    const parts=[bkCountsText(bc)];
+    const miss=['bankItems','hrItems','expItems'].filter(k=>!Array.isArray(D[k]));
+    if(!confirm('确认用此备份覆盖当前云端数据？\n\n备份内容：'+bkCountsText(bc)+'\n当前云端：'+bkCountsText(cur)+(miss.length?'\n\n（此备份为旧格式，不含 '+miss.map(k=>({bankItems:'银行流水',hrItems:'人事',expItems:'员工报销'})[k]).join('、')+'，这些数据保持现状不动）':'')+'\n\n此操作影响所有人，其他同事的页面会自动重新加载。')){this.value='';return;}
     if(!confirm('⚠ 再次确认\n\n覆盖后当前云端数据将被替换（系统会先自动留一份恢复前快照兜底）。\n确定执行恢复吗？')){this.value='';return;}
     await saveSnapshot('恢复前自动快照');
-    payments=arr;
-    if(Array.isArray(data.apItems))apItems=data.apItems;
-    if(Array.isArray(data.ordItems)){ordItems=data.ordItems;ordItems.forEach(ordMigrate);}
-    if(Array.isArray(data.ariItems))ariItems=data.ariItems;
-    if(data.meta&&typeof data.meta==='object'&&Array.isArray(data.meta.clients)){
-      meta=Object.assign({clients:[],suppliers:[],svcLib:[]},data.meta);
-      svcLibEnsure(meta);
-    }
     try{
-      await bkForceWriteAll();
+      await bkApplyAll(D);
       toast('已从备份恢复：'+parts.join('、'));
       $('bkOverlay').classList.remove('open');
     }catch(e){toast('恢复写入失败：'+(e.message||''));}
@@ -3948,39 +4042,28 @@ $('bkFile').onchange=function(){
 };
 
 async function bkForceWriteAll(){
-
-  const stamp={_at:Date.now(),_by:(session&&session.name)||'',_client:CLOUD_CLIENT_ID};
-  await store.set(KEY_DATA,JSON.stringify(payments));
-  await store.set(AP_KEY,JSON.stringify(apItems));
-  await store.set(ORD_KEY,JSON.stringify(ordItems));
-  await store.set(ARI_KEY,JSON.stringify(ariItems));
-  await store.set(META_KEY,JSON.stringify(meta));
-  if(USE_CLOUD&&rtdb){
-    await rtdb.ref(DB_PREFIX+'img-ar/state').set(Object.assign({json:JSON.stringify(payments)},stamp));
-    await rtdb.ref(AP_PATH).set(Object.assign({json:JSON.stringify(apItems)},stamp));
-    await rtdb.ref(ORD_PATH).set(Object.assign({json:JSON.stringify(ordItems)},stamp));
-    await rtdb.ref(ARI_PATH).set(Object.assign({json:JSON.stringify(ariItems)},stamp));
-    await rtdb.ref(META_PATH).set(Object.assign({json:JSON.stringify(meta)},stamp));
-  }
-  render();renderAP();
-  if(typeof renderORD==='function'&&$('ordView').style.display!=='none')renderORD();
-  if(typeof renderARI==='function'&&$('arInvPane').style.display!=='none')renderARI();
-  apAlertUpdate();if(typeof ariAlertUpdate==='function')ariAlertUpdate();
-  if(typeof ordAlertUpdate==='function')ordAlertUpdate();
+  await bkApplyAll(bkCollect());
 }
 async function saveSnapshot(label){
   if(!USE_CLOUD||!rtdb)return false;
   try{
-    await rtdb.ref(SNAP_PATH+'/'+bkStamp().replace(/-/g,'_')+'_'+String(Date.now()).slice(-5)).set({
+    const D=bkCollect();const cc=bkCountsAll(D);const key=bkStamp().replace(/-/g,'_')+'_'+String(Date.now()).slice(-5);
+    const rec={
       json:JSON.stringify(payments),
       ap:JSON.stringify(apItems),
       ord:JSON.stringify(ordItems),
       ari:JSON.stringify(ariItems),
       meta:JSON.stringify(meta),
       scope:'full',
-      counts:{pay:payments.filter(x=>!x.deleted).length,ap:apItems.filter(x=>!x.deleted).length,ord:ordItems.filter(x=>!x.deleted).length,ari:ariItems.filter(x=>!x.deleted).length},
+      counts:{pay:cc.ar||0,ap:cc.ap||0,ord:cc.ord||0,ari:cc.ari||0,bank:cc.bank,hr:cc.hr,exp:cc.exp},
       at:Date.now(),by:(session&&session.name)||'',label:label||'每日快照'
-    });
+    };
+    if(Array.isArray(D.bankItems))rec.bank=JSON.stringify(D.bankItems);
+    if(Array.isArray(D.hrItems))rec.hr=JSON.stringify(D.hrItems);
+    if(D.hrCfg)rec.hrCfg=JSON.stringify(D.hrCfg);
+    if(Array.isArray(D.expItems))rec.exp=JSON.stringify(D.expItems);
+    await rtdb.ref(SNAP_PATH+'/'+key).set(rec);
+    try{await rtdb.ref(SNAP_PATH+'_index/'+key).set({at:rec.at,by:rec.by,label:rec.label,counts:rec.counts,scope:'full',v:APP_VERSION});}catch(e){}
     _snapLast=Date.now();
     return true;
   }catch(e){return false;}
@@ -3990,8 +4073,9 @@ async function loadSnapshots(){
   if(!USE_CLOUD||!rtdb){box.textContent='当前未连接云端，无自动快照。';return;}
   box.textContent='读取中…';
   try{
-    const snap=await rtdb.ref(SNAP_PATH).once('value');
-    const all=snap.val()||{};
+
+    let all=(await rtdb.ref(SNAP_PATH+'_index').once('value')).val()||{};
+    if(Object.keys(all).length<1){const full=(await rtdb.ref(SNAP_PATH).once('value')).val()||{};all={};for(const k in full){const v=full[k]||{};all[k]={at:v.at,by:v.by,label:v.label,counts:v.counts,scope:v.scope,json:v.json,ap:v.ap,ord:v.ord,ari:v.ari,meta:v.meta};try{rtdb.ref(SNAP_PATH+'_index/'+k).set({at:v.at||0,by:v.by||'',label:v.label||'',counts:v.counts||null,scope:v.scope||''});}catch(e){}}}
     const keys=Object.keys(all).sort().reverse().slice(0,SNAP_KEEP);
 
     {
@@ -4016,7 +4100,7 @@ async function loadSnapshots(){
       const full=s.scope==='full';
       const C0=s.counts||null;
       const desc=full
-        ?('到账'+(C0?C0.pay:cnt(s.json))+'·应付'+(C0?C0.ap:cnt(s.ap))+'·订单'+(C0?C0.ord:cnt(s.ord))+'·发票'+(C0?C0.ari:cnt(s.ari)))
+        ?('到账'+(C0?C0.pay:cnt(s.json))+'·应付'+(C0?C0.ap:cnt(s.ap))+'·订单'+(C0?C0.ord:cnt(s.ord))+'·发票'+(C0?C0.ari:cnt(s.ari))+(C0&&C0.bank!=null?'·银行'+C0.bank:'')+(C0&&C0.hr!=null?'·人事'+C0.hr:'')+(C0&&C0.exp!=null?'·报销'+C0.exp:''))
         :(cnt(s.json)+' 笔（旧版·仅到账）');
       const row=document.createElement('div');
       row.style.cssText='display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid #EEF2F1;font-size:12.5px';
@@ -4026,16 +4110,21 @@ async function loadSnapshots(){
       b.onclick=async()=>{
         if(!confirm('确认回滚到 '+new Date(s.at).toLocaleString('zh-CN')+' 的快照？\n（'+desc+'）\n此操作影响所有人。'))return;
         if(!confirm('⚠ 再次确认\n\n回滚将用快照内容覆盖当前云端数据（系统会先自动留一份回滚前快照兜底）。\n确定回滚吗？'))return;
-        await saveSnapshot('回滚前自动快照');
-        try{payments=JSON.parse(s.json||'[]');}catch(e){toast('快照数据损坏');return;}
+        const S=(typeof s.json==='string')?s:await bkSnapFetch(k);if(!S){toast('读取快照失败');return;}
+        const D={};try{D.payments=JSON.parse(S.json||'[]');}catch(e){toast('快照数据损坏');return;}
         if(full){
-          try{apItems=JSON.parse(s.ap||'[]');}catch(e){}
-          try{ordItems=JSON.parse(s.ord||'[]');ordItems.forEach(ordMigrate);}catch(e){}
-          try{ariItems=JSON.parse(s.ari||'[]');}catch(e){}
-          try{const m2=JSON.parse(s.meta||'null');if(m2&&Array.isArray(m2.clients)){meta=Object.assign({clients:[],suppliers:[],svcLib:[]},m2);svcLibEnsure(meta);}}catch(e){}
+          try{D.apItems=JSON.parse(S.ap||'[]');}catch(e){}
+          try{D.ordItems=JSON.parse(S.ord||'[]');}catch(e){}
+          try{D.ariItems=JSON.parse(S.ari||'[]');}catch(e){}
+          try{const m2=JSON.parse(S.meta||'null');if(m2&&Array.isArray(m2.clients))D.meta=m2;}catch(e){}
+          try{if(S.bank)D.bankItems=JSON.parse(S.bank);}catch(e){}
+          try{if(S.hr)D.hrItems=JSON.parse(S.hr);}catch(e){}
+          try{if(S.hrCfg)D.hrCfg=JSON.parse(S.hrCfg);}catch(e){}
+          try{if(S.exp)D.expItems=JSON.parse(S.exp);}catch(e){}
         }
+        await saveSnapshot('回滚前自动快照');
         try{
-          await bkForceWriteAll();
+          await bkApplyAll(D);
           toast(full?'已回滚全平台数据到该快照':'已回滚应收到账（该快照为旧版，其他板块未变）');
           $('bkOverlay').classList.remove('open');
         }catch(e){toast('回滚写入失败：'+(e.message||''));}
@@ -4045,6 +4134,7 @@ async function loadSnapshots(){
     }
   }catch(e){box.textContent='读取快照失败：'+(e.message||'');}
 }
+async function bkSnapFetch(k){try{return (await _withTimeout(rtdb.ref(SNAP_PATH+'/'+k).once('value'),60000,'读取快照')).val();}catch(e){return null;}}
 
 let _snapBusy=false;
 async function autoDailySnapshot(){
@@ -4067,9 +4157,11 @@ async function _autoDailySnapshotInner(){
         if(pk[0].startsWith(today))return;
       }
     }catch(e){}
-    const snap=await rtdb.ref(SNAP_PATH).once('value');
-    const all=snap.val()||{};
+    if(typeof _netSlow!=='undefined'&&_netSlow===true)return;
 
+    const all=(await rtdb.ref(SNAP_PATH+'_index').once('value')).val()||{};
+    const legacy=Object.keys(all).length?null:((await rtdb.ref(SNAP_PATH).once('value')).val()||{});
+    if(legacy){for(const k in legacy)all[k]={at:(legacy[k]||{}).at||0};}
     _snapLast=Math.max(0,...Object.values(all).map(v=>Number((v||{}).at)||0));
     const hasToday=Object.keys(all).some(k=>k.startsWith(today));
     if(!hasToday)await saveSnapshot('每日自动快照');
@@ -4082,7 +4174,7 @@ async function _autoDailySnapshotInner(){
     for(const k of keys){const at=Number((all[k]||{}).at)||0;if(at&&at<cutoff)doomed.add(k);}
 
     for(const k of keys.slice(-3))doomed.delete(k);
-    for(const k of doomed){try{await rtdb.ref(SNAP_PATH+'/'+k).remove();}catch(e){}}
+    for(const k of doomed){try{await rtdb.ref(SNAP_PATH+'/'+k).remove();}catch(e){}try{await rtdb.ref(SNAP_PATH+'_index/'+k).remove();}catch(e){}}
   }catch(e){}
 }
 
@@ -8247,6 +8339,7 @@ function v2DirtySave(path){try{localStorage.setItem('img-v2dirty-'+path,JSON.str
 function v2MarkDirty(path,items){const d=v2DirtyGet(path);const last=_v2Last[path]||{};let n=0;for(const r of (items||[])){const id=r&&r.id;if(!id)continue;if(last[id]!==v2Canon(r)){if(!d.has(id)){d.add(id);n++;}}}if(n)v2DirtySave(path);return n;}
 window.v2MarkDirty=v2MarkDirty;window.v2DirtyGet=v2DirtyGet;
 async function v2Write(path,items,label){
+  verStaleGuard();
   const last=_v2Last[path]||(_v2Last[path]={});const upd={};let n=0;
   const SV=(window.firebase&&firebase.database&&firebase.database.ServerValue)?firebase.database.ServerValue.TIMESTAMP:Date.now();
   const dirty=v2DirtyGet(path);
@@ -10947,7 +11040,7 @@ function ariMerge(remote){
   }
 }
 
-function cloudTxWrite(path,mergeFn,buildJson){
+function cloudTxWrite(path,mergeFn,buildJson){  if(window.__versionStale)return Promise.reject(new Error('平台已更新到新版本，请刷新页面（F5）后再保存'));
   return new Promise(function(resolve){
     if(!USE_CLOUD||!rtdb)return resolve(false);
     let done=false;
