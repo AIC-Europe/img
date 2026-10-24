@@ -1020,7 +1020,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v37.3</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v37.4</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1674,7 +1674,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=37.3;
+const APP_VERSION=37.4;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -4216,7 +4216,7 @@ function apStampUp(){
     if(_apUpSnap&&_apUpSnap.get(it.id)!==j)it.up=now;}
   _apUpSnap=snap;
 }
-window.apItemsGet=function(){return apItems;};
+window.apItemsGet=function(){return apItems;};window.apState=function(x){return apState(x);};
 async function apSave(){
   rcBigInvalidate();
   try{apStampUp();}catch(e){}
@@ -5962,6 +5962,8 @@ function healthCalc(){
   add('stubDated','待开票存根带日期或金额',ariItems.filter(function(x){return !x.deleted&&!x.invNo&&!x.storno&&!x.cancelledBy&&(x.invDate||(Number(x.gross)||0)||(Number(x.net)||0));}).length,'warn','存根应无日期与金额；请核对是否漏填发票号（报表已排除存根）','ari');
 
   try{const m={};for(const o of ordItems){if(o.deleted||!o.orderNo)continue;(m[o.orderNo]=m[o.orderNo]||[]).push(o);}const dups=Object.keys(m).filter(k=>m[k].length>1);add('ordDupNo','成单号重复',dups.length,'bad',dups.length?('重复：'+dups.slice(0,5).join('、')+'。请在订单详情「编辑」改号或删除其中一张；慢链路端新建前先刷新'):'','ord');}catch(e){}
+
+  try{const I=window.__bankAllocIssues||[];add('bankAllocGap','银行流水分配不平（需手工核对）',I.length,'bad',I.length?I.slice(0,5).map(function(t){return t.date+' '+(t.cpName||'')+' '+fmt(Math.abs(t.amount));}).join('；'):'','bank');}catch(e){}
 
   try{const E=(typeof errlogItems==='function')?errlogItems():[];const byUser={};for(const r of E){byUser[r.by||'?']=(byUser[r.by||'?']||0)+1;}const top=E.slice(0,5).map(function(r){return (r.by||'?')+' '+new Date(r.t).toLocaleTimeString().slice(0,5)+' '+(r.kind||'')+'：'+String(r.msg||'').slice(0,60);});
     add('errlog24','客户端错误（近 24 小时）',E.length,E.length>=10?'bad':'warn',E.length?(Object.keys(byUser).map(function(u){return u+' '+byUser[u];}).join('、')+'\n'+top.join('\n')):'','');}catch(e){}
@@ -13286,7 +13288,37 @@ async function bankSave(){
     bankAlertUpdate();return true;
   }catch(e){console.error('bankSave:',e);throw e;}
 }
+
+function bankAllocRepairOne(tx){
+  const m=tx&&tx.match;if(!m||tx.status!=='confirmed'||!(m.kind==='ap'||m.kind==='ops')||!(m.refs||[]).length)return {ok:false,why:'skip'};
+  const r2=function(v){return Math.round(v*100)/100;};
+  const its=m.refs.map(r=>apItems.find(x=>x.id===r.id&&!x.deleted)).filter(Boolean);if(!its.length)return {ok:false,why:'skip'};
+  const mine=function(it){return (it.payments||[]).filter(p=>p.bankTx===tx.id).reduce((a,p)=>a+(Number(p.amount)||0),0);};
+  const before=its.map(it=>({id:it.id,no:it.invNo,open:r2((Number(it.amount)||0)-apPaidSum(it)+mine(it))}));
+  const al=bankAllocate(before,tx.amount);
+  const deltas=[];let bad=false;
+  for(const r of al.refs){const it=its.find(x=>x.id===r.id);const want=r.linkOnly||r.unalloc?0:r.amount;const d=r2(want-mine(it));if(Math.abs(d)<=0.005)continue;if((want>=0&&d<0)||(want<0&&d>0)){bad=true;break;}deltas.push({it:it,d:d,credit:!!r.credit});}
+  if(!deltas.length)return {ok:true,changed:0};
+  const nowTotal=its.reduce((a,it)=>a+mine(it),0)+deltas.reduce((a,x)=>a+x.d,0);
+  if(bad||al.unalloc||Math.abs(r2(nowTotal)-r2(Math.abs(tx.amount)))>0.011)return {ok:false,why:'gap',tx:tx};
+  for(const x of deltas){(x.it.payments=x.it.payments||[]).push({amount:x.d,date:tx.date,by:'系统',note:'银行流水 '+tx.txNo+(x.credit?'（贷记单冲抵，v37.4 修复）':'（补登，v37.4 修复）'),time:Date.now(),bankTx:tx.id,bankTxNo:tx.txNo});
+    (x.it.comments=x.it.comments||[]).push({author:'系统',role:'finance',text:'银行流水 '+tx.txNo+' 的分配修正：'+(x.credit?'贷记单冲抵 ':'补登付款 ')+fmt(x.d)+'（原分配未计贷记单，v37.4）',time:Date.now()});x.it.up=Date.now();}
+  for(const r of al.refs){const mr=m.refs.find(x=>x.id===r.id);if(mr){mr.linkOnly=!!r.linkOnly;mr.unalloc=!!r.unalloc;mr.credit=!!r.credit;mr.amount=r.amount;}}
+  m.repaired='v37.4';tx.up=Date.now();
+  return {ok:true,changed:deltas.length};
+}
+var _bankRepairDone=false;
+async function bankAllocRepairAll(){
+  if(!canBank()||!Array.isArray(bankItems)||typeof apItems==='undefined')return {changed:0,issues:[]};
+  let changed=0;const issues=[];
+  for(const tx of bankItems){const r=bankAllocRepairOne(tx);if(r.ok&&r.changed)changed+=r.changed;else if(!r.ok&&r.why==='gap')issues.push(tx);}
+  window.__bankAllocIssues=issues;
+  if(changed){try{await apSave();}catch(e){}try{await bankSave();}catch(e){}try{toast('已修正 '+changed+' 张含贷记单的银行付款分配（详见发票备注）');}catch(e){}}
+  return {changed:changed,issues:issues};
+}
+window.bankAllocRepairOne=bankAllocRepairOne;window.bankAllocRepairAll=bankAllocRepairAll;
 function bankApplyRemote(s){
+  try{if(!_bankRepairDone&&canBank()){_bankRepairDone=true;setTimeout(function(){bankAllocRepairAll().catch(function(){});},3000);}}catch(e){}
   try{bankItems=keepUnsavedLocal(bankItems,JSON.parse(s.json||'[]'),s._at,'银行');store.set(BANK_KEY,JSON.stringify(bankItems));}catch(e){}
   if(session){try{if(document.body.dataset.mod==='bank')renderBANK();}catch(e){}bankAlertUpdate();}
 }
@@ -13336,6 +13368,22 @@ window.bankImportParsed=bankImportParsed;window.bankParseRows=bankParseRows;
 
 const BANK_ACCT_AR='应收账款',BANK_ACCT_AP='应付账款',BANK_ACCT_FEE='财务费用';
 
+function bankAllocate(items,total){
+  const r2=function(v){return Math.round(v*100)/100;};
+  let rest=r2(Math.abs(total));const refs=[];const credits=[],pos=[];
+  for(const it of items){if(it.open<-0.005)credits.push(it);else pos.push(it);}
+  for(const it of credits){refs.push(Object.assign({},it.extra||{},{id:it.id,no:it.no,amount:r2(it.open),credit:true}));rest=r2(rest-it.open);}
+  for(const it of pos){
+    if(it.open<=0.005){refs.push(Object.assign({},it.extra||{},{id:it.id,no:it.no,amount:0,linkOnly:true}));continue;}
+    const a=r2(Math.min(it.open,rest));
+    if(a<=0.005){refs.push(Object.assign({},it.extra||{},{id:it.id,no:it.no,amount:0,unalloc:true}));continue;}
+    refs.push(Object.assign({},it.extra||{},{id:it.id,no:it.no,amount:a,partial:a<it.open-0.005}));rest=r2(rest-a);
+  }
+  return {refs:refs,gap:rest,unalloc:refs.filter(function(x){return x.unalloc;}).length,credits:credits.length};
+}
+window.bankAllocate=bankAllocate;
+function bankGapMsg(al,tx){const r2=function(v){return Math.round(v*100)/100;};let s='所选发票与流水金额不一致：';if(al.unalloc)s+='\n· '+al.unalloc+' 张正数发票分不到金额（流水不够付）';if(al.gap>0.005)s+='\n· 流水多出 '+fmt(r2(al.gap))+'（发票净额不足）';if(al.credits)s+='\n（已含 '+al.credits+' 张贷记单冲抵）';return s+'\n\n仍按此确认？未分到金额的发票保持待付/待收，不会被标成已付清。';}
+window.bankGapMsg=bankGapMsg;
 function bankNamesOf(cust){const c=(meta.clients||[]).find(function(x){return x.name===cust;});return c&&c.bankNames?String(c.bankNames).split('/').map(function(x){return x.trim();}).filter(Boolean):[];}
 function bankPayerIsCustomer(payer,cust){if(!payer||!cust)return false;const a=bankNorm(payer),b=bankNorm(cust);if(!a||!b)return false;if(a===b||a.includes(b)||b.includes(a))return true;return bankNamesOf(cust).some(function(n){const k=bankNorm(n);return k&&(k===a||a.includes(k)||k.includes(a));});}
 function bankPayerCustomers(payer){const a=bankNorm(payer);if(!a||a.length<4)return [];return (meta.clients||[]).filter(function(c){return bankNamesOf(c.name).some(function(n){const k=bankNorm(n);return k&&(k===a||a.includes(k)||k.includes(a));});}).map(function(c){return c.name;});}
@@ -13425,8 +13473,13 @@ async function bankConfirm(tx){
     const refNos=new Set(m.refs.map(r=>String(r.no)));
     for(const p of payments){if(p.deleted||p.bankTx)continue;const byLink=(p.linkIds||[]).some(id=>ids.has(id))||(p.alloc||[]).some(a=>ids.has(a.invId));const byRef=String(p.ref||'').split(/[^0-9A-Za-z_-]+/).some(t=>refNos.has(t))&&bankNorm(p.customer)===bankNorm(m.payee);if(byLink||byRef){p.bankTx=tx.id;p.bankTxNo=tx.txNo;p.up=Date.now();linked++;}}
 
-    const alloc=[];let rest=Math.round(tx.amount*100)/100;
-    for(const r of m.refs){const x=ariItems.find(i=>i.id===r.id);if(!x)continue;const open=Math.round(((Number(x.gross)||0)-ariPaid(x))*100)/100;const a=Math.round(Math.min(open,rest)*100)/100;if(a<=0.005)continue;alloc.push({invId:x.id,invNo:x.invNo,amount:a});rest=Math.round((rest-a)*100)/100;}
+    const alloc=[];
+    {
+      const xs=m.refs.map(r=>ariItems.find(i=>i.id===r.id)).filter(Boolean);
+      const al=bankAllocate(xs.map(x=>({id:x.id,no:x.invNo,open:Math.round(((Number(x.gross)||0)-ariPaid(x))*100)/100})),tx.amount);
+      for(const r of al.refs){if(r.linkOnly||r.unalloc)continue;alloc.push({invId:r.id,invNo:r.no,amount:r.amount});}
+      for(const r of al.refs){const mr=m.refs.find(x=>x.id===r.id);if(mr){mr.linkOnly=!!r.linkOnly;mr.unalloc=!!r.unalloc;mr.credit=!!r.credit;}}
+    }
     const amt=Math.round(alloc.reduce((s2,a)=>s2+a.amount,0)*100)/100;
     if(amt>0.005){
       const own=(function(){try{const x=ariItems.find(i=>i.id===alloc[0].invId);return (typeof ariOwnerOf==='function')?ariOwnerOf(x):'';}catch(e){return '';}})();
@@ -13442,14 +13495,17 @@ async function bankConfirm(tx){
     await savePayments();
   }else if((m.kind==='ap'||m.kind==='ops')&&m.refs.length){
     let linked=0,created=0;
-    for(const r of m.refs){const it=apItems.find(x=>x.id===r.id);if(!it)continue;
 
-      const open=Math.round(((Number(it.amount)||0)-apPaidSum(it))*100)/100;
-      if(r.linkOnly||open<=0.005){
-        const ps=(it.payments||[]).filter(p=>!p.bankTx);if(ps.length){ps.sort((a,b)=>Math.abs(new Date(a.date||0)-new Date(tx.date))-Math.abs(new Date(b.date||0)-new Date(tx.date)));ps[0].bankTx=tx.id;ps[0].bankTxNo=tx.txNo;linked++;}
-      }else{const a=Math.round(Math.min(open,r.amount||open)*100)/100;(it.payments=it.payments||[]).push({amount:a,date:tx.date,by:session.name,note:'银行流水 '+tx.txNo,time:Date.now(),bankTx:tx.id,bankTxNo:tx.txNo});created+=a;}
+    const its=m.refs.map(r=>apItems.find(x=>x.id===r.id)).filter(Boolean);
+    const al=bankAllocate(its.map(it=>({id:it.id,no:it.invNo,open:Math.round(((Number(it.amount)||0)-apPaidSum(it))*100)/100})),tx.amount);
+    let unalloc=0;
+    for(const r of al.refs){const it=apItems.find(x=>x.id===r.id);if(!it)continue;
+      if(r.linkOnly){const ps=(it.payments||[]).filter(p=>!p.bankTx);if(ps.length){ps.sort((a,b)=>Math.abs(new Date(a.date||0)-new Date(tx.date))-Math.abs(new Date(b.date||0)-new Date(tx.date)));ps[0].bankTx=tx.id;ps[0].bankTxNo=tx.txNo;linked++;}}
+      else if(r.unalloc){unalloc++;continue;}
+      else{(it.payments=it.payments||[]).push({amount:r.amount,date:tx.date,by:session.name,note:'银行流水 '+tx.txNo+(r.credit?'（贷记单冲抵）':''),time:Date.now(),bankTx:tx.id,bankTxNo:tx.txNo});created+=r.amount;}
       it.up=Date.now();}
-    m.applied={linked:linked,created:Math.round(created*100)/100,linkOnly:created<=0.005};
+    for(const r of al.refs){const mr=m.refs.find(x=>x.id===r.id);if(mr){mr.linkOnly=!!r.linkOnly;mr.unalloc=!!r.unalloc;mr.credit=!!r.credit;mr.amount=r.amount;}}
+    m.applied={linked:linked,created:Math.round(created*100)/100,linkOnly:Math.abs(created)<=0.005,unalloc:unalloc,gap:al.gap};
     await apSave();
   }
   tx.status='confirmed';tx.match.confirmedBy=session.name;tx.match.confirmedAt=Date.now();tx.up=Date.now();
@@ -13552,11 +13608,13 @@ function bankEditOpen(tx){
     if(nos.length){
       let found=0,linked=0;
       if(isIn){const c=ariItems.filter(x=>!x.deleted&&x.invNo&&nos.some(n=>bankNorm(n)===bankNorm(x.invNo)||bankNorm(n)===bankNorm(x.orderNo)));found=c.length;
-        let rest=tx.amount;for(const x of c){const open=Math.round(((Number(x.gross)||0)-ariPaid(x))*100)/100;const a=Math.round(Math.min(open,rest)*100)/100;if(a<=0){refs.push({id:x.id,no:x.invNo,amount:0,linkOnly:true});linked++;continue;}refs.push({id:x.id,no:x.invNo,amount:a});rest=Math.round((rest-a)*100)/100;}kind='ar';}
+        const al=bankAllocate(c.map(x=>({id:x.id,no:x.invNo,open:Math.round(((Number(x.gross)||0)-ariPaid(x))*100)/100})),tx.amount);refs=al.refs;linked=refs.filter(r=>r.linkOnly).length;kind='ar';
+        if((al.unalloc||Math.abs(al.gap)>0.005)&&!confirm(bankGapMsg(al,tx)))return;}
       else{const c=apItems.filter(x=>!x.deleted&&x.invNo&&nos.some(n=>bankNorm(n)===bankNorm(x.invNo)));found=c.length;
-        let rest=-tx.amount;for(const x of c){const open=Math.round(((Number(x.amount)||0)-apPaidSum(x))*100)/100;const a=Math.round(Math.min(open,rest)*100)/100;if(a<=0){refs.push({id:x.id,no:x.invNo,ord:x.orderNo||'',amount:0,linkOnly:true});linked++;continue;}refs.push({id:x.id,no:x.invNo,ord:x.orderNo||'',amount:a});rest=Math.round((rest-a)*100)/100;}kind=c.some(x=>x.kind==='ops')?'ops':'ap';}
+        const al=bankAllocate(c.map(x=>({id:x.id,no:x.invNo,open:Math.round(((Number(x.amount)||0)-apPaidSum(x))*100)/100,extra:{ord:x.orderNo||''}})),tx.amount);refs=al.refs;linked=refs.filter(r=>r.linkOnly).length;kind=c.some(x=>x.kind==='ops')?'ops':'ap';
+        if((al.unalloc||Math.abs(al.gap)>0.005)&&!confirm(bankGapMsg(al,tx)))return;}
       if(!found){toast('平台未录入这些发票号：'+nos.join(' ')+'——请先在应收/应付录入');return;}
-      if(linked)toast(linked+' 张已付清/已收讫，确认时仅关联流水号、不再重复记账');
+      if(linked)toast(linked+' 张之前已付清/已收讫，确认时仅关联流水号、不再重复记账');
     }
     await bankSetManual(tx,{kind:kind,acct:acct,summary:sum||(payee+(isIn?'业务款':'')),payee:payee,refs:refs,linkOnly:refs.length>0&&refs.every(r=>r.linkOnly)});
     if(card.querySelector('#bkRule').checked&&tx.cpName){meta.bankRules=bankRules().slice();meta.bankRules.push({kw:tx.cpName,acct:acct,summary:sum.replace(/\d{1,2}月/,'{月}月')||'',payee:payee,by:session.name,at:Date.now()});try{await metaSave();}catch(e){}}
@@ -13679,8 +13737,8 @@ function bankSanit(x){return String(x||'').replace(/[\/\\:*?"<>|]/g,'_').replace
 function bankRefCellHtml(tx){
   const inv=bankRefInvoices(tx);
   if(!inv.length){const m=tx.match||{};return m.kind==='rule'?'规则：'+esc(m.rule||''):'';}
-  const lo=(tx.match&&tx.match.refs||[]).filter(r=>r.linkOnly).map(r=>r.no);
-  return inv.map((v,i)=>'<span style="white-space:nowrap">'+esc(v.no)+(lo.includes(v.no)?' <span style="font-size:10px;color:var(--ok)" title="该发票已登记付款/到账，确认时只挂流水号">已付清·仅关联</span>':'')+(v.files.length?' <button type="button" class="btn-sm bk-prev" data-id="'+tx.id+'" data-i="'+i+'" title="预览附件（'+v.files.length+'）" style="padding:0 5px;font-size:10.5px">📎'+v.files.length+'</button>':' <span style="color:var(--muted);font-size:10.5px" title="该发票在平台上没有附件">缺附件</span>')+'</span>').join(' ');
+  const RF=(tx.match&&tx.match.refs||[]);const lo=RF.filter(r=>r.linkOnly).map(r=>r.no);const ua=RF.filter(r=>r.unalloc).map(r=>r.no);const cr=RF.filter(r=>r.credit).map(r=>r.no);
+  return inv.map((v,i)=>'<span style="white-space:nowrap">'+esc(v.no)+(lo.includes(v.no)?' <span style="font-size:10px;color:var(--ok)" title="该发票在本流水之前已登记付款/到账，确认时只挂流水号">之前已付清·仅关联</span>':'')+(ua.includes(v.no)?' <span style="font-size:10px;color:var(--bad)" title="流水金额不够分配到这张发票，发票保持未付">未分配</span>':'')+(cr.includes(v.no)?' <span style="font-size:10px;color:var(--info)" title="贷记单，已在本流水中冲抵">贷记单冲抵</span>':'')+(v.files.length?' <button type="button" class="btn-sm bk-prev" data-id="'+tx.id+'" data-i="'+i+'" title="预览附件（'+v.files.length+'）" style="padding:0 5px;font-size:10.5px">📎'+v.files.length+'</button>':' <span style="color:var(--muted);font-size:10.5px" title="该发票在平台上没有附件">缺附件</span>')+'</span>').join(' ');
 }
 async function bankPreview(tx,i,cell){
   const inv=bankRefInvoices(tx)[i];if(!inv||!inv.files.length)return;
