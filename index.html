@@ -1020,7 +1020,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v38.1</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v38.6</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1674,7 +1674,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=38.1;
+const APP_VERSION=38.6;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -5406,6 +5406,62 @@ html.ui2 .ui2-foot .user-chip{flex-basis:100%}
 html.ui2 .ui2-foot>.tag{font-size:11px!important;white-space:nowrap}
 html.ui2 #gsBtn{display:flex}
 }
+@media (min-width:1100px){
+html.ui2 :is(#ordBody,#ariBody,#apBody,#ledgerBody) tr.detail>td{position:fixed;top:0;right:0;bottom:0;width:min(780px,52vw);box-sizing:border-box;overflow-y:auto;background:var(--card);box-shadow:-12px 0 32px rgba(14,59,51,.18);z-index:44;padding:0 22px 24px;border:0}
+html.ui2 .ui2-dview{margin-right:min(780px,52vw)}
+html.ui2 tr.ui2-sel>td{background:#EAF2EF!important}
+html.ui2 tr.ui2-sel>td:first-child{box-shadow:inset 3px 0 0 var(--pine)}
+html.ui2 .ui2-dhead{display:flex!important}
+html.ui2 :is(#ordBody,#ariBody,#apBody,#ledgerBody) tr.detail>td{overflow-x:auto}
+html.ui2 :is(#ordBody,#ariBody,#apBody,#ledgerBody) tr.detail>td>.detail-grid{grid-template-columns:minmax(0,1fr)!important} /* 抽屉内单列：明细表拿到整幅宽度，备注排在下面 */
+}
+/* v38.4 录入表单改为右侧抽屉（新建/编辑订单、登记应收发票、登记进款、上传应付发票）：只改弹窗位置，内容与逻辑不变 */
+@media (min-width:1100px){
+html.ui2 :is(#ordEditOverlay,#ariOverlay,#payOverlay,#apUpOverlay){justify-content:flex-end;align-items:stretch;padding:0}
+html.ui2 :is(#ordEditOverlay,#ariOverlay,#payOverlay,#apUpOverlay)>.modal{max-width:min(640px,96vw)!important;width:min(640px,96vw);height:100vh;max-height:none;border-radius:0;overflow-y:auto;box-shadow:-12px 0 32px rgba(14,59,51,.2)}
+}
+/* v38.4 分析中心：把散在订单/应收工具栏里的 17 个分析按钮集中到一处；新界面下工具栏不再显示这些按钮（原按钮仍在 DOM，由分析中心调用） */
+html.ui2 :is(#ordMrBtn,#ordCaBtn,#ordSupBtn,#rcBtn,#ordStatsBtn,#laneBtn,#benchBtn,#ordInqSaBtn,#ariRcBigBtn,#gmBtn,#blBtn,#cpBtn,#tmBtn,#cashBtn,#agingBtn,#closeBtn,#ariArcBtn){display:none!important}
+#anaOvl{position:fixed;inset:0;background:rgba(14,30,26,.45);z-index:2900;display:flex;justify-content:center;align-items:flex-start;padding-top:8vh}
+#anaBox{width:min(860px,94vw);max-height:80vh;overflow-y:auto;background:var(--card);color:var(--ink);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.3);padding:20px 22px}
+#anaBox h2{margin:0 0 4px;font-size:18px}
+.ana-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:14px}
+.ana-grp{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.ana-grp h3{margin:0 0 6px;font-size:11.5px;letter-spacing:.08em;color:var(--ink-soft);font-weight:600}
+.ana-item{display:block;width:100%;text-align:left;background:none;border:0;border-radius:6px;padding:7px 8px;font:inherit;font-size:13.5px;color:var(--ink);cursor:pointer}
+.ana-item:hover,.ana-item:focus{background:var(--n-wash,#EEF3F1);outline:none}
+.ui2-wb{display:none}
+html.ui2 .ui2-wb{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin:4px 0 18px}
+.ui2-wb .wb-card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.ui2-wb .wb-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);font-weight:600}
+.ui2-wb .wb-h .wb-n{font-family:var(--font-num);font-size:12px;font-weight:600;border-radius:10px;padding:1px 8px;background:var(--warn-bg);color:var(--warn)}
+.ui2-wb .wb-h .wb-n.ok{background:var(--ok-bg);color:var(--ok)}.ui2-wb .wb-h .wb-n.bad{background:var(--bad-bg);color:var(--bad)}
+.ui2-wb .wb-h a{margin-left:auto;font-size:12px;font-weight:400;cursor:pointer;color:var(--pine-ink)}
+.ui2-wb .wb-r{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--n-soft,#F0F3F2);cursor:pointer;font-size:13px}
+.ui2-wb .wb-r:hover{background:var(--n-wash,#EEF3F1)}
+.ui2-wb .wb-r .d{font-family:var(--font-num);color:var(--ink-soft);width:46px;flex:0 0 46px}
+.ui2-wb .wb-r .m{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ui2-wb .wb-r .m small{display:block;color:var(--ink-soft);font-size:11.5px;overflow:hidden;text-overflow:ellipsis}
+.ui2-wb .wb-r .a{font-family:var(--font-num);text-align:right;white-space:nowrap}
+.ui2-wb .wb-empty{padding:12px 14px;color:var(--ink-soft);font-size:12.5px}
+.ui2-wb .wb-steps{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;padding:12px 14px}
+.ui2-wb .wb-step{border:1px solid var(--line);border-radius:8px;padding:8px;cursor:pointer}
+.ui2-wb .wb-step b{display:block;font-family:var(--font-num);font-size:18px}
+.ui2-wb .wb-step span{font-size:11px;color:var(--ink-soft)}
+/* v38.6 跟单看板：卡片标注「N 天未更新」（>7 天标红）；基础资料：分「主数据 / 系统设置」两段标题 */
+.kan-age{display:none}
+html.ui2 .kan-age{display:inline-block;margin-left:6px;font-size:10.5px;border-radius:8px;padding:0 6px;background:var(--n-wash,#EEF3F1);color:var(--ink-soft);font-family:var(--font-num)}
+html.ui2 .kan-age.stale{background:var(--bad-bg);color:var(--bad)}
+html.ui2 .kan-card{border-left-width:0;border-radius:8px;box-shadow:0 1px 2px rgba(14,59,51,.06)}
+.ui2-sec{display:none}
+html.ui2 .ui2-sec{display:block;grid-column:1/-1;font-size:12px;letter-spacing:.08em;color:var(--ink-soft);font-weight:600;margin:18px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+/* 详情里的小表格（报价明细、服务项等）在较窄的新版面/抽屉里不得裁字：v38.3 截图核对发现 VAT 列 19% 被裁成 9%（金额/税率显示错误风险） */
+html.ui2 tr.detail table td,html.ui2 tr.detail table th{overflow:visible!important;text-overflow:clip!important;white-space:nowrap}
+html.ui2 tr.detail table table{table-layout:auto!important}
+.ui2-dhead{display:none;position:sticky;top:0;z-index:2;align-items:center;gap:10px;background:var(--card);margin:0 -22px 12px;padding:14px 22px 10px;border-bottom:1px solid var(--line)}
+.ui2-dhead b{font-family:var(--font-num);font-size:17px}
+.ui2-dhead span{color:var(--ink-soft);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ui2-dhead button{margin-left:auto;background:none;border:0;color:var(--ink-soft);cursor:pointer;font:inherit;font-size:12px;padding:4px 6px}
 #gsBtn{display:none;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#B9CCC6;border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px;cursor:pointer;text-align:left}
 #gsBtn kbd{margin-left:auto;font-family:var(--font-num);font-size:11px;color:#8FA9A1;background:none;border:0}
 #gsOvl{position:fixed;inset:0;background:rgba(14,30,26,.45);z-index:3000;display:flex;justify-content:center;align-items:flex-start;padding-top:12vh}
@@ -5433,6 +5489,8 @@ function ui2Init(){
   if(nav){
     const grp=(label,beforeId)=>{const t=document.getElementById(beforeId);if(!t)return;const g=document.createElement('div');g.className='ui2-grp';g.textContent=label;nav.insertBefore(g,t);};
     grp('业务','tabORD');grp('财务','tabAR');grp('管理','tabHR');
+    const home=document.getElementById('tabHOME');
+    if(home&&!document.getElementById('tabANA')){const a=document.createElement('button');a.type='button';a.className='mod-btn ui2-only';a.id='tabANA';a.innerHTML='<svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg> 分析中心';a.onclick=function(){anaOpen();};home.parentNode.insertBefore(a,home.nextSibling);}
     const gs=document.createElement('button');gs.type='button';gs.id='gsBtn';gs.innerHTML='<svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><span>搜索</span><kbd>Ctrl K</kbd>';gs.title='搜索单号 / 发票 / 客户';
     gs.onclick=function(){gsOpen();};nav.parentNode.insertBefore(gs,nav);
   }
@@ -5441,8 +5499,165 @@ function ui2Init(){
   const ref=document.getElementById('refreshBtn');
   if(ref&&!document.getElementById('ui2Btn')){const b=document.createElement('button');b.type='button';b.className='link-btn';b.id='ui2Btn';b.onclick=ui2Toggle;ref.parentNode.insertBefore(b,ref);}
   document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&(e.key==='k'||e.key==='K')){if(typeof session==='undefined'||!session)return;e.preventDefault();gsOpen();}});
+  ui2DrawersInit();
+  if(typeof kanRender==='function'&&!kanRender.__ui2){const _k=kanRender;kanRender=function(){const r=_k.apply(this,arguments);ui2KanDecorate();return r;};kanRender.__ui2=true;}
+  if(typeof renderBASE==='function'&&!renderBASE.__ui2){const _b=renderBASE;renderBASE=function(){const r=_b.apply(this,arguments);ui2BaseSections();return r;};renderBASE.__ui2=true;}
+  if(typeof homeRender==='function'&&!homeRender.__ui2){const _orig=homeRender;homeRender=function(){const r=_orig.apply(this,arguments);try{wbRender();}catch(e){}return r;};homeRender.__ui2=true;}
   ui2Apply();
 }
+
+const UI2_DRAWERS=[
+  {body:'ordBody',open:()=>ordOpenId,close:()=>{ordOpenId=null;renderORD();},head:()=>{const o=ordItems.find(x=>x.id===ordOpenId);return o?[o.orderNo||o.inqNo||'',(o.customer||'')+(o.owner?' · '+o.owner:'')]:['',''];},cls:'ord-drawer'},
+  {body:'ariBody',open:()=>ariOpenId,close:()=>{ariOpenId=null;renderARI();},head:()=>{const x=ariItems.find(i=>i.id===ariOpenId);return x?[x.invNo||'（待开票）',(x.customer||'')+' · '+fmt(Number(x.gross)||0)+' '+(x.currency||'EUR')]:['',''];}},
+  {body:'apBody',open:()=>apOpenId,close:()=>{apOpenId=null;renderAP();},head:()=>{const x=apItems.find(i=>i.id===apOpenId);return x?[x.invNo||'（待录入）',(x.supplier||'')+' · '+fmt(Number(x.amount)||0)+' '+(x.currency||'EUR')]:['',''];}},
+  {body:'ledgerBody',open:()=>openDetailId,close:()=>{openDetailId=null;render();},head:()=>{const p=payments.find(i=>i.id===openDetailId);return p?[p.date||'',(p.customer||'')+' · '+fmt(Number(p.amount)||0)+' '+(p.currency||'EUR')]:['',''];}}
+];
+function ui2DrawerSync(cfg){
+  const body=document.getElementById(cfg.body);if(!body)return;
+  const det=body.querySelector('tr.detail');const view=body.closest('[id$="View"]')||body.closest('.ledger');
+  const was=!!(view&&view.classList.contains('ui2-dview'));
+  if(view)view.classList.toggle('ui2-dview',!!det);
+  if(cfg.cls)document.documentElement.classList.toggle(cfg.cls,!!det);
+  body.querySelectorAll('tr.ui2-sel').forEach(function(r){r.classList.remove('ui2-sel');});
+  if(det){
+    const row=det.previousElementSibling;if(row)row.classList.add('ui2-sel');
+    const td=det.firstElementChild;
+    if(td&&!td.querySelector('.ui2-dhead')){
+      let hh=['',''];try{hh=cfg.head();}catch(e){}
+      const h=document.createElement('div');h.className='ui2-dhead';
+      h.innerHTML='<b>'+esc(hh[0])+'</b><span>'+esc(hh[1])+'</span><button type="button" title="Esc">关闭 ✕</button>';
+      h.querySelector('button').onclick=function(e){e.stopPropagation();ui2DrawerClose(cfg);};
+      td.insertBefore(h,td.firstChild);
+    }
+  }
+  if(was!==!!det)setTimeout(function(){try{stickyAll();}catch(e){}},60);
+}
+function ui2DrawerClose(cfg){
+  try{
+    if(!cfg.open())return;
+    if(typeof _editDirty!=='undefined'&&_editDirty&&!confirm('详情里有尚未提交的输入，确定关闭吗？'))return;
+    if(typeof editClearDirty==='function')editClearDirty();cfg.close();
+  }catch(e){}
+}
+function ui2DrawersInit(){
+  UI2_DRAWERS.forEach(function(cfg){const body=document.getElementById(cfg.body);if(!body||body.__ui2obs)return;
+    const mo=new MutationObserver(function(){ui2DrawerSync(cfg);});mo.observe(body,{childList:true});body.__ui2obs=mo;ui2DrawerSync(cfg);});
+  if(document.__ui2esc)return;document.__ui2esc=true;
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape'||!document.documentElement.classList.contains('ui2'))return;
+    if([...document.querySelectorAll('.overlay')].some(function(o){return o.style.display&&o.style.display!=='none'||o.classList.contains('open');}))return;
+    if(document.getElementById('gsOvl'))return;
+    const a=document.activeElement;if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)){a.blur();return;}
+    const c=UI2_DRAWERS.find(function(c){const b=document.getElementById(c.body);if(!b||!b.querySelector('tr.detail'))return false;const v=b.closest('[id$="View"]');return !(v&&v.style.display==='none');});
+    if(c)ui2DrawerClose(c);
+  });
+}
+function ui2OrdDrawerSync(){ui2DrawerSync(UI2_DRAWERS[0]);}
+function ui2OrdDrawerClose(){ui2DrawerClose(UI2_DRAWERS[0]);}
+window.ui2OrdDrawerSync=ui2OrdDrawerSync;window.ui2OrdDrawerClose=ui2OrdDrawerClose;window.ui2DrawerClose=ui2DrawerClose;
+
+function wbRole(){try{const k=(typeof hmRoleKey==='function')?hmRoleKey():'';if(k==='mgmt')return 'mgmt';if(session&&session.role==='finance')return 'finance';return 'biz';}catch(e){return 'biz';}}
+function wbDays(a,b){return Math.round((new Date(a)-new Date(b))/86400000);}
+function wbRow(d,main,sub,amt,act,arg){return '<div class="wb-r" data-act="'+act+'" data-arg="'+esc(arg||'')+'"><span class="d">'+esc(d||'')+'</span><span class="m">'+esc(main||'')+(sub?'<small>'+esc(sub)+'</small>':'')+'</span><span class="a">'+esc(amt||'')+'</span></div>';}
+function wbCard(title,n,cls,link,linkAct,body){return '<div class="wb-card"><div class="wb-h">'+esc(title)+(n!=null?' <span class="wb-n '+(cls||'')+'">'+esc(String(n))+'</span>':'')+(link?'<a data-act="'+linkAct+'"><span>'+esc(link)+'</span> <span aria-hidden="true">→</span></a>':'')+'</div>'+(body||'<div class="wb-empty">暂无</div>')+'</div>';}
+function wbFinance(){
+  const t=todayStr();let h='';
+  try{const P=(bankItems||[]).filter(x=>x.status==='pending').sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+    h+=wbCard('待认领银行流水',P.length,P.length?'':'ok','去银行页','go:tabBANK',P.slice(0,4).map(x=>wbRow(String(x.date||'').slice(5),x.cpName||'（无户名）',(x.note||x.memo||'').slice(0,40),(x.amount>0?'+ ':'− ')+fmt(Math.abs(Number(x.amount)||0)),'go:tabBANK')).join('')||'');}catch(e){}
+  try{const lim=ymdLocal(new Date(Date.now()+7*86400000));
+    const A=apItems.filter(x=>!x.deleted&&(Number(x.amount)||0)>0&&x.due&&x.due<=lim&&apState(x)!=='paid'&&apState(x)!=='new').sort((a,b)=>String(a.due).localeCompare(String(b.due)));
+    const sum=A.reduce((s,x)=>s+((Number(x.amount)||0)-(typeof apPaidSum==='function'?apPaidSum(x):0)),0);
+    h+=wbCard('7 天内到期及逾期付款',A.length+(A.length?' · '+fmt(sum):''),A.some(x=>x.due<t)?'bad':'','去应付页','go:tabAP',A.slice(0,5).map(x=>wbRow(String(x.due).slice(5),x.supplier,(x.invNo||'')+(x.orderNo?' · '+x.orderNo:'')+(x.due<t?' · 逾期 '+wbDays(t,x.due)+' 天':''),fmt((Number(x.amount)||0)-(typeof apPaidSum==='function'?apPaidSum(x):0)),'ap',x.invNo)).join(''));}catch(e){}
+  try{const O=ariItems.filter(x=>!x.deleted&&x.invNo&&x.due&&x.due<t&&!['paid','storno'].includes(ariState(x))&&(Number(x.gross)||0)>0);
+    const by={};for(const x of O){const k=x.customer||'?';const g=by[k]=by[k]||{n:0,sum:0,days:0};g.n++;g.sum+=(Number(x.gross)||0)-ariPaid(x);g.days=Math.max(g.days,wbDays(t,x.due));}
+    const L=Object.keys(by).map(k=>[k,by[k]]).sort((a,b)=>b[1].sum-a[1].sum);
+    h+=wbCard('逾期应收（按客户）',O.length+' 张',O.length?'bad':'ok','去应收页','go:tabAR',L.slice(0,5).map(e=>wbRow('',e[0],e[1].n+' 张 · 最久 '+e[1].days+' 天',fmt(e[1].sum),'ar',e[0])).join(''));}catch(e){}
+  try{const H=healthCalc();const g=k=>{const it=H.items.find(i=>i.k===k);return it?it.n:0;};
+    const rows=[['云端待同步','syncPend'],['客户端错误（24 小时）','errlog24'],['银行流水分配不平','bankAllocGap'],['派送地址待补全','addrDirty'],['成单号重复','ordDupNo']].map(r=>{const n=g(r[1]);return '<div class="wb-r" data-act="wbhealth"><span class="d" style="width:auto;flex:0 0 auto;color:'+(n?'var(--warn)':'var(--ok)')+'">●</span><span class="m">'+esc(r[0])+'</span><span class="a">'+n+'</span></div>';}).join('');
+    h+=wbCard('系统状态',null,'','健康中心','wbhealth',rows);}catch(e){}
+  return h;
+}
+function wbBiz(){
+  const me=(typeof myNameGet==='function'?myNameGet():'')||session.name;let h='';
+  try{const M=ordItems.filter(o=>!o.deleted&&o.type!=='inq'&&o.owner===me&&!o.closed);
+    const labels=['① 接单','② 服务项','③ 定供应商','④ 服务完成','⑤ 报价确认','⑥ 对接财务','⑦ 已开票'];
+    const cnt=labels.map((l,i)=>M.filter(o=>Number(o.step)===i+1).length);
+    h+='<div class="wb-card" style="grid-column:1/-1"><div class="wb-h">我的进行中订单 <span class="wb-n ok">'+M.length+'</span><a data-act="go:tabORD"><span>打开订单列表</span> <span aria-hidden="true">→</span></a></div><div class="wb-steps">'+labels.map((l,i)=>'<div class="wb-step" data-act="go:tabORD"><span>'+l+'</span><b>'+cnt[i]+'</b></div>').join('')+'</div></div>';
+    const need=[];
+    for(const o of M){if(Number(o.step)>=7)continue; const dl=(o.svc||[]).filter(s=>s.addrTo||s.locTos);if(dl.some(s=>!s.mode&&!s.pallets&&!s.weightKg))need.push([o.orderNo,o.customer,'派送行缺运量：车型 / 托盘 / 重量']);}
+    const IQ=ordItems.filter(o=>!o.deleted&&o.type==='inq'&&o.owner===me&&!(o.quotes||[]).length&&o.createdAt&&Date.now()-o.createdAt>3*86400000);
+    for(const q of IQ)need.push([q.inqNo||q.orderNo||'询价',q.customer,'询价超过 3 天未报价']);
+    h+=wbCard('需要我处理',need.length,need.length?'':'ok',null,null,need.slice(0,6).map(r=>wbRow('',r[0]+'　'+(r[1]||''),r[2],'','ord',r[0])).join(''));
+    const Q=ordItems.filter(o=>!o.deleted&&o.type==='inq'&&o.owner===me).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    h+=wbCard('我的询价',Q.length,'ok',null,null,Q.slice(0,5).map(q=>wbRow(q.createdAt?ymdLocal(new Date(q.createdAt)).slice(5,10):'',(q.inqNo||q.orderNo||'')+'　'+(q.customer||''),(q.quotes||[]).length?'已报价':'待报价','','ord',q.inqNo)).join(''));}catch(e){}
+  return h;
+}
+function wbRender(){
+  try{
+    const box=document.getElementById('homeBody');if(!box||!session)return;
+    const old=box.querySelector('.ui2-wb');if(old)old.remove();
+    const role=wbRole();if(role==='mgmt')return;
+    const html=role==='finance'?wbFinance():wbBiz();if(!html)return;
+    const d=document.createElement('div');d.className='ui2-wb';d.innerHTML=html;
+    const anchor=box.querySelector('.hm-sub');if(anchor&&anchor.nextSibling)box.insertBefore(d,anchor.nextSibling);else box.insertBefore(d,box.firstChild);
+    d.addEventListener('click',function(e){const el=e.target.closest('[data-act]');if(!el)return;const a=el.dataset.act,arg=el.dataset.arg||'';
+      try{
+        if(a.indexOf('go:')===0){const t=document.getElementById(a.slice(3));if(t)t.click();}
+        else if(a==='ap'){document.getElementById('tabAP').click();gsSetSearch('apFSearch',arg);}
+        else if(a==='ar'){document.getElementById('tabAR').click();const s=document.getElementById('subARI');if(s)s.click();gsSetSearch('ariFSearch',arg);}
+        else if(a==='ord'){document.getElementById('tabORD').click();gsSetSearch('ordFSearch',arg);}
+        else if(a==='wbhealth'){if(typeof healthOpen==='function')healthOpen();}
+      }catch(err){}
+    });
+  }catch(e){}
+}
+window.wbRender=wbRender;window.wbFinance=wbFinance;window.wbBiz=wbBiz;
+function ui2KanDecorate(){
+  try{const box=document.getElementById('kanView');if(!box)return;const now=Date.now();
+    box.querySelectorAll('.kan-card').forEach(function(c){if(c.querySelector('.kan-age'))return;const o=ordItems.find(x=>x.id===c.dataset.id);if(!o)return;const t=Number(o.up||o.createdAt||0);if(!t)return;
+      const d=Math.max(0,Math.floor((now-t)/86400000));const s=document.createElement('span');s.className='kan-age'+(d>7?' stale':'');s.textContent=d+' 天未更新';s.title='最近一次修改：'+ymdLocal(new Date(t));const no=c.querySelector('.no');if(no)no.after(s);});
+  }catch(e){}
+}
+function ui2BaseSections(){
+  try{const host=document.getElementById('baseCards');if(!host||!host.parentNode)return;
+    const par=host.parentNode;par.querySelectorAll(':scope>.ui2-sec').forEach(function(x){x.remove();});
+    const h1=document.createElement('div');h1.className='ui2-sec';h1.textContent='主数据';par.insertBefore(h1,host);
+    const sys=['hrCfgCard','migCard','fsCard','bankRuleCard'].map(function(id){return document.getElementById(id);}).filter(Boolean);
+    if(sys.length){const first=[...par.children].find(function(el){return sys.includes(el);});if(first){const h2=document.createElement('div');h2.className='ui2-sec';h2.textContent='系统设置（仅 Emma）';par.insertBefore(h2,first);}}
+  }catch(e){}
+}
+window.ui2KanDecorate=ui2KanDecorate;window.ui2BaseSections=ui2BaseSections;
+
+const ANA_GROUPS=[
+  ['经营',[['ordMrBtn','月度经营报表','tabORD'],['rcBtn','收入成本','tabORD'],['ariRcBigBtn','收入成本大表','tabAR'],['gmBtn','毛利预警','tabAR'],['blBtn','业务线对比','tabAR']]],
+  ['客户',[['ordCaBtn','客户分析','tabORD'],['cpBtn','客户盈利画像','tabAR'],['agingBtn','账龄分析','tabAR']]],
+  ['供应商',[['ordSupBtn','供应商分析','tabORD'],['benchBtn','报价基准库','tabORD']]],
+  ['线路',[['laneBtn','线路分析','tabORD']]],
+  ['团队',[['ordStatsBtn','业务员分析（成单）','tabORD'],['ordInqSaBtn','业务员分析（询价转化）','tabORD'],['tmBtn','团队效率','tabAR']]],
+  ['现金与月结',[['cashBtn','现金流预测','tabAR'],['closeBtn','月结清单','tabAR'],['ariArcBtn','月度归档','tabAR']]]
+];
+function anaAvailable(){
+  const out=[];
+  const MIRROR={ordInqSaBtn:'ordStatsBtn'};
+  for(const g of ANA_GROUPS){const items=g[1].filter(function(it){const b=document.getElementById(it[0]);const gate=document.getElementById(MIRROR[it[0]]||it[0]);if(!b||!gate||gate.style.display==='none')return false;const t=document.getElementById(it[2]);return !t||t.style.display!=='none';});if(items.length)out.push([g[0],items]);}
+  return out;
+}
+function anaOpen(){
+  if(document.getElementById('anaOvl'))return;
+  const groups=anaAvailable();
+  const ov=document.createElement('div');ov.id='anaOvl';
+  ov.innerHTML='<div id="anaBox" role="dialog" aria-label="分析中心"><div style="display:flex;align-items:center;gap:10px"><h2>分析中心</h2><span style="color:var(--ink-soft);font-size:12.5px">点一项打开对应报表（与原来的按钮完全相同）</span><button type="button" id="anaClose" class="btn-ghost" style="margin-left:auto">关闭</button></div><div class="ana-grid">'+
+    groups.map(function(g){return '<div class="ana-grp"><h3>'+esc(g[0])+'</h3>'+g[1].map(function(it){return '<button type="button" class="ana-item" data-btn="'+it[0]+'" data-tab="'+it[2]+'">'+esc(it[1])+'</button>';}).join('')+'</div>';}).join('')+
+    (groups.length?'':'<div style="color:var(--ink-soft)">当前账号没有可用的分析报表。</div>')+'</div></div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('mousedown',function(e){if(e.target===ov)anaClose();});
+  ov.querySelector('#anaClose').onclick=anaClose;
+  ov.addEventListener('keydown',function(e){if(e.key==='Escape'){e.stopPropagation();anaClose();}});
+  ov.querySelectorAll('.ana-item').forEach(function(b){b.onclick=function(){const id=b.dataset.btn,tab=b.dataset.tab;anaClose();try{const t=document.getElementById(tab);if(t&&!t.classList.contains('active'))t.click();const ob=document.getElementById(id);if(ob)ob.click();}catch(e){}};});
+  const f=ov.querySelector('.ana-item');if(f)f.focus();
+}
+function anaClose(){const o=document.getElementById('anaOvl');if(o)o.remove();}
+window.anaOpen=anaOpen;window.anaClose=anaClose;window.anaAvailable=anaAvailable;
 
 function gsVisible(tabId){const t=document.getElementById(tabId);return !!t&&t.style.display!=='none';}
 function gsIndex(q){
@@ -15997,7 +16212,7 @@ Object.assign(I18N,{
 "④ 服务完成":{en:"④ Service done",de:"④ Leistung erbracht"},
 "⑤ 报价已确认":{en:"⑤ Quote confirmed",de:"⑤ Angebot bestätigt"},
 "⑥ 已对接财务":{en:"⑥ Handed to finance",de:"⑥ An Buchhaltung"},
-"⑦ 已开票":{en:"⑦ Invoiced",de:"⑦ Berechnet"},
+"⑦ 已开票":{en:"⑦ Invoiced",de:"⑦ Fakturiert"},
 "单 · 合计售价":{en:"orders · total price",de:"Aufträge · Gesamtpreis"},
 "物流":{en:"Logistics",de:"Logistik"},
 "暂无订单":{en:"No orders",de:"Keine Aufträge"},
@@ -16085,7 +16300,7 @@ Object.assign(I18N,{
 "我的客户逾期":{en:"My customers overdue",de:"Meine Kunden überfällig"},
 "无逾期":{en:"None overdue",de:"Nichts überfällig"},
 "近期开票·待发客户":{en:"Recently invoiced · to send",de:"Neu berechnet · zu senden"},
-"暂无":{en:"None",de:"Keine"},
+"暂无":{en:"Nothing",de:"Nichts"},
 "我的加急回执":{en:"My urgent receipts",de:"Meine Eilbestätigungen"},
 "暂无回执":{en:"No receipts",de:"Keine Bestätigungen"},
 "没有超期未开票的单":{en:"No orders overdue for invoicing",de:"Keine überfälligen Aufträge"},
@@ -16671,7 +16886,51 @@ Object.assign(I18N,{
 "应付发票":{en:"AP invoices",de:"Eingangsrechnungen"},
 "银行流水":{en:"Bank lines",de:"Kontobewegungen"},
 "↑↓ 选择 · Enter 打开 · Esc 关闭":{en:"↑↓ select · Enter open · Esc close",de:"↑↓ wählen · Enter öffnen · Esc schließen"},
-"搜索":{en:"Search",de:"Suchen"}
+"搜索":{en:"Search",de:"Suchen"},
+"关闭 ✕":{en:"Close ✕",de:"Schließen ✕"},
+"详情里有尚未提交的输入，确定关闭吗？":{en:"There is unsubmitted input in the details. Close anyway?",de:"In den Details gibt es noch nicht übernommene Eingaben. Trotzdem schließen?"},
+"分析中心":{en:"Analytics",de:"Analysen"},
+"点一项打开对应报表（与原来的按钮完全相同）":{en:"Pick a report to open it (same as the original buttons)",de:"Bericht wählen zum Öffnen (wie die bisherigen Schaltflächen)"},
+"经营":{en:"Business",de:"Geschäft"},
+"客户":{en:"Customers",de:"Kunden"},
+"供应商":{en:"Suppliers",de:"Lieferanten"},
+"线路":{en:"Lanes",de:"Relationen"},
+"团队":{en:"Team",de:"Team"},
+"现金与月结":{en:"Cash & month-end",de:"Liquidität & Monatsabschluss"},
+"月度经营报表":{en:"Monthly business report",de:"Monatlicher Geschäftsbericht"},
+"收入成本":{en:"Revenue & cost",de:"Erlöse & Kosten"},
+"收入成本大表":{en:"Revenue & cost (full table)",de:"Erlöse & Kosten (Gesamttabelle)"},
+"业务员分析（成单）":{en:"Sales reps (orders)",de:"Vertrieb (Aufträge)"},
+"业务员分析（询价转化）":{en:"Sales reps (inquiry conversion)",de:"Vertrieb (Anfragekonversion)"},
+"当前账号没有可用的分析报表。":{en:"No reports available for this account.",de:"Für dieses Konto sind keine Berichte verfügbar."},
+"待认领银行流水":{en:"Unclaimed bank lines",de:"Offene Kontobewegungen"},
+"7 天内到期及逾期付款":{en:"Payments due within 7 days or overdue",de:"Zahlungen fällig in 7 Tagen oder überfällig"},
+"逾期应收（按客户）":{en:"Overdue receivables (by customer)",de:"Überfällige Forderungen (nach Kunde)"},
+"系统状态":{en:"System status",de:"Systemstatus"},
+"健康中心":{en:"Health center",de:"Systemzentrale"},
+"去银行页":{en:"Bank",de:"Bank"},
+"去应付页":{en:"Payables",de:"Verbindlichkeiten"},
+"去应收页":{en:"Receivables",de:"Forderungen"},
+"我的进行中订单":{en:"My open orders",de:"Meine offenen Aufträge"},
+"打开订单列表":{en:"Order list",de:"Auftragsliste"},
+"需要我处理":{en:"Needs my action",de:"Zu erledigen"},
+"我的询价":{en:"My inquiries",de:"Meine Anfragen"},
+"云端待同步":{en:"Pending cloud sync",de:"Ausstehende Synchronisierung"},
+"客户端错误（24 小时）":{en:"Client errors (24 h)",de:"Client-Fehler (24 h)"},
+"银行流水分配不平":{en:"Unbalanced bank allocations",de:"Unausgeglichene Bankzuordnungen"},
+"派送地址待补全":{en:"Delivery addresses incomplete",de:"Lieferadressen unvollständig"},
+"成单号重复":{en:"Duplicate order numbers",de:"Doppelte Auftragsnummern"},
+"派送行缺运量：车型 / 托盘 / 重量":{en:"Delivery line missing volume: vehicle / pallets / weight",de:"Lieferzeile ohne Menge: Fahrzeug / Paletten / Gewicht"},
+"询价超过 3 天未报价":{en:"Inquiry not quoted for over 3 days",de:"Anfrage seit über 3 Tagen ohne Angebot"},
+"已报价":{en:"Quoted",de:"Angeboten"},
+"待报价":{en:"To quote",de:"Angebot offen"},
+"（无户名）":{en:"(no name)",de:"(ohne Namen)"},
+"① 接单":{en:"① Received",de:"① Angenommen"},
+"② 服务项":{en:"② Services",de:"② Leistungen"},
+"③ 定供应商":{en:"③ Supplier set",de:"③ Lieferant festgelegt"},
+"⑤ 报价确认":{en:"⑤ Quote confirmed",de:"⑤ Angebot bestätigt"},
+"⑥ 对接财务":{en:"⑥ To finance",de:"⑥ An Buchhaltung"},
+"系统设置（仅 Emma）":{en:"System settings (Emma only)",de:"Systemeinstellungen (nur Emma)"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
@@ -16860,6 +17119,8 @@ I18N_RULES.push(
 [/^(.+) · 运输$/,{en:"$1 · Transport",de:"$1 · Transport"}],
 [/^(.+) · 派送$/,{en:"$1 · Delivery",de:"$1 · Zustellung"}],
 [/^(.+) · 其他$/,{en:"$1 · Other",de:"$1 · Sonstiges"}],
+[/^(\d+) 天未更新$/,{en:"$1 days without update",de:"$1 Tage ohne Änderung"}],
+[/^(\d+) 张 · 最久 (\d+) 天$/,{en:"$1 invoices · oldest $2 days",de:"$1 Rechnungen · älteste $2 Tage"}],
 [/^早上好，(.+)$/,{en:"Good morning, $1",de:"Guten Morgen, $1"}],
 [/^中午好，(.+)$/,{en:"Good afternoon, $1",de:"Guten Tag, $1"}],
 [/^下午好，(.+)$/,{en:"Good afternoon, $1",de:"Guten Tag, $1"}],
