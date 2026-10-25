@@ -1020,7 +1020,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v38.6</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v38.7</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1674,7 +1674,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=38.6;
+const APP_VERSION=38.7;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2106,7 +2106,9 @@ function mergeRemote(remote){
 const ACCT_LIST=['Emma','Steven','Minglu','Teri','Bowen','Lucy','Peter','Christina','Man'];
 const AUTH_DOMAIN_SUFFIX='@img-europe.local';
 
-const AUTH_PROXY='https://img-auth.b-zhang.workers.dev';
+const AUTH_PROXY_NEW='';
+const AUTH_PROXY_LIST=[AUTH_PROXY_NEW,'https://img-auth.b-zhang.workers.dev'].filter(Boolean);
+let AUTH_PROXY=(function(){try{const s=localStorage.getItem('img-auth-proxy-url');if(s&&AUTH_PROXY_LIST.includes(s))return s;}catch(e){}return AUTH_PROXY_LIST[0]||'';})();
 const PROXY_HOSTS={'identitytoolkit.googleapis.com':'identitytoolkit','securetoken.googleapis.com':'securetoken'};
 const PROXY_KEY='img-auth-proxy-on';
 let _proxyOn=false;
@@ -2159,9 +2161,14 @@ async function sha256Hex(t){
 async function fallbackCheck(name,pw){
   try{return ACCT_HASH[name]===await sha256Hex(FB_SALT+':'+name+':'+pw);}catch(e){return false;}
 }
+function authStatWrite(name,mode,proxy){
+  if(!USE_CLOUD||!rtdb||!name)return;const SV=(firebase.database&&firebase.database.ServerValue)?firebase.database.ServerValue.TIMESTAMP:Date.now();
+  rtdb.ref(DB_PREFIX+'img-ap/sys/authStat/'+name).set({at:SV,ts:Date.now(),mode:mode,proxy:String(proxy||'').replace(/^https?:\/\//,''),ver:String(APP_VERSION)}).catch(function(){});
+}
+window.authStatWrite=authStatWrite;
 function proxyRewrite(u){
   try{
-    if(!AUTH_PROXY||!u)return null;
+    if(!AUTH_PROXY||!u||window.__proxyBypass)return null;
     const url=new URL(u,location.href);
     const seg=PROXY_HOSTS[url.hostname];
     if(!seg)return null;
@@ -2229,7 +2236,8 @@ $('loginBtn').onclick=async()=>{
   try{
     if(!(window.firebase&&firebase.auth))throw new Error('auth-missing');
     const tryLogin=async function(useProxy,ms){
-      if(useProxy)proxyEnable(false);
+      if(useProxy){if(typeof useProxy==='string')AUTH_PROXY=useProxy;window.__proxyBypass=false;proxyEnable(false);}
+      else window.__proxyBypass=true;
       return await Promise.race([
         firebase.auth().signInWithEmailAndPassword(acctEmail(canonical),pw),
         new Promise(function(_,rej){setTimeout(function(){rej(Object.assign(new Error('auth-timeout'),{code:'auth/timeout'}));},ms);})
@@ -2239,7 +2247,9 @@ $('loginBtn').onclick=async()=>{
       const c=(e&&e.code)||'';
       return c==='auth/network-request-failed'||c==='auth/timeout'||(e&&e.message==='auth-timeout')||(e&&e.message==='auth-missing');
     };
-    const routes=AUTH_PROXY?(_proxyOn?[true,false]:[false,true]):[false];
+
+    const prox=AUTH_PROXY_LIST.slice().sort(function(a,b){return (a===AUTH_PROXY?-1:0)-(b===AUTH_PROXY?-1:0);});
+    const routes=_proxyOn?prox.concat([false]):[false].concat(prox);
     let ok=false,lastErr=null;
     for(let ri=0;ri<routes.length;ri++){
       if(ri>0)$('loginBtn').textContent='切换线路重试…';
@@ -2247,7 +2257,7 @@ $('loginBtn').onclick=async()=>{
         await tryLogin(routes[ri],15000);
         ok=true;
         try{
-          if(routes[ri])localStorage.setItem(PROXY_KEY,'1');
+          if(routes[ri]){localStorage.setItem(PROXY_KEY,'1');localStorage.setItem('img-auth-proxy-url',String(routes[ri]));}
           else localStorage.removeItem(PROXY_KEY);
         }catch(_){}
         break;
@@ -2290,6 +2300,8 @@ $('loginBtn').onclick=async()=>{
   $('loginBtn').textContent='进入平台';
   session={name:canonical,role:RO_ACCTS.includes(canonical)?'readonly':(FIN_ACCTS.includes(canonical)?'finance':'business')};
   enterApp();
+
+  try{authStatWrite(canonical,AUTH_DEGRADED?'degraded':(_proxyOn&&!window.__proxyBypass?'proxy':'direct'),(_proxyOn&&!window.__proxyBypass)?String(AUTH_PROXY||''):'');}catch(e){}
 };
 $('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginPass').focus();});
 $('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click();});
@@ -2380,7 +2392,7 @@ function enterApp(){
   if(USE_CLOUD&&rtdb){setTimeout(function(){try{nosBackfill();}catch(e){}},6000);}
   try{bkRestoreListen();verListen();}catch(e){}
   try{ui2Init();}catch(e){}
-  try{if(session&&session.role==='finance'&&typeof errlogLoad==='function'){setTimeout(function(){errlogLoad();},5000);setInterval(function(){errlogLoad();},600000);}}catch(e){}
+  try{if(session&&session.role==='finance'&&typeof errlogLoad==='function'){setTimeout(function(){errlogLoad();authStatLoad();},5000);setInterval(function(){errlogLoad();authStatLoad();},600000);}}catch(e){}
   try{outboxRegister(CLOUD_PATH,'到账',async function(){const ok=await v2ReadMergeDelta(CLOUD_PATH,mergeRemote);if(!ok)throw new Error('read');await v2Write(CLOUD_PATH,payments,'到账');CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();try{render();}catch(e){}});setTimeout(function(){try{outboxRestore();}catch(e){}},2500);}catch(e){}
   if(USE_CLOUD&&rtdb){netProbe().then(function(){
     try{inboxListen('orders',async function(recs){ordMergeRemote(recs);await ordSave();});}catch(e){}
@@ -3817,6 +3829,11 @@ async function errlogLoad(){
   }catch(e){return _errlog.items;}
 }
 function errlogItems(){return _errlog.items;}
+
+var _authStat={};
+async function authStatLoad(){if(!USE_CLOUD||!rtdb)return {};try{const s=await _withTimeout(rtdb.ref(DB_PREFIX+'img-ap/sys/authStat').once('value'),10000,'登录统计读取');_authStat=s&&s.val()||{};}catch(e){}return _authStat;}
+function authStatDegraded(){const cut=Date.now()-7*86400000;return Object.keys(_authStat).filter(function(k){const v=_authStat[k]||{};return v.mode==='degraded'&&Number(v.at||v.ts||0)>=cut;}).sort();}
+window.authStatLoad=authStatLoad;window.authStatDegraded=authStatDegraded;window.authStatGet=function(){return _authStat;};
 window.errlogLoad=errlogLoad;window.errlogItems=errlogItems;
 
 function bkCollect(){
@@ -5412,6 +5429,9 @@ html.ui2 .ui2-dview{margin-right:min(780px,52vw)}
 html.ui2 tr.ui2-sel>td{background:#EAF2EF!important}
 html.ui2 tr.ui2-sel>td:first-child{box-shadow:inset 3px 0 0 var(--pine)}
 html.ui2 .ui2-dhead{display:flex!important}
+html.ui2.ui2-dmin :is(#ordBody,#ariBody,#apBody,#ledgerBody) tr.detail>td{transform:translateX(100%);visibility:hidden}
+html.ui2.ui2-dmin .ui2-dview{margin-right:0}
+html.ui2.ui2-dmin #ui2DPill{display:flex}
 html.ui2 :is(#ordBody,#ariBody,#apBody,#ledgerBody) tr.detail>td{overflow-x:auto}
 html.ui2 :is(#ordBody,#ariBody,#apBody,#ledgerBody) tr.detail>td>.detail-grid{grid-template-columns:minmax(0,1fr)!important} /* 抽屉内单列：明细表拿到整幅宽度，备注排在下面 */
 }
@@ -5461,7 +5481,10 @@ html.ui2 tr.detail table table{table-layout:auto!important}
 .ui2-dhead{display:none;position:sticky;top:0;z-index:2;align-items:center;gap:10px;background:var(--card);margin:0 -22px 12px;padding:14px 22px 10px;border-bottom:1px solid var(--line)}
 .ui2-dhead b{font-family:var(--font-num);font-size:17px}
 .ui2-dhead span{color:var(--ink-soft);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ui2-dhead button{margin-left:auto;background:none;border:0;color:var(--ink-soft);cursor:pointer;font:inherit;font-size:12px;padding:4px 6px}
+.ui2-dhead button{background:none;border:0;color:var(--ink-soft);cursor:pointer;font:inherit;font-size:12px;padding:4px 6px}
+.ui2-dhead .ui2-dmin-btn{margin-left:auto}
+#ui2DPill{display:none;position:fixed;right:0;top:38%;z-index:44;align-items:center;gap:6px;background:var(--pine,#0E3B33);color:#fff;border:0;border-radius:8px 0 0 8px;padding:10px 12px;font:inherit;font-size:12.5px;cursor:pointer;box-shadow:-4px 4px 16px rgba(14,59,51,.25)}
+#ui2DPill b{font-family:var(--font-num)}
 #gsBtn{display:none;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#B9CCC6;border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px;cursor:pointer;text-align:left}
 #gsBtn kbd{margin-left:auto;font-family:var(--font-num);font-size:11px;color:#8FA9A1;background:none;border:0}
 #gsOvl{position:fixed;inset:0;background:rgba(14,30,26,.45);z-index:3000;display:flex;justify-content:center;align-items:flex-start;padding-top:12vh}
@@ -5518,6 +5541,9 @@ function ui2DrawerSync(cfg){
   const was=!!(view&&view.classList.contains('ui2-dview'));
   if(view)view.classList.toggle('ui2-dview',!!det);
   if(cfg.cls)document.documentElement.classList.toggle(cfg.cls,!!det);
+
+  try{const key=det?cfg.body+':'+cfg.open():'';const mk=document.documentElement.dataset.dminKey||'';
+    if(mk&&mk.indexOf(cfg.body+':')===0&&mk!==key)ui2DrawerMin(cfg,false);}catch(e){}
   body.querySelectorAll('tr.ui2-sel').forEach(function(r){r.classList.remove('ui2-sel');});
   if(det){
     const row=det.previousElementSibling;if(row)row.classList.add('ui2-sel');
@@ -5525,18 +5551,34 @@ function ui2DrawerSync(cfg){
     if(td&&!td.querySelector('.ui2-dhead')){
       let hh=['',''];try{hh=cfg.head();}catch(e){}
       const h=document.createElement('div');h.className='ui2-dhead';
-      h.innerHTML='<b>'+esc(hh[0])+'</b><span>'+esc(hh[1])+'</span><button type="button" title="Esc">关闭 ✕</button>';
-      h.querySelector('button').onclick=function(e){e.stopPropagation();ui2DrawerClose(cfg);};
+      h.innerHTML='<b>'+esc(hh[0])+'</b><span>'+esc(hh[1])+'</span><button type="button" class="ui2-dmin-btn" title="收到右侧边缘，列表恢复全宽；内容和已输入的都保留">缩小 —</button><button type="button" class="ui2-dclose-btn" title="Esc">关闭 ✕</button>';
+      h.querySelector('.ui2-dclose-btn').onclick=function(e){e.stopPropagation();ui2DrawerClose(cfg);};
+      h.querySelector('.ui2-dmin-btn').onclick=function(e){e.stopPropagation();ui2DrawerMin(cfg,true);};
       td.insertBefore(h,td.firstChild);
     }
   }
   if(was!==!!det)setTimeout(function(){try{stickyAll();}catch(e){}},60);
 }
+function ui2DrawerMin(cfg,on){
+  const root=document.documentElement;
+  let pill=document.getElementById('ui2DPill');
+  if(on){
+    let hh=['',''];try{hh=cfg.head();}catch(e){}
+    if(!pill){pill=document.createElement('button');pill.type='button';pill.id='ui2DPill';document.body.appendChild(pill);}
+    pill.innerHTML='<b>'+esc(hh[0])+'</b><span>展开 ◂</span>';pill.title=hh[1]||'';
+    pill.onclick=function(){ui2DrawerMin(cfg,false);};
+    root.dataset.dminKey=cfg.body+':'+cfg.open();root.classList.add('ui2-dmin');
+  }else{
+    root.classList.remove('ui2-dmin');delete root.dataset.dminKey;if(pill)pill.remove();
+  }
+  setTimeout(function(){try{stickyAll();}catch(e){}},60);
+}
+window.ui2DrawerMin=ui2DrawerMin;
 function ui2DrawerClose(cfg){
   try{
     if(!cfg.open())return;
     if(typeof _editDirty!=='undefined'&&_editDirty&&!confirm('详情里有尚未提交的输入，确定关闭吗？'))return;
-    if(typeof editClearDirty==='function')editClearDirty();cfg.close();
+    if(typeof editClearDirty==='function')editClearDirty();ui2DrawerMin(cfg,false);cfg.close();
   }catch(e){}
 }
 function ui2DrawersInit(){
@@ -6383,6 +6425,8 @@ function healthCalc(){
   try{const m={};for(const o of ordItems){if(o.deleted||!o.orderNo)continue;(m[o.orderNo]=m[o.orderNo]||[]).push(o);}const dups=Object.keys(m).filter(k=>m[k].length>1);add('ordDupNo','成单号重复',dups.length,'bad',dups.length?('重复：'+dups.slice(0,5).join('、')+'。请在订单详情「编辑」改号或删除其中一张；慢链路端新建前先刷新'):'','ord');}catch(e){}
 
   try{const I=window.__bankAllocIssues||[];add('bankAllocGap','银行流水分配不平（需手工核对）',I.length,'bad',I.length?I.slice(0,5).map(function(t){return t.date+' '+(t.cpName||'')+' '+fmt(Math.abs(t.amount));}).join('；'):'','bank');}catch(e){}
+
+  try{const L=(typeof authStatDegraded==='function')?authStatDegraded():[];add('authDegraded','近 7 天降级登录的账号（收紧数据库权限前需为 0）',L.length,'warn',L.join('、'),'');}catch(e){}
 
   try{const E=(typeof errlogItems==='function')?errlogItems():[];const byUser={};for(const r of E){byUser[r.by||'?']=(byUser[r.by||'?']||0)+1;}const top=E.slice(0,5).map(function(r){return (r.by||'?')+' '+new Date(r.t).toLocaleTimeString().slice(0,5)+' '+(r.kind||'')+'：'+String(r.msg||'').slice(0,60);});
     add('errlog24','客户端错误（近 24 小时）',E.length,E.length>=10?'bad':'warn',E.length?(Object.keys(byUser).map(function(u){return u+' '+byUser[u];}).join('、')+'\n'+top.join('\n')):'','');}catch(e){}
@@ -16930,7 +16974,11 @@ Object.assign(I18N,{
 "③ 定供应商":{en:"③ Supplier set",de:"③ Lieferant festgelegt"},
 "⑤ 报价确认":{en:"⑤ Quote confirmed",de:"⑤ Angebot bestätigt"},
 "⑥ 对接财务":{en:"⑥ To finance",de:"⑥ An Buchhaltung"},
-"系统设置（仅 Emma）":{en:"System settings (Emma only)",de:"Systemeinstellungen (nur Emma)"}
+"系统设置（仅 Emma）":{en:"System settings (Emma only)",de:"Systemeinstellungen (nur Emma)"},
+"近 7 天降级登录的账号（收紧数据库权限前需为 0）":{en:"Accounts using fallback login in the last 7 days (must be 0 before tightening DB rules)",de:"Konten mit Notfall-Anmeldung in den letzten 7 Tagen (vor Verschärfung der DB-Regeln muss 0 sein)"},
+"缩小 —":{en:"Minimize —",de:"Minimieren —"},
+"展开 ◂":{en:"Expand ◂",de:"Aufklappen ◂"},
+"收到右侧边缘，列表恢复全宽；内容和已输入的都保留":{en:"Tuck to the right edge; the list gets full width and everything you typed is kept",de:"An den rechten Rand einklappen; die Liste erhält volle Breite, Eingaben bleiben erhalten"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
