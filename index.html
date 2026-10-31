@@ -1020,7 +1020,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v38.7</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v39.5</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1674,7 +1674,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=38.7;
+const APP_VERSION=39.5;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2392,6 +2392,11 @@ function enterApp(){
   if(USE_CLOUD&&rtdb){setTimeout(function(){try{nosBackfill();}catch(e){}},6000);}
   try{bkRestoreListen();verListen();}catch(e){}
   try{ui2Init();}catch(e){}
+  try{trkInit();}catch(e){}
+  try{tordInit();}catch(e){}
+  try{brInit();}catch(e){}
+  try{cuInit();}catch(e){}
+  try{mdInit();}catch(e){}
   try{if(session&&session.role==='finance'&&typeof errlogLoad==='function'){setTimeout(function(){errlogLoad();authStatLoad();},5000);setInterval(function(){errlogLoad();authStatLoad();},600000);}}catch(e){}
   try{outboxRegister(CLOUD_PATH,'到账',async function(){const ok=await v2ReadMergeDelta(CLOUD_PATH,mergeRemote);if(!ok)throw new Error('read');await v2Write(CLOUD_PATH,payments,'到账');CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();try{render();}catch(e){}});setTimeout(function(){try{outboxRestore();}catch(e){}},2500);}catch(e){}
   if(USE_CLOUD&&rtdb){netProbe().then(function(){
@@ -3272,6 +3277,11 @@ const LOC_PC={CN:/^\d{6}$/,DE:/^\d{5}$/,NL:/^\d{4}\s?[A-Z]{2}$/i,PL:/^\d{2}-\d{3
 const LOC_WORDS=[['CN',/china|中国|shanghai|上海|shenzhen|深圳|ningbo|宁波|qingdao|青岛|guangzhou|广州/i,/china|中国/i],['DE',/germany|deutschland/i],['NL',/netherlands|nederland|holland/i],['PL',/poland|polska|polen/i],['BE',/belgi/i],['FR',/france|frankreich/i],['AT',/austria|österreich/i],['CZ',/czech|česk|tschech/i],['ES',/spain|españa|spanien/i],['IT',/\bitaly|italia|italien/i],['CH',/switzerland|schweiz/i],['DK',/denmark|danmark/i],['LU',/luxemb/i],['HU',/hungar|magyar/i],['SK',/slovak/i],['GB',/united kingdom|england/i],['SE',/sweden|sverige/i]];
 const LOC_PORTS=[{code:'NLRTM',name:'鹿特丹港',en:'Rotterdam Port',city:'Rotterdam',country:'NL',alias:['RTM','RTM PORT','ROTTERDAM','ROTTERDAM PORT','鹿特丹']},{code:'DEHAM',name:'汉堡港',en:'Hamburg Port',city:'Hamburg',country:'DE',alias:['HAM','HAMBURG','HAMBURG PORT','汉堡']},{code:'BEANR',name:'安特卫普港',en:'Antwerp Port',city:'Antwerpen',country:'BE',alias:['ANR','ANTWERP','ANTWERPEN','安特卫普']},{code:'DEBRV',name:'不来梅哈芬港',en:'Bremerhaven Port',city:'Bremerhaven',country:'DE',alias:['BRV','BREMERHAVEN']}];
 const LOC_ORIGIN_KINDS=['port','warehouse','terminal','supplier'];
+
+const LOC_DOCK={dock:'有装卸平台',nodock:'无装卸平台·需尾板',resi:'住宅地址'};
+function locOpsTags(L){if(!L)return [];const t=[];if(L.dock&&LOC_DOCK[L.dock])t.push(LOC_DOCK[L.dock]);if(L.appt)t.push('需预约送货');if(L.hours)t.push('营业 '+L.hours);if(L.contact||L.phone)t.push('联系 '+[L.contact,L.phone].filter(Boolean).join(' '));if(L.opsNote)t.push(L.opsNote);return t;}
+function locHasOps(L){return !!(L&&(L.dock||L.appt||L.hours||L.contact||L.phone||L.opsNote));}
+window.locOpsTags=locOpsTags;window.locHasOps=locHasOps;
 function locIsOrigin(L){return !!L&&LOC_ORIGIN_KINDS.indexOf(L.kind)>=0;}
 function locAll(){return (meta.locations=meta.locations||[]);}
 
@@ -3460,11 +3470,18 @@ function locFormOpen(prefill,cb){
     '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+inp('lfPc','邮编 *',p.postcode,'1432 JG','width:110px')+inp('lfCity','城市 *',p.city,'Aalsmeer','flex:1;min-width:140px')+
     '<label style="display:flex;flex-direction:column;gap:3px;width:150px"><span style="font-size:11px;color:var(--ink-soft)">国家 *</span><select id="lfCountry" style="border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px">'+Object.keys(LOC_COUNTRY).map(function(c){return '<option value="'+c+'">'+c+' '+LOC_COUNTRY[c]+' '+LOC_CN[c]+'</option>';}).join('')+'</select></label>'+inp('lfLocode','UN/LOCODE（港口）',p.locode,'NLRTM','width:120px')+'</div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+inp('lfCn','中文别名',p.cn,'阿尔斯梅尔仓','flex:1;min-width:140px')+inp('lfAlias','其他叫法（逗号分隔）',(p.alias||[]).join(', '),'TFS Aalsmeer, RTM','flex:2;min-width:200px')+'</div>'+
+    '<div style="font-size:11px;color:var(--ink-soft);margin:12px 0 2px;font-weight:600">作业信息（选填 · 派送时提醒司机/供应商）</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px">'+
+    '<label style="display:flex;flex-direction:column;gap:3px;min-width:170px"><span style="font-size:11px;color:var(--ink-soft)">地址类型</span><select id="lfDock" style="'+'border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px'+'"><option value="">未填</option><option value="dock">商业 · 有装卸平台</option><option value="nodock">商业 · 无装卸平台（需尾板）</option><option value="resi">住宅地址</option></select></label>'+
+    '<label style="display:flex;align-items:center;gap:6px;margin-top:16px;font-size:12px"><input type="checkbox" id="lfAppt"> 需预约送货</label>'+
+    inp('lfHours','营业 / 收货时间',p.hours,'Mo–Fr 08:00–16:00','flex:1;min-width:150px')+'</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">'+inp('lfContact','收货联系人',p.contact,'Herr Müller','flex:1;min-width:130px')+inp('lfPhone','电话',p.phone,'+49 …','width:150px')+inp('lfOps','作业备注',p.opsNote,'Tor 5 anmelden / 仅接受托盘','flex:2;min-width:180px')+'</div>'+
     '<div id="lfErr" style="display:none;color:var(--bad);margin-top:8px;font-weight:600"></div>'+
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><span id="lfPreview" style="font-size:11.5px;color:var(--ink-soft)"></span><button class="btn btn-primary" style="width:auto" id="lfSave" type="button">保存地点</button></div>';
   ovl.appendChild(card);document.body.appendChild(ovl);
-  const q=function(id){return card.querySelector('#'+id);};q('lfKind').value=p.kind||'customer';q('lfCountry').value=p.country||'DE';
-  const read=function(){return {id:p.id,name:q('lfName').value.trim(),kind:q('lfKind').value,street:q('lfStreet').value.trim(),houseNo:q('lfNo').value.trim(),extra:q('lfExtra').value.trim(),postcode:q('lfPc').value.trim(),city:q('lfCity').value.trim(),country:q('lfCountry').value,locode:q('lfLocode').value.trim().toUpperCase(),cn:q('lfCn').value.trim(),alias:q('lfAlias').value.split(',').map(function(x){return x.trim();}).filter(Boolean)};};
+  const q=function(id){return card.querySelector('#'+id);};q('lfKind').value=p.kind||'customer';q('lfCountry').value=p.country||'DE';q('lfDock').value=p.dock||'';q('lfAppt').checked=!!p.appt;
+  const read0=function(){return {id:p.id,name:q('lfName').value.trim(),kind:q('lfKind').value,street:q('lfStreet').value.trim(),houseNo:q('lfNo').value.trim(),extra:q('lfExtra').value.trim(),postcode:q('lfPc').value.trim(),city:q('lfCity').value.trim(),country:q('lfCountry').value,locode:q('lfLocode').value.trim().toUpperCase(),cn:q('lfCn').value.trim(),alias:q('lfAlias').value.split(',').map(function(x){return x.trim();}).filter(Boolean)};};
+  const read=function(){const r=read0();r.dock=q('lfDock').value||undefined;r.appt=q('lfAppt').checked||undefined;r.hours=q('lfHours').value.trim()||undefined;r.contact=q('lfContact').value.trim()||undefined;r.phone=q('lfPhone').value.trim()||undefined;r.opsNote=q('lfOps').value.trim()||undefined;return r;};
   const prev=function(){q('lfPreview').textContent=locFmt(read());};card.querySelectorAll('input,select').forEach(function(el){el.addEventListener('input',prev);el.addEventListener('change',prev);});prev();
   ovl.onclick=function(e){if(e.target===ovl)ovl.remove();};q('lfClose').onclick=function(){ovl.remove();};
   q('lfSave').onclick=function(){
@@ -3515,14 +3532,22 @@ function locBlock(opts){
   {const op=document.createElement('option');op.value='';op.textContent='国家 *';iCountry.appendChild(op);for(const c of Object.keys(LOC_COUNTRY)){const o=document.createElement('option');o.value=c;o.textContent=c+' '+LOC_CN[c];iCountry.appendChild(o);}}
   const err=document.createElement('span');err.style.cssText='font-size:11px;color:var(--bad);width:100%;display:none';
   for(const x of [iName,iStreet,iPc,iCity,iCountry])x.onclick=function(e){e.stopPropagation();};
-  el.append(lab,iName,iStreet,iPc,iCity,iCountry,err);
-  const b={el:el,iName:iName,iStreet:iStreet,iPc:iPc,iCity:iCity,iCountry:iCountry,err:err,locId:''};
+  const ops=document.createElement('span');ops.className='loc-ops';ops.style.cssText='font-size:11px;width:100%;display:none;color:var(--info)';
+  el.append(lab,iName,iStreet,iPc,iCity,iCountry,err,ops);
+  const b={el:el,iName:iName,iStreet:iStreet,iPc:iPc,iCity:iCity,iCountry:iCountry,err:err,ops:ops,locId:''};
+
+  b.showOps=function(){const L=b.locId?locById(b.locId):null;if(!L||L.kind==='port'){ops.style.display='none';ops.innerHTML='';return;}
+    const t=locOpsTags(L);ops.style.display='';
+
+    const sur=[];if(L.dock==='nodock')sur.push('尾板费');if(L.appt)sur.push('约仓费');
+    ops.innerHTML=(t.length?'🏷 '+esc(t.join(' · ')):'<span style="color:var(--ink-soft)">作业信息未填</span>')+' <a href="#" class="loc-ops-edit" style="margin-left:6px">'+(t.length?'修改':'补充作业信息')+'</a>'+(sur.length?'<span class="loc-sur" style="display:block;color:var(--warn);margin-top:2px">💡 别忘了另加服务项：'+sur.map(function(x){return '「'+esc(x)+'」';}).join('')+'</span>':'');
+    ops.querySelector('.loc-ops-edit').onclick=function(e){e.preventDefault();e.stopPropagation();locFormOpen(L,function(S){b.locId=S&&S.id||b.locId;b.showOps();});};};
   b.read=function(){const sp=locSplitStreet(iStreet.value);return {name:iName.value.trim(),street:sp.street,houseNo:sp.houseNo,postcode:iPc.value.trim(),city:iCity.value.trim(),country:iCountry.value};};
   b.isEmpty=function(){return !iName.value.trim()&&!iStreet.value.trim()&&!iPc.value.trim()&&!iCity.value.trim()&&!iCountry.value;};
   b.set=function(L){b.locId='';if(!L){b.clear();return;}
     if(typeof L==='string'){const R=locResolve(L,false,false);if(R){b.set(R);return;}const p=locParse(L);iName.value=p.name||(p.ok?'':L);iStreet.value=[p.street,p.houseNo].filter(Boolean).join(' ');iPc.value=p.postcode||'';iCity.value=p.city||'';iCountry.value=p.country||'';return;}
-    b.locId=L.id||'';iName.value=L.name||'';iStreet.value=L.kind==='port'?(L.locode||''):[L.street,L.houseNo].filter(Boolean).join(' ')+(L.extra?' ('+L.extra+')':'');iPc.value=L.postcode||'';iCity.value=L.city||'';iCountry.value=L.country||'';};
-  b.clear=function(){b.locId='';for(const x of [iName,iStreet,iPc,iCity])x.value='';iCountry.value='';err.style.display='none';};
+    b.locId=L.id||'';setTimeout(function(){try{b.showOps();}catch(e){}},0);iName.value=L.name||'';iStreet.value=L.kind==='port'?(L.locode||''):[L.street,L.houseNo].filter(Boolean).join(' ')+(L.extra?' ('+L.extra+')':'');iPc.value=L.postcode||'';iCity.value=L.city||'';iCountry.value=L.country||'';};
+  b.clear=function(){b.locId='';ops.style.display='none';ops.innerHTML='';for(const x of [iName,iStreet,iPc,iCity])x.value='';iCountry.value='';err.style.display='none';};
   b.validate=function(){const r=b.read();const L=b.locId?locById(b.locId):null;if(L&&L.kind==='port'&&L.locode)return '';
     const miss=[];if(!iStreet.value.trim())miss.push('街道门牌');if(!r.postcode)miss.push('邮编');if(!r.city)miss.push('城市');if(!r.country)miss.push('国家');
     if(miss.length)return '地址不完整：请填写 '+miss.join('、');
@@ -5629,6 +5654,7 @@ function wbBiz(){
     for(const o of M){if(Number(o.step)>=7)continue; const dl=(o.svc||[]).filter(s=>s.addrTo||s.locTos);if(dl.some(s=>!s.mode&&!s.pallets&&!s.weightKg))need.push([o.orderNo,o.customer,'派送行缺运量：车型 / 托盘 / 重量']);}
     const IQ=ordItems.filter(o=>!o.deleted&&o.type==='inq'&&o.owner===me&&!(o.quotes||[]).length&&o.createdAt&&Date.now()-o.createdAt>3*86400000);
     for(const q of IQ)need.push([q.inqNo||q.orderNo||'询价',q.customer,'询价超过 3 天未报价']);
+    try{if(typeof trkWbCard==='function')h+=trkWbCard(me);}catch(e){}
     h+=wbCard('需要我处理',need.length,need.length?'':'ok',null,null,need.slice(0,6).map(r=>wbRow('',r[0]+'　'+(r[1]||''),r[2],'','ord',r[0])).join(''));
     const Q=ordItems.filter(o=>!o.deleted&&o.type==='inq'&&o.owner===me).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
     h+=wbCard('我的询价',Q.length,'ok',null,null,Q.slice(0,5).map(q=>wbRow(q.createdAt?ymdLocal(new Date(q.createdAt)).slice(5,10):'',(q.inqNo||q.orderNo||'')+'　'+(q.customer||''),(q.quotes||[]).length?'已报价':'待报价','','ord',q.inqNo)).join(''));}catch(e){}
@@ -5753,6 +5779,556 @@ function gsGo(r){
   }catch(e){}
 }
 window.ui2Init=ui2Init;window.ui2Toggle=ui2Toggle;window.ui2On=ui2On;window.gsOpen=gsOpen;window.gsIndex=gsIndex;window.gsGo=gsGo;
+
+const TRK_EX_TYPES=['延误','货损','拒收','地址错误','海关查验','其他'];
+const TRK_RANK={'':0,booked:1,transit:2,customs:2,delivery:4,done:5};
+function trkOf(o){return (o&&o.trk)||{};}
+function trkOpenEx(o){return (trkOf(o).ex||[]).filter(function(x){return !x.res;});}
+function trkDerive(o){
+  const t=trkOf(o);
+  if(t.dlAt)return 'done';
+  if(t.ccStart&&!t.ccRel)return 'customs';
+  if(t.puAt)return t.dlEta?'delivery':'transit';
+  if(t.ccRel&&t.dlEta)return 'delivery';
+  if(t.bookAt)return 'booked';
+  return '';
+}
+
+function trkApply(o){
+  const t=o.trk=o.trk||{};const cur=o.logi||'';let next=cur;
+  if(trkOpenEx(o).length){if(cur!=='issue'){t.preIssue=cur;next='issue';}}
+  else{
+    const d=trkDerive(o);
+    if(cur==='issue'){const back=t.preIssue||'';next=(TRK_RANK[d]||0)>=(TRK_RANK[back]||0)?d:back;delete t.preIssue;}
+    else if((TRK_RANK[d]||0)>(TRK_RANK[cur]||0)||(TRK_RANK[d]===TRK_RANK[cur]&&d&&d!==cur))next=d;
+  }
+  if(next===cur)return false;
+  o.logi=next;o.comments=o.comments||[];
+  o.comments.push({author:session.name,role:session.role,text:'物流状态（运输节点自动）：'+LOGI_L(cur)+' → '+LOGI_L(next),time:Date.now()});
+  return true;
+}
+function trkDay(s){return String(s||'').slice(0,10);}
+function trkMD(s){const d=trkDay(s);return d?d.slice(5):'';}
+
+function trkHint(o){
+  if(!o||o.type==='inq')return '';const t=trkOf(o);const today=todayStr();
+  if(t.dlAt)return (t.podFid&&trkPodFile(o))?'':'<span class="trk-hint warn" title="已送达，尚未标记签收回单">缺 POD</span>';
+  if(t.dlEta){const late=trkDay(t.dlEta)<today;return '<span class="trk-hint'+(late?' bad':'')+'" title="预计送达">'+(late?'已逾期 '+wbDays(today,trkDay(t.dlEta))+' 天 · ':'')+'ETA '+trkMD(t.dlEta)+'</span>';}
+  if(t.puEta&&!t.puAt){const late=trkDay(t.puEta)<today;return '<span class="trk-hint'+(late?' bad':'')+'" title="预计提货">提货 '+trkMD(t.puEta)+(late?' · 未提':'')+'</span>';}
+  return '';
+}
+function trkPodFile(o){const id=trkOf(o).podFid;if(!id)return null;return (o.files||[]).find(function(f){return (f.fid||f.id)===id&&!f.deleted;})||null;}
+async function trkSave(o,patch,logText){
+  if(roGuard())return false;
+  o.trk=Object.assign({},o.trk||{},patch||{});
+  for(const k of Object.keys(o.trk))if(o.trk[k]===''||o.trk[k]==null)delete o.trk[k];
+  if(logText){o.comments=o.comments||[];o.comments.push({author:session.name,role:session.role,text:logText,time:Date.now()});}
+  trkApply(o);
+  const ok=await ordSave();return ok!==false;
+}
+window.trkDerive=trkDerive;window.trkApply=trkApply;window.trkSave=trkSave;window.trkHint=trkHint;window.trkOpenEx=trkOpenEx;window.trkPodFile=trkPodFile;
+
+function trkCardHtml(o){
+  const t=trkOf(o);const ro=isRO();const dis=ro?' disabled':'';
+  const dt=function(k,ph){return '<input type="datetime-local" class="trk-in" data-k="'+k+'" value="'+esc(String(t[k]||'').slice(0,16))+'"'+dis+' style="font-size:12px;padding:3px 5px;max-width:178px" title="'+esc(ph)+'">';};
+  const d=function(k){return '<input type="date" class="trk-in" data-k="'+k+'" value="'+esc(trkDay(t[k]))+'"'+dis+' style="font-size:12px;padding:3px 5px;max-width:140px">';};
+  const tx=function(k,ph,w){return '<input type="text" class="trk-in" data-k="'+k+'" value="'+esc(t[k]||'')+'" placeholder="'+esc(ph)+'"'+dis+' style="font-size:12px;padding:3px 6px;width:'+(w||120)+'px">';};
+  const ok=function(b){return '<span class="trk-dot'+(b?' on':'')+'">'+(b?'✓':'')+'</span>';};
+  const files=(o.files||[]).filter(function(f){return !f.deleted;});
+  const pf=trkPodFile(o);
+  const row=function(n,lab,done,body){return '<div class="trk-row">'+ok(done)+'<span class="trk-lab">'+n+' '+esc(lab)+'</span><div class="trk-body">'+body+'</div></div>';};
+  let h='<div class="trk-card"><div class="trk-head">🚚 运输节点 <span style="font-weight:400;color:var(--ink-soft);font-size:11.5px">填写时间后状态自动推进 · 签收按整单记</span></div>';
+  h+=row('①','已订车',!!t.bookAt,d('bookAt')+tx('carrier','承运商',130)+tx('ref','车牌 / 承运商单号',150));
+  h+=row('②','提货',!!t.puAt,'<span class="trk-sub">ETA</span>'+dt('puEta','预计提货')+'<span class="trk-sub">实际</span>'+dt('puAt','实际提货'));
+  h+=row('③','清关（可跳过）',!!t.ccRel,'<span class="trk-sub">开始</span>'+d('ccStart')+'<span class="trk-sub">放行</span>'+d('ccRel'));
+  h+=row('④','派送',!!t.dlAt,'<span class="trk-sub">ETA</span>'+dt('dlEta','预计送达')+'<span class="trk-sub">实际</span>'+dt('dlAt','实际送达')+tx('signee','签收人',110));
+  h+=row('⑤','签收回单 POD',!!pf,(files.length?'<select class="trk-pod"'+dis+' style="font-size:12px;max-width:260px"><option value="">从订单附件中选择…</option>'+files.map(function(f){const id=f.fid||f.id;return '<option value="'+esc(id)+'"'+(id===t.podFid?' selected':'')+'>'+esc(f.name||id)+'</option>';}).join('')+'</select>':'<span style="color:var(--ink-soft);font-size:12px">先在下方「订单附件」上传签收单，再回来选择</span>')+(pf?' <span style="color:var(--ok);font-size:12px">✓ '+esc(pf.name||'')+'</span>':''));
+  const ex=t.ex||[];
+  h+='<div class="trk-ex"><span class="trk-lab" style="margin-left:22px">异常</span><div class="trk-body" style="flex-direction:column;align-items:stretch">'+
+    ex.map(function(x){return '<div class="trk-exr'+(x.res?' res':'')+'"><b>'+esc(x.type)+'</b> '+esc(x.note||'')+' <span style="color:var(--ink-soft);font-size:11px">'+esc(x.by||'')+' · '+esc(ymdLocal(new Date(x.at||Date.now())))+(x.res?' · 已解决（'+esc(x.resBy||'')+'）':'')+'</span>'+(!x.res&&!ro?' <button type="button" class="btn-sm trk-exres" data-id="'+esc(x.id)+'">已解决</button>':'')+'</div>';}).join('')+
+    (ro?'':'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><select class="trk-ext" style="font-size:12px">'+TRK_EX_TYPES.map(function(x){return '<option>'+esc(x)+'</option>';}).join('')+'</select><input type="text" class="trk-exn" placeholder="说明（必填）" style="font-size:12px;padding:3px 6px;flex:1;min-width:160px"><button type="button" class="btn-sm trk-exadd">＋ 记录异常</button></div>')+'</div></div>';
+  if(Number(o.step)>=5&&!pf)h+='<div class="trk-warn">⚠ 尚未标记签收回单（POD）。可以照常开票，建议收到后补上。</div>';
+  return h+'</div>';
+}
+function trkDecorate(){
+  try{
+    const det=document.querySelector('#ordBody tr.detail');if(!det||typeof ordOpenId==='undefined'||!ordOpenId)return;
+    const o=ordItems.find(function(x){return x.id===ordOpenId;});if(!o||o.type==='inq'||o.flag==='lost')return;
+    if(det.querySelector('.trk-card'))return;
+    const anchor=det.querySelector('.ord-tags-row');if(!anchor)return;
+    const box=document.createElement('div');box.innerHTML=trkCardHtml(o);const card=box.firstChild;
+    anchor.parentNode.insertBefore(card,anchor.nextSibling);
+    card.addEventListener('click',function(e){e.stopPropagation();});
+    card.querySelectorAll('.trk-in').forEach(function(inp){inp.addEventListener('change',async function(){
+      const k=inp.dataset.k;const v=inp.value.trim();const p={};p[k]=v;
+      const L={bookAt:'订车',carrier:'承运商',ref:'车牌/单号',puEta:'提货 ETA',puAt:'实际提货',ccStart:'清关开始',ccRel:'海关放行',dlEta:'送达 ETA',dlAt:'实际送达',signee:'签收人'};
+      await trkSave(o,p,'运输节点：'+(L[k]||k)+' '+(v?v.replace('T',' '):'（清空）'));renderORD();});});
+    const pod=card.querySelector('.trk-pod');if(pod)pod.addEventListener('change',async function(){const f=(o.files||[]).find(function(x){return (x.fid||x.id)===pod.value;});await trkSave(o,{podFid:pod.value},pod.value?'签收回单（POD）：'+(f&&f.name||pod.value):'签收回单（POD）：取消标记');renderORD();});
+    const add=card.querySelector('.trk-exadd');if(add)add.addEventListener('click',async function(){
+      const n=card.querySelector('.trk-exn').value.trim();if(!n){toast('请填写异常说明');return;}
+      const ty=card.querySelector('.trk-ext').value;const ex=(trkOf(o).ex||[]).slice();ex.push({id:'x'+Date.now().toString(36),type:ty,note:n,at:Date.now(),by:session.name});
+      await trkSave(o,{ex:ex},'异常：'+ty+' · '+n);renderORD();});
+    card.querySelectorAll('.trk-exres').forEach(function(b){b.addEventListener('click',async function(){
+      const ex=(trkOf(o).ex||[]).map(function(x){return x.id===b.dataset.id?Object.assign({},x,{res:true,resAt:Date.now(),resBy:session.name}):x;});
+      const it=ex.find(function(x){return x.id===b.dataset.id;});await trkSave(o,{ex:ex},'异常已解决：'+(it?it.type+' · '+(it.note||''):''));renderORD();});});
+  }catch(e){}
+}
+const TRK_CSS=`
+.trk-card{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:0 0 10px;background:var(--card)}
+.trk-head{font-weight:600;font-size:12.5px;margin-bottom:6px}
+.trk-row,.trk-ex{display:flex;align-items:flex-start;gap:8px;padding:4px 0;border-top:1px dashed var(--line)}
+.trk-row:first-of-type{border-top:0}
+.trk-dot{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:10px;flex:0 0 16px;margin-top:4px}
+.trk-dot.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.trk-lab{min-width:96px;font-size:12px;color:var(--ink-soft);margin-top:4px}
+.trk-body{display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex:1}
+.trk-sub{font-size:11px;color:var(--ink-soft)}
+.trk-exr{font-size:12px;padding:3px 0;color:var(--bad)}.trk-exr.res{color:var(--ink-soft);text-decoration:line-through}
+.trk-warn{margin-top:6px;font-size:12px;color:var(--warn)}
+.trk-hint{display:inline-block;margin-left:6px;font-size:11px;color:var(--ink-soft);font-family:var(--font-num)}
+.trk-hint.bad{color:var(--bad)}.trk-hint.warn{color:var(--warn)}
+`;
+function trkInit(){
+  if(document.getElementById('trkCss'))return;
+  const st=document.createElement('style');st.id='trkCss';st.textContent=TRK_CSS;document.head.appendChild(st);
+  if(typeof renderORD==='function'&&!renderORD.__trk){const _r=renderORD;renderORD=function(){const r=_r.apply(this,arguments);trkDecorate();return r;};renderORD.__trk=true;}
+  if(typeof logiBadge==='function'&&!logiBadge.__trk){const _b=logiBadge;logiBadge=function(o){return _b.apply(this,arguments)+trkHint(o);};logiBadge.__trk=true;}
+  if(typeof kanRender==='function'&&!kanRender.__trk){const _kr=kanRender;kanRender=function(){const r=_kr.apply(this,arguments);try{document.querySelectorAll('#kanView .kan-card').forEach(function(c){if(c.querySelector('.trk-hint'))return;const o=ordItems.find(function(x){return x.id===c.dataset.id;});const h=o?trkHint(o):'';if(h){const sp=document.createElement('span');sp.innerHTML=h;const el=sp.firstChild;el.style.display='block';el.style.marginLeft='0';c.appendChild(el);}});}catch(e){}return r;};kanRender.__trk=true;}
+
+  const aiO=document.getElementById('aiOrderNo');
+  if(aiO&&!aiO.__trk){aiO.__trk=true;const tip=document.createElement('div');tip.id='aiPodTip';tip.style.cssText='display:none;font-size:12px;color:var(--warn);margin-top:4px';aiO.insertAdjacentElement('afterend',tip);
+    const chk=function(){try{const nos=String(aiO.value||'').split(/[,，\s]+/).filter(Boolean);const miss=nos.filter(function(n){const o=ordItems.find(function(x){return !x.deleted&&x.orderNo===n;});return o&&!trkPodFile(o);});tip.style.display=miss.length?'':'none';tip.textContent=miss.length?'⚠ '+miss.join('、')+' 尚未标记签收回单（POD）——可以照常开票，建议收到后补上':'';}catch(e){}};
+    aiO.addEventListener('input',chk);aiO.addEventListener('change',chk);}
+
+  if(typeof kanSet==='function'&&!kanSet.__trk){const _k=kanSet;kanSet=async function(o,k,silent){if(k==='done'&&o&&!(o.trk&&o.trk.dlAt)&&!isRO()){o.trk=Object.assign({},o.trk||{},{dlAt:ymdLocal(new Date())+'T'+new Date().toTimeString().slice(0,5)});try{toast('已按现在记为实际送达时间，可在「运输节点」修改');}catch(e){}}return _k.apply(this,arguments);};kanSet.__trk=true;}
+}
+window.trkInit=trkInit;window.trkDecorate=trkDecorate;window.kanSet=function(){return kanSet.apply(this,arguments);};
+
+function trkWbCard(me){
+  const today=todayStr();const tm=ymdLocal(new Date(Date.now()+86400000));const R=[];
+  for(const o of ordItems){if(o.deleted||o.type==='inq'||o.flag==='lost'||o.owner!==me)continue;const t=trkOf(o);
+    if(t.dlAt){if(!trkPodFile(o))R.push([2,o,'已送达 '+trkMD(t.dlAt)+'，缺签收回单（POD）']);continue;}
+    if(t.dlEta){const d=trkDay(t.dlEta);if(d<today)R.push([0,o,'ETA '+trkMD(d)+' 已过，未登记送达']);else if(d<=tm)R.push([1,o,(d===today?'今天':'明天')+'送达 · ETA '+String(t.dlEta).slice(11,16)]);}}
+  R.sort(function(a,b){return a[0]-b[0];});
+  return wbCard('运输提醒',R.length,R.some(function(r){return r[0]===0;})?'bad':(R.length?'':'ok'),null,null,R.slice(0,6).map(function(r){return wbRow('',r[1].orderNo+'　'+(r[1].customer||''),r[2],'','ord',r[1].orderNo);}).join(''));
+}
+window.trkWbCard=trkWbCard;
+
+function tordDeliveryLines(o){return (o.svc||[]).filter(function(s){try{return svcIsDelivery(s.name,s.en);}catch(e){return false;}});}
+function tordStops(o){
+  const out=[];const t=(o.trk||{});
+  for(const s of tordDeliveryLines(o)){
+    const fromL=s.locFrom?locById(s.locFrom):null;
+    const tos=(s.addrTos&&s.addrTos.length?s.addrTos:(s.addrTo?[s.addrTo]:[]));
+    tos.forEach(function(a,ix){const id=(s.locTos||[])[ix];const L=id?locById(id):null;out.push({from:s.addrFrom||'',fromL:fromL,to:a,toL:L,mode:s.mode||'',pallets:ix===0?s.pallets:'',weightKg:ix===0?s.weightKg:'',line:s});});
+  }
+  return out;
+}
+const TORD_TX={
+  de:{subj:'Transportauftrag',hello:'Sehr geehrte Damen und Herren,',intro:'hiermit beauftragen wir Sie mit folgendem Transport:',ref:'IMG-Auftragsnr.',refNote:'bitte unbedingt auf der Rechnung angeben',veh:'Fahrzeug',pick:'Abholung',stop:'Stopp',load:'Ladung',pal:'Paletten',kg:'kg',goods:'Ware',freight:'Fracht',pay:'Zahlungsbedingung',flat:'pauschal',pod:'Bitte senden Sie den unterschriebenen Ablieferungsnachweis (CMR/POD) mit Ihrer Rechnung.',confirm:'Bitte bestätigen Sie diesen Auftrag kurz per E-Mail.',bye:'Mit freundlichen Grüßen',eta:'',noRamp:'keine Rampe – Hebebühne erforderlich',ramp:'Rampe vorhanden',resi:'Privatadresse',appt:'nur mit Termin',hours:'Annahme',contact:'Kontakt',title:'Transportauftrag'},
+  en:{subj:'Transport order',hello:'Dear Sir or Madam,',intro:'we hereby order the following transport:',ref:'IMG order no.',refNote:'please quote it on your invoice',veh:'Vehicle',pick:'Pickup',stop:'Drop',load:'Cargo',pal:'pallets',kg:'kg',goods:'Goods',freight:'Freight',pay:'Payment terms',flat:'all-in',pod:'Please send the signed proof of delivery (CMR/POD) together with your invoice.',confirm:'Please confirm this order by reply.',bye:'Kind regards',eta:'',noRamp:'no loading dock – tail-lift required',ramp:'loading dock available',resi:'residential address',appt:'delivery by appointment only',hours:'Receiving hours',contact:'Contact',title:'Transport order'}
+};
+function tordDT(s){if(!s)return '';const d=String(s).slice(0,10).split('-');const t=String(s).slice(11,16);return d.length===3?(d[2]+'.'+d[1]+'.'+d[0]+(t?', '+t:'')):String(s);}
+function tordOps(L,T){if(!L)return [];const r=[];if(L.dock==='nodock')r.push(T.noRamp);else if(L.dock==='dock')r.push(T.ramp);else if(L.dock==='resi')r.push(T.resi);if(L.appt)r.push(T.appt);if(L.hours)r.push(T.hours+' '+L.hours);if(L.contact||L.phone)r.push(T.contact+' '+[L.contact,L.phone].filter(Boolean).join(' '));if(L.opsNote)r.push(L.opsNote);return r;}
+
+function tordClean(a){return String(a||'').replace(/[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]+/g,' ').replace(/\s+,/g,',').replace(/,\s*,/g,',').replace(/^[\s,]+|[\s,]+$/g,'').replace(/\s{2,}/g,' ');}
+function tordShort(a){a=tordClean(a);return String(a||'').split(',').map(function(x){return x.trim();}).filter(Boolean).slice(-2,-1)[0]||String(a||'');}
+
+function tordText(o,opts){
+  const T=TORD_TX[opts.lang==='en'?'en':'de'];const t=o.trk||{};const st=tordStops(o);const L=[];
+  const pk=st[0];const fromTxt=pk?tordClean(pk.from):'';
+  const route=(pk?tordShort(fromTxt):'')+' → '+st.map(function(x){return tordShort(x.to);}).filter(Boolean).join(' / ');
+  const subject=T.subj+' '+(o.orderNo||'')+' – '+route+(t.puEta?' – '+T.pick+' '+tordDT(t.puEta).slice(0,6):'');
+  L.push(T.hello,'',T.intro,'',T.ref+': '+(o.orderNo||'')+' ('+T.refNote+')');
+  if(opts.vehicle)L.push(T.veh+': '+opts.vehicle);
+  L.push('');
+  if(pk){L.push(T.pick+': '+fromTxt+(t.puEta?' – '+tordDT(t.puEta):''));}
+  st.forEach(function(x,i){const ops=tordOps(x.toL,T).map(tordClean).filter(Boolean);L.push(T.stop+' '+'①②③④⑤⑥'[i]+': '+tordClean(x.to)+(i===0&&t.dlEta?' – '+tordDT(t.dlEta):'')+(ops.length?' · '+ops.join(' · '):''));});
+  const pal=st.reduce(function(a,x){return a+(Number(x.pallets)||0);},0),kg=st.reduce(function(a,x){return a+(Number(x.weightKg)||0);},0);
+  if(pal||kg||opts.goods)L.push(T.load+': '+[pal?pal+' '+T.pal:'',kg?fmt(kg).replace(/,00$/,'')+' '+T.kg:'',opts.goods?T.goods+': '+opts.goods:''].filter(Boolean).join(', '));
+  if(opts.price!=null&&opts.price!=='')L.push(T.freight+': '+(opts.cur||'EUR')+' '+fmt(Number(opts.price)||0)+' '+T.flat);
+  if(opts.payTerms)L.push(T.pay+': '+opts.payTerms);
+  L.push('',T.pod+' '+T.confirm,'',T.bye,(opts.me&&opts.me.name||'')+' · IMG Europe GmbH');
+  const me=opts.me||{};if(me.email||me.phone)L.push([me.email,me.phone].filter(Boolean).join(' · '));
+  return {subject:subject,body:L.join('\n')};
+}
+window.tordText=tordText;window.tordStops=tordStops;
+function tordPdfHtml(o,opts){
+  const T=TORD_TX[opts.lang==='en'?'en':'de'];const tx=tordText(o,opts);const vat=((meta.company||{}).vatId)||'';
+  const logo='<svg width="70" height="44" viewBox="0 0 100 62">'+['#F7A800','#43B02A','#00B2A9','#0072CE','#003DA5'].map(function(c,i){const x=6+i*15,h=26+i*8,sl=13;return '<path d="M'+x+',58 L'+(x+sl)+','+(58-h)+' L'+(x+sl+8)+','+(58-h)+' L'+(x+8)+',58 Z" fill="'+c+'"/>';}).join('')+'</svg>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(T.title+' '+(o.orderNo||''))+'</title><style>body{font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;color:#1d2b28;max-width:180mm;margin:12mm auto}.hd{display:flex;gap:12px;align-items:center;border-bottom:2.5px solid #0E3B33;padding-bottom:8px}.hd b{font-size:13pt;color:#0E3B33}h1{font-size:16pt;color:#0E3B33;margin:14px 0 4px}.ref{font-size:12pt;font-weight:700;font-family:monospace}pre{white-space:pre-wrap;font-family:inherit;line-height:1.5}.ft{margin-top:18px;border-top:1px solid #ccc;padding-top:4px;font-size:8pt;color:#777;text-align:center}@media print{.noprint{display:none}}</style></head><body>'+
+    '<div class="hd">'+logo+'<div><b>IMG Europe GmbH</b><br><span style="font-size:9pt;color:#555">Wiesenstraße 35 · 45473 Mülheim an der Ruhr · Deutschland</span></div></div>'+
+    '<h1>'+esc(T.title)+' <span class="ref">'+esc(o.orderNo||'')+'</span></h1><div style="color:#666;font-size:9pt">'+esc(tordDT(ymdLocal(new Date())))+' · '+esc(opts.carrier||'')+'</div>'+
+    '<pre>'+esc(tx.body)+'</pre>'+
+    '<div class="ft">IMG Europe GmbH · Wiesenstraße 35 · 45473 Mülheim an der Ruhr · Amtsgericht Duisburg HRB 40312 · Geschäftsführer: Wenjun Chen'+(vat?' · USt-IdNr. '+esc(vat):'')+'</div>'+
+    '<div class="noprint" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="padding:9px 24px;background:#0E3B33;color:#fff;border:0;border-radius:6px;cursor:pointer">PDF speichern / drucken</button></div></body></html>';
+}
+function tordOpen(o){
+  if(!o)return;const ov=document.createElement('div');ov.id='tordOvl';ov.className='overlay open';ov.style.cssText='display:flex';
+  const q=ordSelQuote(o);const sup=q?q.supplier:'';const supRec=(meta.suppliers||[]).find(function(x){return x.name===sup;})||{};
+  const st=tordStops(o);const veh=(st[0]&&st[0].mode)||'';
+  const me=Object.assign({name:session.name},((meta.userContacts||{})[session.name])||{});
+  const terms=((meta.supplierTerms||{})[sup])||'';
+  ov.innerHTML='<div class="modal" style="max-width:720px;width:96vw"><h3 style="margin-top:0">📨 派送委托 · '+esc(o.orderNo||'')+'</h3>'+
+    (st.length?'':'<div style="color:var(--bad);margin-bottom:8px">这张订单还没有带地址的派送服务项，无法生成派送委托。</div>')+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:12.5px">'+
+    '<label>语言<br><select id="tdLang"><option value="de">Deutsch</option><option value="en">English</option></select></label>'+
+    '<label>承运商<br><input id="tdCar" value="'+esc(sup)+'" style="width:100%"></label>'+
+    '<label>运费（给这家承运商，只含派送）<br><input id="tdPrice" value="'+(q&&q.price!=null?esc(String(q.price)):'')+'" style="width:60%"> <select id="tdCur"><option>EUR</option><option>USD</option></select></label>'+
+    '<label>付款条件（按供应商；留空则不写）<br><input id="tdPay" value="'+esc(terms)+'" placeholder="例如 30 Tage netto" style="width:100%"></label>'+
+    '<label>车型<br><input id="tdVeh" value="'+esc(veh)+'" style="width:100%"></label>'+
+    '<label>货物说明（选填）<br><input id="tdGoods" placeholder="例如 Allgemeine Ware, nicht stapelbar" style="width:100%"></label>'+
+    '<label>我的邮箱<br><input id="tdMail" value="'+esc(me.email||'')+'" style="width:100%"></label>'+
+    '<label>我的电话<br><input id="tdTel" value="'+esc(me.phone||'')+'" style="width:100%"></label>'+
+    '<label style="grid-column:1/-1">收件人（供应商邮箱）<br><input id="tdTo" value="'+esc(supRec.email||'')+'" style="width:100%"></label></div>'+
+    '<div style="margin-top:10px;font-size:12px;color:var(--ink-soft)">邮件主题</div><input id="tdSubj" style="width:100%;font-size:12.5px">'+
+    '<div style="margin-top:8px;font-size:12px;color:var(--ink-soft)">邮件正文（可直接修改）</div><textarea id="tdBody" rows="14" style="width:100%;font-family:inherit;font-size:12.5px"></textarea>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;justify-content:flex-end"><button type="button" class="btn-ghost" id="tdClose">关闭</button><button type="button" class="btn-sm" id="tdPdf">生成 PDF</button><button type="button" class="btn-sm" id="tdMailto">用邮件打开</button><button type="button" class="btn" id="tdCopy">复制正文</button></div>'+
+    '<div style="font-size:11px;color:var(--ink-soft);margin-top:6px">只生成邮件和 PDF，不会修改订单。我的邮箱/电话、该供应商的付款条件和邮箱会记住，下次自动带出。</div></div>';
+  document.body.appendChild(ov);
+  const g=function(id){return ov.querySelector('#'+id);};
+  const opts=function(){return {lang:g('tdLang').value,carrier:g('tdCar').value.trim(),price:g('tdPrice').value.replace(/\./g,'').replace(',','.').trim(),cur:g('tdCur').value,payTerms:g('tdPay').value.trim(),vehicle:g('tdVeh').value.trim(),goods:g('tdGoods').value.trim(),me:{name:session.name,email:g('tdMail').value.trim(),phone:g('tdTel').value.trim()}};};
+  const regen=function(){const r=tordText(o,opts());g('tdSubj').value=r.subject;g('tdBody').value=r.body;};
+  ['tdLang','tdCar','tdPrice','tdCur','tdPay','tdVeh','tdGoods','tdMail','tdTel'].forEach(function(id){g(id).addEventListener('input',regen);g(id).addEventListener('change',regen);});
+  regen();
+  const remember=async function(){try{const op=opts();let ch=false;meta.userContacts=meta.userContacts||{};const cur=meta.userContacts[session.name]||{};
+      if((cur.email||'')!==op.me.email||(cur.phone||'')!==op.me.phone){meta.userContacts[session.name]={email:op.me.email,phone:op.me.phone};ch=true;}
+      if(op.carrier){meta.supplierTerms=meta.supplierTerms||{};if((meta.supplierTerms[op.carrier]||'')!==op.payTerms){if(op.payTerms)meta.supplierTerms[op.carrier]=op.payTerms;else delete meta.supplierTerms[op.carrier];ch=true;}}
+      if(ch&&!isRO())await metaSave();}catch(e){}};
+  g('tdClose').onclick=function(){ov.remove();};
+  ov.addEventListener('mousedown',function(e){if(e.target===ov)ov.remove();});
+  g('tdCopy').onclick=async function(){const txt=g('tdSubj').value+'\n\n'+g('tdBody').value;try{await navigator.clipboard.writeText(txt);toast('已复制主题和正文');}catch(e){g('tdBody').select();try{document.execCommand('copy');toast('已复制正文');}catch(_){}}remember();};
+  g('tdMailto').onclick=function(){const href='mailto:'+encodeURIComponent(g('tdTo').value.trim())+'?subject='+encodeURIComponent(g('tdSubj').value)+'&body='+encodeURIComponent(g('tdBody').value);remember();try{window.location.href=href;}catch(e){}};
+  g('tdPdf').onclick=function(){remember();const w=window.open('','_blank');if(!w){toast('弹窗被拦截，请允许本站弹窗后重试');return;}w.document.write(tordPdfHtml(o,Object.assign(opts(),{body:g('tdBody').value})));w.document.close();};
+}
+window.tordOpen=tordOpen;window.tordPdfHtml=tordPdfHtml;
+function tordDecorate(){
+  try{const det=document.querySelector('#ordBody tr.detail');if(!det||typeof ordOpenId==='undefined'||!ordOpenId||det.querySelector('.tord-btn'))return;
+    const o=ordItems.find(function(x){return x.id===ordOpenId;});if(!o||o.type==='inq'||!tordDeliveryLines(o).length)return;
+    const bq=[...det.querySelectorAll('button')].find(function(b){return /报价单/.test(b.textContent);});if(!bq)return;
+    const b=document.createElement('button');b.type='button';b.className=bq.className+' tord-btn';b.textContent='📨 派送委托';b.title='生成给承运商的派送委托（德语/英语邮件正文，可选 PDF）';
+    b.onclick=function(e){e.stopPropagation();tordOpen(o);};bq.insertAdjacentElement('afterend',b);}catch(e){}
+}
+
+function tordVatCard(){
+  try{if(!session||session.role!=='finance')return;const host=document.getElementById('baseCards');if(!host||document.getElementById('coCard'))return;
+    const c=document.createElement('div');c.className='base-card';c.id='coCard';
+    c.innerHTML='<h3>公司资料（单据页脚）</h3><label style="font-size:12.5px">IMG Europe 增值税号（USt-IdNr.）<br><input id="coVat" value="'+esc((meta.company||{}).vatId||'')+'" placeholder="DE…" style="width:220px"></label> <button type="button" class="btn-sm" id="coSave">保存</button><div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px">显示在派送委托书 PDF 的页脚。</div>';
+    const anchor=document.getElementById('bankRuleCard')||document.getElementById('fsCard')||document.getElementById('migCard');
+    if(anchor&&anchor.parentNode)anchor.parentNode.insertBefore(c,anchor);else host.parentNode.appendChild(c);
+    c.querySelector('#coSave').onclick=async function(){meta.company=Object.assign({},meta.company||{},{vatId:c.querySelector('#coVat').value.trim()});await metaSave();toast('已保存公司增值税号');};
+  }catch(e){}
+}
+function tordInit(){
+  if(typeof renderORD==='function'&&!renderORD.__tord){const _r=renderORD;renderORD=function(){const r=_r.apply(this,arguments);tordDecorate();return r;};renderORD.__tord=true;}
+  if(typeof renderBASE==='function'&&!renderBASE.__tord){const _b=renderBASE;renderBASE=function(){const r=_b.apply(this,arguments);tordVatCard();return r;};renderBASE.__tord=true;}
+}
+window.tordInit=tordInit;
+
+let _brSel=null,_brPick={},_brQ='';
+function brOpenList(){return bankItems.filter(function(t){return !t.deleted&&(t.status==='pending'||t.status==='matched');}).sort(function(a,b){return String(b.date).localeCompare(String(a.date))||Math.abs(b.amount)-Math.abs(a.amount);});}
+function brR2(v){return Math.round(v*100)/100;}
+function brSupplierHit(sup,cp){const a=bankNorm(sup),b=bankNorm(cp);if(!a||!b)return false;if(a===b||a.includes(b)||b.includes(a))return true;return a.length>=6&&b.length>=6&&a.slice(0,6)===b.slice(0,6);}
+
+function brCandidates(tx,q){
+  const isIn=tx.amount>0;q=String(q||'').trim();const qn=bankNorm(q);const rows=[];let party='';
+  if(isIn){
+    for(const x of ariItems){if(x.deleted||!x.invNo)continue;const st=ariState(x);if(st==='paid'||st==='storno')continue;if((Number(x.gross)||0)<=0)continue;
+      const hit=qn?(bankNorm(x.customer).includes(qn)||bankNorm(x.invNo).includes(qn)||bankNorm(x.orderNo).includes(qn)):bankPayerIsCustomer(tx.cpName,x.customer);
+      if(!hit)continue;rows.push({id:x.id,no:x.invNo,party:x.customer||'',date:x.invDate||'',ord:x.orderNo||'',amount:Number(x.gross)||0,open:brR2((Number(x.gross)||0)-ariPaid(x)),due:x.due||''});}
+  }else{
+    for(const x of apItems){if(x.deleted||!x.invNo)continue;if(apState(x)==='paid')continue;
+      const hit=qn?(bankNorm(x.supplier).includes(qn)||bankNorm(x.invNo).includes(qn)||bankNorm(x.orderNo).includes(qn)):brSupplierHit(x.supplier,tx.cpName);
+      if(!hit)continue;const open=brR2((Number(x.amount)||0)-apPaidSum(x));if(Math.abs(open)<0.005)continue;
+      rows.push({id:x.id,no:x.invNo,party:x.supplier||'',date:x.date||x.invDate||'',ord:x.orderNo||'',amount:Number(x.amount)||0,open:open,due:x.due||'',ops:x.kind==='ops'});}
+  }
+  rows.sort(function(a,b){return String(a.date).localeCompare(String(b.date))||String(a.no).localeCompare(String(b.no));});
+  const ps=[...new Set(rows.map(function(r){return r.party;}))];party=ps.length===1?ps[0]:'';
+  return {rows:rows,party:party};
+}
+function brSums(tx,rows){const sel=rows.filter(function(r){return _brPick[r.id];});const s=brR2(sel.reduce(function(a,r){return a+r.open;},0));return {sel:sel,sum:s,amt:brR2(Math.abs(tx.amount)),diff:brR2(Math.abs(tx.amount)-s)};}
+const BR_CSS=`
+#brOvl{position:fixed;inset:0;z-index:2350;background:rgba(14,30,26,.45);display:flex;align-items:stretch;justify-content:center;padding:3vh 2vw}
+#brBox{background:var(--card);color:var(--ink);border-radius:12px;width:100%;max-width:1400px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+#brHead{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line)}
+#brMain{flex:1;display:grid;grid-template-columns:minmax(300px,38%) 1fr;min-height:0}
+#brLeft{border-right:1px solid var(--line);overflow-y:auto}
+#brRight{overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+.br-tx{padding:9px 14px;border-bottom:1px solid var(--n-soft,#F0F3F2);cursor:pointer;font-size:12.5px}
+.br-tx:hover{background:var(--n-wash,#EEF3F1)}.br-tx.on{background:#EAF2EF;box-shadow:inset 3px 0 0 var(--pine)}
+.br-tx .r1{display:flex;justify-content:space-between;gap:8px}.br-tx .r2{color:var(--ink-soft);font-size:11.5px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.br-tx .amt{font-family:var(--font-num);font-weight:600}.br-tx .amt.in{color:var(--ok)}.br-tx .amt.out{color:var(--bad)}
+.br-st{font-size:10.5px;border-radius:8px;padding:0 6px;margin-left:4px}.br-st.pending{background:var(--warn-bg);color:var(--warn)}.br-st.matched{background:var(--info-bg,#E6F0FA);color:var(--info)}
+table.br-c{width:100%;border-collapse:collapse;font-size:12.5px}table.br-c th{text-align:left;font-size:11px;color:var(--ink-soft);border-bottom:1px solid var(--line);padding:4px 6px;position:sticky;top:0;background:var(--card)}
+table.br-c td{padding:5px 6px;border-bottom:1px solid var(--n-soft,#F0F3F2)}table.br-c td.n{text-align:right;font-family:var(--font-num);white-space:nowrap}
+table.br-c tr.cr td{color:var(--info)}table.br-c tr.on td{background:#F2F8F5}
+#brFoot{position:sticky;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 0 2px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+#brFoot .k{font-size:11px;color:var(--ink-soft)}#brFoot .v{font-family:var(--font-num);font-weight:700;font-size:14px}
+#brFoot .v.ok{color:var(--ok)}#brFoot .v.bad{color:var(--bad)}
+`;
+function brRenderLeft(){
+  const L=brOpenList();const box=document.getElementById('brLeft');if(!box)return;
+  if(!L.length){box.innerHTML='<div style="padding:24px;color:var(--ink-soft)">没有待处理的流水 🎉</div>';return;}
+  box.innerHTML=L.map(function(t){const isIn=t.amount>0;return '<div class="br-tx'+(_brSel===t.id?' on':'')+'" data-id="'+esc(t.id)+'"><div class="r1"><span><b>'+esc(t.cpName||'（无户名）')+'</b><span class="br-st '+t.status+'">'+(t.status==='pending'?'待认领':'待确认')+'</span></span><span class="amt '+(isIn?'in':'out')+'">'+(isIn?'+':'−')+' '+fmt(Math.abs(t.amount))+'</span></div><div class="r2">'+esc(t.date)+' · '+esc(String(t.memo||t.note||'').slice(0,80))+'</div></div>';}).join('');
+  box.querySelectorAll('.br-tx').forEach(function(el){el.onclick=function(){brSelect(el.dataset.id);};});
+}
+function brSelect(id){
+  const tx=bankItems.find(function(t){return t.id===id;});if(!tx)return;_brSel=id;_brQ='';_brPick={};
+  for(const r of ((tx.match&&tx.match.refs)||[]))if(r&&r.id&&!r.unalloc)_brPick[r.id]=true;
+  brRenderLeft();brRenderRight();
+}
+function brRenderRight(){
+  const box=document.getElementById('brRight');if(!box)return;const tx=bankItems.find(function(t){return t.id===_brSel;});
+  if(!tx){box.innerHTML='<div style="color:var(--ink-soft);padding:20px">← 点左边一笔流水，右边列出对方所有未结发票</div>';return;}
+  const isIn=tx.amount>0;const C=brCandidates(tx,_brQ);const S=brSums(tx,C.rows);
+  let h='<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><div style="font-weight:700;font-size:14px">'+esc(tx.cpName||'（无户名）')+' · <span style="font-family:var(--font-num)">'+(isIn?'+':'−')+' € '+fmt(Math.abs(tx.amount))+'</span></div><div style="color:var(--ink-soft);font-size:12px;margin-top:2px">'+esc(tx.date)+' · '+esc(tx.memo||'')+' '+esc(tx.note||'')+'</div></div>'+
+    '<input id="brQ" type="search" placeholder="'+(isIn?'搜客户名 / 发票号 / 成单号':'搜供应商名 / 发票号 / 成单号')+'" value="'+esc(_brQ)+'" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;width:260px"></div>';
+  h+='<div style="font-size:12px;color:var(--ink-soft)">'+(isIn?'应收':'应付')+'未结发票'+(C.party?'：<b style="color:var(--ink)">'+esc(C.party)+'</b>':'')+'（'+C.rows.length+' 张'+(isIn?'':'，含贷记单')+'）'+(!_brQ&&!C.rows.length?' — 没有自动识别出对方，请在右上角搜索客户/供应商名或发票号':'')+'</div>';
+  if(C.rows.length){
+    h+='<table class="br-c"><thead><tr><th style="width:28px"><input type="checkbox" id="brAll" title="全选"'+(C.rows.length&&C.rows.every(function(r){return _brPick[r.id];})?' checked':'')+'></th><th>发票号</th><th>'+(isIn?'客户':'供应商')+'</th><th>发票日期</th><th>到期</th><th>成单号</th><th class="n">金额</th><th class="n">未结</th></tr></thead><tbody>'+
+      C.rows.map(function(r){const on=!!_brPick[r.id];return '<tr class="'+(r.open<0?'cr ':'')+(on?'on':'')+'"><td><input type="checkbox" class="brChk" data-id="'+esc(r.id)+'"'+(on?' checked':'')+'></td><td>'+esc(r.no)+(r.open<0?' <span style="font-size:10.5px">贷记单</span>':'')+'</td><td>'+esc(r.party)+'</td><td>'+esc(r.date)+'</td><td>'+esc(r.due)+'</td><td>'+esc(r.ord)+'</td><td class="n">'+fmt(r.amount)+'</td><td class="n">'+fmt(r.open)+'</td></tr>';}).join('')+'</tbody></table>';
+  }
+  const okd=Math.abs(S.diff)<0.005&&S.sel.length;
+  h+='<div id="brFoot"><span><span class="k">已选 '+S.sel.length+' 张 · 合计</span><br><span class="v">€ '+fmt(S.sum)+'</span></span><span><span class="k">流水金额</span><br><span class="v">€ '+fmt(S.amt)+'</span></span><span><span class="k">差额</span><br><span class="v '+(okd?'ok':(S.sel.length?'bad':''))+'">'+(okd?'✓ 0,00':'€ '+fmt(S.diff))+'</span></span>'+
+    '<span style="margin-left:auto;display:flex;gap:8px"><button type="button" class="btn-ghost" id="brSave"'+(S.sel.length?'':' disabled')+'>保存指定</button><button type="button" class="btn" style="width:auto" id="brConfirm"'+(S.sel.length?'':' disabled')+'>保存并确认</button></span></div>';
+  box.innerHTML=h;
+  const q=box.querySelector('#brQ');q.oninput=function(){_brQ=q.value;const pos=q.selectionStart;brRenderRight();const n=document.getElementById('brQ');if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(e){}}};
+  box.querySelectorAll('.brChk').forEach(function(c){c.onchange=function(){if(c.checked)_brPick[c.dataset.id]=true;else delete _brPick[c.dataset.id];brRenderRight();};});
+  const all=box.querySelector('#brAll');if(all)all.onchange=function(){C.rows.forEach(function(r){if(all.checked)_brPick[r.id]=true;else delete _brPick[r.id];});brRenderRight();};
+  const b1=box.querySelector('#brSave'),b2=box.querySelector('#brConfirm');
+  if(b1)b1.onclick=function(){brApply(tx,C.rows,false);};if(b2)b2.onclick=function(){brApply(tx,C.rows,true);};
+}
+async function brApply(tx,rows,andConfirm){
+  if(!canBank())return false;
+  const isIn=tx.amount>0;const sel=rows.filter(function(r){return _brPick[r.id];});if(!sel.length)return false;
+  const al=bankAllocate(sel.map(function(r){return {id:r.id,no:r.no,open:r.open,extra:isIn?undefined:{ord:r.ord}};}),tx.amount);
+  if((al.unalloc||Math.abs(al.gap)>0.005)&&!confirm(bankGapMsg(al,tx)))return false;
+  const payee=tx.cpName||'';const kind=isIn?'ar':(sel.some(function(r){return r.ops;})?'ops':'ap');
+  const m={kind:kind,acct:isIn?'应收账款':'应付账款',summary:(tx.match&&tx.match.summary)||(payee+(isIn?'业务款':'')),payee:(tx.match&&tx.match.payee)||payee,refs:al.refs,linkOnly:al.refs.length>0&&al.refs.every(function(r){return r.linkOnly;})};
+  await bankSetManual(tx,m);
+  if(andConfirm){await bankConfirm(tx);}
+  toast(andConfirm?'已确认（与银行页「确认」相同的处理）':'已保存指定，可在银行页确认');
+  const L=brOpenList();_brSel=null;_brPick={};_brQ='';
+  if(andConfirm&&L.length){brSelect(L[0].id);}else{brRenderLeft();brRenderRight();}
+  try{renderBANK();}catch(e){}
+  return true;
+}
+function brOpen(){
+  if(!canBank()||document.getElementById('brOvl'))return;
+  if(!document.getElementById('brCss')){const st=document.createElement('style');st.id='brCss';st.textContent=BR_CSS;document.head.appendChild(st);}
+  const ov=document.createElement('div');ov.id='brOvl';
+  ov.innerHTML='<div id="brBox"><div id="brHead"><b style="font-size:15px">⇆ 银行流水左右对照</b><span style="color:var(--ink-soft);font-size:12px">左边选流水，右边勾发票；确认与银行页「确认」完全相同</span><button type="button" class="btn-ghost" id="brClose" style="margin-left:auto">关闭</button></div><div id="brMain"><div id="brLeft"></div><div id="brRight"></div></div></div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#brClose').onclick=brClose;ov.addEventListener('mousedown',function(e){if(e.target===ov)brClose();});
+  ov.addEventListener('keydown',function(e){if(e.key==='Escape'&&!(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName))){e.stopPropagation();brClose();}});
+  const L=brOpenList();_brSel=null;_brPick={};_brQ='';
+  brRenderLeft();if(L.length)brSelect(L[0].id);else brRenderRight();
+}
+function brClose(){const o=document.getElementById('brOvl');if(o)o.remove();_brSel=null;_brPick={};_brQ='';}
+function brDecorate(){
+  try{if(!canBank())return;const b=document.getElementById('bankImportBtn');if(!b||document.getElementById('brOpenBtn'))return;
+    const x=document.createElement('button');x.type='button';x.id='brOpenBtn';x.className='btn-ghost';x.textContent='⇆ 左右对照';x.title='左边待处理流水、右边对方未结发票，勾选核对后确认';x.onclick=brOpen;b.insertAdjacentElement('afterend',x);}catch(e){}
+}
+function brInit(){if(typeof renderBANK==='function'&&!renderBANK.__br){const _r=renderBANK;renderBANK=function(){const r=_r.apply(this,arguments);brDecorate();return r;};renderBANK.__br=true;}}
+window.brInit=brInit;window.brOpen=brOpen;window.brClose=brClose;window.brCandidates=brCandidates;window.brSelect=brSelect;window.brApply=brApply;window.brPickSet=function(o){_brPick=Object.assign({},o||{});};
+
+function cuHasDuty(o){return (o&&o.svc||[]).some(function(s){try{return svcIsPassThrough(s.name)||String(s.name||'').trim()==='关税';}catch(e){return String(s.name||'').trim()==='关税';}});}
+function cuFiles(o){return (o&&o.files||[]).filter(function(f){return f&&f.kind==='customs'&&!f.deleted;});}
+function cuOrdersOfInv(x){const nos=String(x&&x.orderNo||'').split(/[,，;\s]+/).filter(Boolean);return ordItems.filter(function(o){return !o.deleted&&nos.includes(o.orderNo);});}
+window.cuHasDuty=cuHasDuty;window.cuFiles=cuFiles;
+async function cuToggle(o,f){
+  if(roGuard())return;const on=f.kind!=='customs';
+  if(on)f.kind='customs';else{delete f.kind;delete f.mrn;}
+  logAdd(o,(on?'标为关税文件：':'取消关税文件标记：')+f.name);await ordSave();renderORD();
+}
+async function cuSetMrn(o,f,v){if(roGuard())return;v=String(v||'').trim().toUpperCase();if((f.mrn||'')===v)return;if(v)f.mrn=v;else delete f.mrn;logAdd(o,'关税文件 MRN：'+f.name+' → '+(v||'（清空）'));await ordSave();renderORD();}
+
+async function cuMergePdf(parts){
+  await ensurePdfLib();const L=window.PDFLib;const out=await L.PDFDocument.create();
+  for(const p of parts){
+    const blob=await apFileBlob(p);if(!blob)throw new Error('读取失败：'+(p.name||''));
+    const buf=await blob.arrayBuffer();const nm=String(p.name||'').toLowerCase();const ty=String(p.type||blob.type||'').toLowerCase();
+    if(ty.includes('pdf')||nm.endsWith('.pdf')){const d=await L.PDFDocument.load(buf,{ignoreEncryption:true});const pg=await out.copyPages(d,d.getPageIndices());pg.forEach(function(x){out.addPage(x);});}
+    else if(/png/.test(ty)||nm.endsWith('.png')||/jpe?g/.test(ty)||/\.jpe?g$/.test(nm)){
+      const img=(/png/.test(ty)||nm.endsWith('.png'))?await out.embedPng(buf):await out.embedJpg(buf);
+      const pg=out.addPage([595.28,841.89]);const s=Math.min(555/img.width,800/img.height,1);pg.drawImage(img,{x:(595.28-img.width*s)/2,y:(841.89-img.height*s)/2,width:img.width*s,height:img.height*s});
+    }else throw new Error('不支持的文件格式：'+(p.name||'')+'（只能合并 PDF / PNG / JPG）');
+  }
+  return await out.save();
+}
+window.cuMergePdf=cuMergePdf;
+async function cuDownloadMerged(o){
+  const fs=cuFiles(o);if(!fs.length)return;
+  try{toast('正在合并关税文件…');const bytes=await cuMergePdf(fs);(window.__cuSave||saveBlob)(new Blob([bytes],{type:'application/pdf'}),(o.orderNo||'order')+'_关税文件.pdf');toast('已下载合并后的关税文件');}
+  catch(e){toast('合并失败：'+(e.message||e)+'——请逐个下载');}
+}
+function cuOrdDecorate(){
+  try{
+    const det=document.querySelector('#ordBody tr.detail');if(!det||typeof ordOpenId==='undefined'||!ordOpenId||det.querySelector('.cu-box'))return;
+    const o=ordItems.find(function(x){return x.id===ordOpenId;});if(!o||o.type==='inq')return;
+    const duty=cuHasDuty(o);const cf=cuFiles(o);const ro=isRO();
+
+    const fb=[...det.querySelectorAll('div')].find(function(d){return d.firstElementChild&&/📎 订单附件/.test(d.firstElementChild.textContent||'');});
+    if(fb){const files=(o.files||[]);const btns=[...fb.querySelectorAll('button.ap-file')];
+      btns.forEach(function(b){const f=files.find(function(x){return b.textContent==='⬇ '+x.name;});if(!f||b.parentNode.querySelector('.cu-tag'))return;
+        const t=document.createElement('button');t.type='button';t.className='btn-sm cu-tag';const on=f.kind==='customs';
+        t.textContent=on?'🛃 关税文件 ✓':'标为关税文件';t.title='报关单 / 关税决定书（Einfuhrabgabenbescheid）';b.parentNode.style.flexWrap='wrap';t.style.cssText='white-space:nowrap;padding:1px 8px;font-size:11px;'+(on?'border-color:var(--info);color:var(--info);font-weight:600':'opacity:.7');t.disabled=ro;
+        t.onclick=function(e){e.stopPropagation();cuToggle(o,f);};b.parentNode.appendChild(t);
+        if(on){const m=document.createElement('input');m.className='cu-mrn';m.placeholder='MRN（可选）';m.value=f.mrn||'';m.disabled=ro;m.style.cssText='font-size:11px;padding:1px 6px;width:170px;font-family:var(--font-num)';m.onclick=function(e){e.stopPropagation();};m.onchange=function(){cuSetMrn(o,f,m.value);};b.parentNode.appendChild(m);}
+      });}
+    if(!duty&&!cf.length)return;
+    const box=document.createElement('div');box.className='cu-box';box.style.cssText='margin-top:10px;padding:9px 12px;border-radius:10px;font-size:12.5px;'+(cf.length?'border:1.5px solid var(--info);background:var(--card)':'border:1.5px solid var(--warn);background:var(--warn-bg)');
+    if(!cf.length)box.innerHTML='⚠ 本单有<b>代垫关税</b>，还没有关税文件。请把清关行提供的<b>报关单 / 关税决定书</b>上传到下方「订单附件」，并点「标为关税文件」。财务开票时要把它合并进发票发给客户。';
+    else box.innerHTML='🛃 <b>关税文件（'+cf.length+' 份）</b>：'+cf.map(function(f){return esc(f.name)+(f.mrn?' · MRN '+esc(f.mrn):'');}).join('；')+(session.role==='finance'?' <button type="button" class="btn-sm cu-dl" style="margin-left:6px" title="财务后备：自动合并失败时，下载后在 sevDesk 手工合并">合并下载</button>':'');
+    box.onclick=function(e){e.stopPropagation();};
+    const dl=box.querySelector('.cu-dl');if(dl)dl.onclick=function(){cuDownloadMerged(o);};
+    const anchor=fb||det.querySelector('.trk-card');if(anchor&&anchor.parentNode)anchor.parentNode.insertBefore(box,anchor);else{const td=det.firstElementChild;if(td)td.appendChild(box);}
+
+    try{const ib=[...det.querySelectorAll('div')].find(function(d){return d.firstElementChild&&/财务已上传发票/.test(d.firstElementChild.textContent||'');});
+      if(ib&&!ib.__cu){ib.__cu=true;const invs=ariItems.filter(function(r){return !r.deleted&&r.orderNo===o.orderNo;});
+        const merged=[],srcFids=new Set();invs.forEach(function(r){(r.files||[]).forEach(function(f){if(f.cuMerged){merged.push(f);(f.cuSrc||[]).forEach(function(id){srcFids.add(id);});}});});
+        if(merged.length){[...ib.querySelectorAll('button.ap-file')].forEach(function(b){const nm=b.textContent.replace(/^⬇ /,'');const all=[].concat.apply([],invs.map(function(r){return r.files||[];}));const f=all.find(function(x){return x.name===nm;});if(!f)return;const row=b.parentNode;
+          if(f.cuMerged){if(!row.querySelector('.cu-ok')){const t=document.createElement('span');t.className='cu-ok';t.style.cssText='font-size:11.5px;color:var(--ok);font-weight:600;white-space:nowrap';t.textContent='✓ 完整发票（含关税文件）— 请发这份';row.appendChild(t);}}
+          else if(srcFids.has(f.fid)&&session.role!=='finance'){row.style.display='none';row.classList.add('cu-hidden-src');}});}}}catch(e){}
+
+    const up=[...det.querySelectorAll('button')].find(function(b){return /推进/.test(b.textContent);});
+    if(up&&!up.__cu){up.__cu=true;up.addEventListener('click',function(e){
+      if(Number(o.step)===5&&cuHasDuty(o)&&!cuFiles(o).length){if(!confirm('这张订单有代垫关税，还没有上传关税文件（报关单/关税决定书）。\n\n财务开票时需要把它合并进发票。仍要推进到「⑥ 对接财务」吗？')){e.stopImmediatePropagation();e.preventDefault();}}
+    },true);}
+  }catch(e){}
+}
+function cuAriDecorate(){
+  try{
+    if(!session||session.role!=='finance')return;
+    const det=document.querySelector('#ariBody tr.detail');if(!det||typeof ariOpenId==='undefined'||!ariOpenId||det.querySelector('.cu-merge'))return;
+    const x=ariItems.find(function(i){return i.id===ariOpenId;});if(!x)return;
+    const ords=cuOrdersOfInv(x);const cf=[].concat.apply([],ords.map(cuFiles));const duty=ords.some(cuHasDuty);
+    if(!cf.length&&!duty)return;
+    const up=[...det.querySelectorAll('button')].find(function(b){return /上传发票 PDF/.test(b.textContent);});if(!up)return;
+    const wrap=document.createElement('div');wrap.className='cu-merge';wrap.style.cssText='margin-top:6px;font-size:12px';
+    const inv=(x.files||[]).filter(function(f){return !f.cuMerged&&/\.pdf$/i.test(f.name||'');});const merged=(x.files||[]).some(function(f){return f.cuMerged;});
+    if(!cf.length){wrap.innerHTML='<span style="color:var(--warn)">⚠ 对应订单有代垫关税，但业务还没上传关税文件</span>';}
+    else{
+      wrap.innerHTML='<button type="button" class="btn-sm cu-mbtn" style="border-color:var(--info);color:var(--info)"'+(inv.length?'':' disabled')+'>🛃 合并关税文件（'+cf.length+' 份）</button> '+
+        (merged?'<span style="color:var(--ok)">✓ 已生成完整发票</span>':(inv.length?'<span style="color:var(--ink-soft)">把上方 sevDesk 发票与关税文件合成一份完整 PDF</span>':'<span style="color:var(--ink-soft)">先上传 sevDesk 导出的发票 PDF，再点合并</span>'));
+      const mb=wrap.querySelector('.cu-mbtn');
+      mb.onclick=async function(e){e.stopPropagation();if(mb.disabled)return;mb.disabled=true;
+        try{
+          const base=inv[inv.length-1];toast('正在合并发票与关税文件…');
+          const bytes=await cuMergePdf([base].concat(cf));
+          const nm=String(base.name||'invoice.pdf').replace(/\.pdf$/i,'')+'_含关税文件.pdf';
+          const file=new File([bytes],nm,{type:'application/pdf'});
+          const meta=await ariPutFile(file);meta.cuMerged=true;meta.cuSrc=[base.fid].concat(cf.map(function(f){return f.fid;}));
+          (x.files=x.files||[]).push(meta);
+          (x.comments=x.comments||[]).push({author:session.name,role:'finance',text:'已生成完整发票（发票 + '+cf.length+' 份关税文件）：'+nm+'，请业务下载发送客户。',time:Date.now()});
+          await ariSaveAll();toast('✓ 已生成完整发票：'+nm);renderARI();
+        }catch(err){mb.disabled=false;toast('合并失败：'+(err.message||err)+'——可改用订单里的「合并下载」后在 sevDesk 手工合并');}
+      };
+    }
+    up.insertAdjacentElement('afterend',wrap);
+  }catch(e){}
+}
+function cuInit(){
+  if(typeof renderORD==='function'&&!renderORD.__cu){const _r=renderORD;renderORD=function(){const r=_r.apply(this,arguments);cuOrdDecorate();return r;};renderORD.__cu=true;}
+  if(typeof renderARI==='function'&&!renderARI.__cu){const _a=renderARI;renderARI=function(){const r=_a.apply(this,arguments);cuAriDecorate();return r;};renderARI.__cu=true;}
+  if(typeof confirmDelete==='function'&&!confirmDelete.__cu){const _c=confirmDelete;confirmDelete=function(label){
+
+    try{const m=String(label||'').match(/订单附件「(.+)」/);if(m&&typeof ordOpenId!=='undefined'&&ordOpenId){const o=ordItems.find(function(x){return x.id===ordOpenId;});const f=o&&(o.files||[]).find(function(y){return y.name===m[1]&&y.kind==='customs';});
+      if(f){const used=ariItems.filter(function(r){return !r.deleted&&r.orderNo===o.orderNo&&(r.files||[]).some(function(z){return z.cuMerged&&(z.cuSrc||[]).includes(f.fid);});});
+        if(used.length){if(!confirm('「'+f.name+'」已经合并进发票 '+used.map(function(r){return r.invNo;}).join('、')+' 的完整 PDF。\n\n删除后请上传正确的关税文件，并通知财务重新合并。确定删除吗？'))return false;}
+        else if(Number(o.step)>=6){if(!confirm('这张订单已交财务开票。删除「'+f.name+'」后请尽快上传正确的关税文件，并告诉财务。确定删除吗？'))return false;}}}}catch(e){}
+    return _c.apply(this,arguments);};confirmDelete.__cu=true;}
+}
+window.cuInit=cuInit;window.cuOrdDecorate=cuOrdDecorate;window.cuAriDecorate=cuAriDecorate;
+window.ariPutFile=function(f){return ariPutFile(f);};window.apFileBlob=function(f){return apFileBlob(f);};
+
+const MD_PLAN={"version": "sevdesk-2026-10-31", "rename": {"client": {"H + H GmbH": "H & H GmbH", "FOREST SHIPPING Germany GmbH": "Forest Shipping Germany GmbH", "HONG KONG JSW TECH GROUP LIMITED": "Hong Kong JSW Tech Group Limited", "BUY AND SELL STOCK S L": "BUY AND SELL STOCK SL", "HOLA GLOBAL SOURCING LOGISTICS CO LTD": "HOLA GLOBAL SOURCING LOGISTICS CO., LIMITED", "SHENZHEN BAO SEN SUNTOP LOGISTICS CO,.LTD": "SHENZHEN BAOSEN SUNTOP LOGISTICS CO.,LTD", "SEAEVER SUPPLY CHAIN LIMITED": "SEAEVER SUPPLY CHAIN LIMITED.", "HANGZHOU BAOSEN  INTERNATIONAL LOGISTICS CO.,LTD": "Hangzhou Baosen International Logistics Co., Ltd.", "QC POLAND SP. Z O.O.q": "QC POLAND SP. Z O.O.", "GLOBAL FAST LOGISTIC S.R.L.": "GLOBAL FAST LOGISTIC SRL", "SHENZHEN BAO SEN SUNTOP LOGISTICS CO.,LTD": "SHENZHEN BAOSEN SUNTOP LOGISTICS CO.,LTD", "SHILIAN HUTONG SUPPLY CHAIN (HK)": "SHILIAN HUTONG SUPPLY CHAIN (HK) LIMITED", "H + W GMBH": "H+W GmbH"}, "supplier": {"Cainiao Logistics(Belgium)": "Cainiao Logistics (Belgium) SRL", "MOTO SPEED SPÓŁKA Z OGRANICZONĄODPOWIEDZIALNOŚCIĄMotomot": "MOTO SPEED SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ", "CMA - CGM": "CMA CGM", "Baltic Transline, UABb": "Baltic Transline, UAB", "Baltic Transline, UABba": "Baltic Transline, UAB", "TUST FORWARDING": "TRUST FORWARDING", "MOTO SPEED SPÓŁKA Z OGRANICZONĄODPOWIEDZIALNOŚCIĄMotomoto": "MOTO SPEED SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ", "Linktis Sp. Z O.O.li": "Linktis Sp. Z O.O.", "Essener ESSENER FERNTRANSPORT GMBH": "ESSENER FERNTRANSPORT GMBH", "KühneKühne + Nagel ( AG & Co. ) KG": "Kühne + Nagel ( AG & Co. ) KG", "Stempestempel-fabrik.de GmbHl": "stempel-fabrik.de GmbH", "MclsMCLS SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ": "MCLS SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ", "MOTO SPEED SPÓŁKA Z OGRANICZONĄODPOWIEDZIALNOŚCIĄMoto": "MOTO SPEED SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ", "Globaltrans Interaionale Logistik GmbH": "Globaltrans Internationale Logistik GmbH", "Globaltrans Interaionale Logistik GmbHglobal": "Globaltrans Internationale Logistik GmbH"}}, "fill": [{"cat": "client", "name": "Hippocampus Logistics B.V.", "field": "country", "value": "荷兰", "overwrite": true}, {"cat": "client", "name": "QC POLAND SP. Z O.O.", "field": "vat", "value": "PL5214102597"}, {"cat": "client", "name": "H & H GmbH", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "UNIWEG SP. Z O.O.", "field": "country", "value": "波兰"}, {"cat": "supplier", "name": "TAEWOONG LOGISTICS GERMANY GMBH", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "Douaneopleidingen Nederland", "field": "country", "value": "荷兰"}, {"cat": "supplier", "name": "HMM (Germany) GmbH & Co. KG", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "Idustrie- und Handelskammer zu Düsseldorf", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "Amtsgericht Düsseldorf", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "CHINAction UG", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "MSC Mediterranean Shipping Company S.A.", "field": "country", "value": "瑞士"}, {"cat": "supplier", "name": "YukonPro GmbH", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "Linktis Sp. Z O.O.", "field": "country", "value": "波兰"}, {"cat": "supplier", "name": "Cargocare Netherlands B.V.", "field": "country", "value": "荷兰"}, {"cat": "supplier", "name": "Servipark Deutschland GmbH", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "JCL Logistics Benelux B.V.", "field": "country", "value": "荷兰"}, {"cat": "supplier", "name": "Dakosy", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "Hupac Intermodal SA", "field": "country", "value": "瑞士"}, {"cat": "supplier", "name": "Cargomate", "field": "country", "value": "荷兰"}, {"cat": "supplier", "name": "Datenkommunikationssystem AG", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "T-Mining nv", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "A3trans BV", "field": "country", "value": "荷兰"}, {"cat": "supplier", "name": "Viking Office Deutschland GmbH", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "Hapag-Lloyd AG", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "OCEAN NETWORK EXPRESS PTE LTD", "field": "country", "value": "新加坡"}, {"cat": "supplier", "name": "Globaltrans Interaionale Logistik GmbH", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "Fly Sky Europe GmbH", "field": "country", "value": "德国"}, {"cat": "supplier", "name": "MOTO SPEED SPÓŁKA Z OGRANICZONĄODPOWIEDZIALNOŚCIĄMoto", "field": "country", "value": "波兰"}, {"cat": "supplier", "name": "GEOSPEED S.R.L", "field": "country", "value": "意大利"}, {"cat": "supplier", "name": "AUKLogis GmbH", "field": "country", "value": "德国"}], "add": [{"cat": "client", "name": "Zhang/Lu", "vat": "", "addr": "Neustadter Str. 43, 68309 Mannheim", "country": "德国", "email": "", "iban": ""}, {"cat": "supplier", "name": "Peakwell Trading e.K.", "vat": "", "addr": "", "country": "", "email": "", "iban": ""}, {"cat": "supplier", "name": "Steuerkanzlei Holger Lippner", "vat": "", "addr": "Bertucherstr. 7a, 99423 Weimar", "country": "德国", "email": "info@stb-lippner.de", "iban": "DE12120300000010939577"}, {"cat": "supplier", "name": "sevDesk GmbH", "vat": "", "addr": "", "country": "", "email": "", "iban": ""}, {"cat": "supplier", "name": "Microsoft Ireland Operations Ltd", "vat": "", "addr": "", "country": "", "email": "", "iban": ""}], "deactivate": [{"cat": "client", "name": "Fastspeed Supply Chain Limited"}, {"cat": "client", "name": "11"}, {"cat": "client", "name": "SHIshi"}, {"cat": "client", "name": "PEPADEAL SL"}, {"cat": "client", "name": "待定"}, {"cat": "client", "name": "hi p p"}, {"cat": "supplier", "name": "Peakwell GmbH"}, {"cat": "supplier", "name": "Portbase B.V."}, {"cat": "supplier", "name": "Havenfort Logistics"}]};
+function mdNorm(s){return String(s||'').trim().toLowerCase();}
+function mdUsage(){
+  const U={client:{},supplier:{}};const inc=function(m,k,f){if(!k)return;m[k]=m[k]||{订单:0,询价:0,应收:0,到账:0,应付:0,报价:0};m[k][f]++;};
+  for(const o of ordItems){if(o.deleted)continue;inc(U.client,o.customer,o.type==='inq'?'询价':'订单');for(const q of (o.quotes||[]))inc(U.supplier,q.supplier,'报价');}
+
+  for(const x of ariItems){if(!x.deleted)inc(U.client,x.customer,'应收');}
+  for(const p of payments){if(!p.deleted)inc(U.client,p.customer,'到账');}
+  for(const a of apItems){if(!a.deleted)inc(U.supplier,a.supplier,'应付');}
+  return U;
+}
+function mdTotal(u){return u?Object.values(u).reduce(function(a,b){return a+b;},0):0;}
+function mdList(cat){return cat==='client'?(meta.clients=meta.clients||[]):(meta.suppliers=meta.suppliers||[]);}
+function mdFind(cat,name){const n=mdNorm(name);return mdList(cat).find(function(x){return mdNorm(x.name)===n&&!x.mergedInto;});}
+
+function mdPreview(){
+  const U=mdUsage();const out={rename:[],fill:[],add:[],deactivate:[]};
+  for(const cat of ['client','supplier']){
+    for(const from of Object.keys(MD_PLAN.rename[cat]||{})){const to=MD_PLAN.rename[cat][from];const u=U[cat][from];const rec=mdList(cat).find(function(x){return x.name===from&&!x.mergedInto;});
+      if(!u&&!rec)continue;out.rename.push({cat:cat,from:from,to:to,uses:u||{},merge:!!mdFind(cat,to)&&mdNorm(to)!==mdNorm(from)});}
+  }
+  for(const f of MD_PLAN.fill){const tgt=(MD_PLAN.rename[f.cat]||{})[f.name]||f.name;const r=mdFind(f.cat,tgt)||mdFind(f.cat,f.name);if(!r)continue;const cur=String(r[f.field]||'').trim();
+    if(cur&&!f.overwrite)continue;if(cur===f.value)continue;out.fill.push({cat:f.cat,name:(MD_PLAN.rename[f.cat]||{})[r.name]||r.name,field:f.field,from:cur,to:f.value});}
+  for(const a of MD_PLAN.add){if(mdFind(a.cat,a.name))continue;out.add.push(a);}
+  for(const d of MD_PLAN.deactivate){const r=mdList(d.cat).find(function(x){return x.name===d.name;});if(!r||r.inactive)continue;if(mdTotal(U[d.cat][d.name])>0)continue;out.deactivate.push(d);}
+  return out;
+}
+async function mdApply(pv){
+  if(!session||session.role!=='finance'){toast('只有财务可以执行主数据整理');return false;}
+  pv=pv||mdPreview();
+  try{await saveSnapshot('主数据整理前（'+MD_PLAN.version+'）');}catch(e){if(!confirm('执行前快照没有成功（'+(e.message||e)+'）。仍要继续吗？'))return false;}
+  const now=Date.now();const RC={},RS={};pv.rename.forEach(function(r){(r.cat==='client'?RC:RS)[r.from]=r.to;});
+  const ch={ord:0,ari:0,pay:0,ap:0};
+  for(const o of ordItems){let hit=false;
+    if(RC[o.customer]){logAdd(o,'客户名称统一：'+o.customer+' → '+RC[o.customer]);o.customer=RC[o.customer];hit=true;}
+    for(const q of (o.quotes||[])){if(RS[q.supplier]){q.supplier=RS[q.supplier];q.up=now;hit=true;}}
+    if(hit){o.up=now;ch.ord++;}}
+  for(const x of ariItems){if(RC[x.customer]){x.customer=RC[x.customer];x.up=now;ch.ari++;}}
+  for(const p of payments){if(RC[p.customer]){p.customer=RC[p.customer];p.up=now;ch.pay++;}}
+  for(const a of apItems){if(RS[a.supplier]){a.supplier=RS[a.supplier];a.up=now;ch.ap++;}}
+
+  for(const r of pv.rename){const L=mdList(r.cat);for(const src of L.filter(function(x){return x.name===r.from&&!x.mergedInto;})){
+    const tgt=L.find(function(x){return x!==src&&mdNorm(x.name)===mdNorm(r.to)&&!x.mergedInto;});
+    if(tgt){['vat','email','addr','country','contact','iban','short'].forEach(function(k){if(!String(tgt[k]||'').trim()&&String(src[k]||'').trim())tgt[k]=src[k];});
+      if(r.cat==='client'){const bn=new Set(String(tgt.bankNames||'').split('/').map(function(s){return s.trim();}).filter(Boolean));String(src.bankNames||'').split('/').forEach(function(s){if(s.trim())bn.add(s.trim());});bn.add(r.from);tgt.bankNames=[...bn].join(' / ');}
+      tgt.up=now;tgt.at=now;src.inactive=true;src.mergedInto=tgt.name;src.up=now;src.at=now;}
+    else{if(r.cat==='client'){const bn=new Set(String(src.bankNames||'').split('/').map(function(s){return s.trim();}).filter(Boolean));bn.add(r.from);src.bankNames=[...bn].join(' / ');}src.name=r.to;src.up=now;src.at=now;}}}
+
+  for(const r of pv.rename){const key=r.cat==='client'?'clients':'suppliers';const dn=(meta[key+'DelNames']=meta[key+'DelNames']||[]);if(!dn.includes(r.from))dn.push(r.from);}
+  for(const f of pv.fill){const r=mdFind(f.cat,f.name);if(r){r[f.field]=f.to;r.up=now;r.at=now;}}
+  for(const a of pv.add){mdList(a.cat).push({id:(a.cat==='client'?'cl':'su')+now.toString(36)+Math.random().toString(36).slice(2,6),name:a.name,vat:a.vat||'',addr:a.addr||'',country:a.country||'',email:a.email||'',iban:a.iban||'',createdAt:now,createdBy:'sevDesk 导入（'+session.name+'）',up:now,at:now});}
+  for(const d of pv.deactivate){const r=mdList(d.cat).find(function(x){return x.name===d.name;});if(r){r.inactive=true;r.up=now;r.at=now;}}
+  meta.mdClean=Object.assign({},meta.mdClean||{},{[MD_PLAN.version]:{at:now,by:session.name,rename:pv.rename.length,fill:pv.fill.length,add:pv.add.length,deactivate:pv.deactivate.length,records:ch}});
+
+  if(ch.ord)await ordSave();if(ch.ari)await ariSaveAll();if(ch.pay)await savePayments();if(ch.ap)await apSave();await metaSave();
+  try{if(typeof auditLog==='function')auditLog('主数据整理 '+MD_PLAN.version+'：改名/合并 '+pv.rename.length+'，补充 '+pv.fill.length+'，新增 '+pv.add.length+'，停用 '+pv.deactivate.length+'；记录：订单 '+ch.ord+'、应收 '+ch.ari+'、到账 '+ch.pay+'、应付 '+ch.ap);}catch(e){}
+  return ch;
+}
+window.mdPreview=mdPreview;window.mdApply=mdApply;window.MD_PLAN=MD_PLAN;window.mdUsage=mdUsage;
+function mdOpen(){
+  const pv=mdPreview();const lab={client:'客户',supplier:'供应商'};const F={vat:'增值税号',email:'邮箱',addr:'地址',country:'国家',iban:'IBAN'};
+  const ov=document.createElement('div');ov.className='overlay open';ov.id='mdOvl';ov.style.display='flex';
+  const u=function(x){return Object.keys(x).filter(function(k){return x[k];}).map(function(k){return k+' '+x[k];}).join('、')||'—';};
+  let h='<div class="modal" style="max-width:860px;width:96vw;max-height:88vh;overflow:auto"><h3 style="margin-top:0">🧹 主数据整理预览 · '+esc(MD_PLAN.version)+'</h3><div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">执行前会自动生成快照，可在「数据备份与恢复」整体回滚。以下是按<b>当前最新数据</b>计算的动作：</div>';
+  h+='<h4>改名 / 合并（'+pv.rename.length+'）</h4><table class="mini" style="width:100%;font-size:12px"><tr><th>类别</th><th>现名称</th><th>改为</th><th>方式</th><th>涉及记录</th></tr>'+pv.rename.map(function(r){return '<tr><td>'+lab[r.cat]+'</td><td>'+esc(r.from)+'</td><td>'+esc(r.to)+'</td><td>'+(r.merge?'合并':'改名')+'</td><td>'+esc(u(r.uses))+'</td></tr>';}).join('')+'</table>';
+  h+='<h4>补充资料（'+pv.fill.length+'）</h4><table class="mini" style="width:100%;font-size:12px"><tr><th>类别</th><th>名称</th><th>字段</th><th>原值</th><th>新值</th></tr>'+pv.fill.map(function(f){return '<tr><td>'+lab[f.cat]+'</td><td>'+esc(f.name)+'</td><td>'+F[f.field]+'</td><td>'+esc(f.from||'（空）')+'</td><td>'+esc(f.to)+'</td></tr>';}).join('')+'</table>';
+  h+='<h4>新增（'+pv.add.length+'）</h4><div style="font-size:12px">'+pv.add.map(function(a){return lab[a.cat]+'：'+esc(a.name);}).join('；')+'</div>';
+  h+='<h4>停用（'+pv.deactivate.length+'）</h4><div style="font-size:12px">'+pv.deactivate.map(function(a){return lab[a.cat]+'：'+esc(a.name);}).join('；')+'</div>';
+  h+='<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button type="button" class="btn-ghost" id="mdCancel">关闭</button><button type="button" class="btn" style="width:auto" id="mdGo"'+((pv.rename.length+pv.fill.length+pv.add.length+pv.deactivate.length)?'':' disabled')+'>执行整理</button></div></div>';
+  ov.innerHTML=h;document.body.appendChild(ov);
+  ov.querySelector('#mdCancel').onclick=function(){ov.remove();};
+  ov.querySelector('#mdGo').onclick=async function(){if(!confirm('确认执行主数据整理？\n\n会修改相关订单、应收、到账、应付的客户/供应商名称，执行前自动快照。'))return;if(!confirm('⚠ 再次确认：现在执行？'))return;
+    const b=ov.querySelector('#mdGo');b.disabled=true;b.textContent='正在执行…';
+    try{const ch=await mdApply(pv);if(ch){toast('主数据整理完成');ov.remove();try{renderBASE();}catch(e){}alert('主数据整理完成：\n改名/合并 '+pv.rename.length+' 项、补充 '+pv.fill.length+' 项、新增 '+pv.add.length+' 项、停用 '+pv.deactivate.length+' 项\n更新记录：订单 '+ch.ord+'、应收 '+ch.ari+'、到账 '+ch.pay+'、应付 '+ch.ap);}}
+    catch(e){b.disabled=false;b.textContent='执行整理';toast('执行失败：'+(e.message||e)+'——可在「数据备份与恢复」用刚才的快照回滚');}};
+}
+window.mdOpen=mdOpen;
+function mdCard(){
+  try{if(!session||session.role!=='finance')return;const host=document.getElementById('baseCards');if(!host||document.getElementById('mdCard'))return;
+    const done=(meta.mdClean||{})[MD_PLAN.version];
+    const c=document.createElement('div');c.className='base-card';c.id='mdCard';
+    c.innerHTML='<h3>🧹 主数据整理（sevDesk 2026-10-31）</h3><div style="font-size:12.5px;color:var(--ink-soft)">按 sevDesk 最新联系人统一客户/供应商名称（含 H&H 合并）、补充税号与国家、新增与停用。先预览，确认后执行；执行前自动快照。</div>'+(done?'<div style="font-size:12px;color:var(--ok);margin-top:4px">✓ 已于 '+esc(ymdLocal(new Date(done.at)))+' 由 '+esc(done.by)+' 执行</div>':'')+'<button type="button" class="btn-sm" id="mdBtn" style="margin-top:6px">预览整理</button>';
+    const anchor=document.getElementById('coCard')||document.getElementById('bankRuleCard')||document.getElementById('fsCard');if(anchor&&anchor.parentNode)anchor.parentNode.insertBefore(c,anchor);else host.parentNode.appendChild(c);
+    c.querySelector('#mdBtn').onclick=mdOpen;}catch(e){}
+}
+function mdInit(){if(typeof renderBASE==='function'&&!renderBASE.__md){const _b=renderBASE;renderBASE=function(){const r=_b.apply(this,arguments);mdCard();return r;};renderBASE.__md=true;}}
+window.mdInit=mdInit;
 
 function rcBigModel(d1,d2,label){
   const R=rcBigRows();
@@ -9451,6 +10027,17 @@ async function ordAutoClose(){
   }catch(e){}
 }
 
+const ORD_TAGS=[{k:'urgent',l:'加急',c:'bad'},{k:'confirm',l:'待客户确认',c:'warn'},{k:'hold',l:'暂停',c:'info'},{k:'watch',l:'重点关注',c:'warn'}];
+function ordTagsHtml(o){const t=(o&&o.tags)||[];return ORD_TAGS.filter(x=>t.includes(x.k)).map(x=>'<span class="badge '+x.c+' ord-tag" style="margin-left:4px;font-size:10.5px">'+esc(x.l)+'</span>').join('');}
+async function ordTagToggle(o,k){
+  if(roGuard())return false;const T=ORD_TAGS.find(x=>x.k===k);if(!T)return false;
+  o.tags=Array.isArray(o.tags)?o.tags.slice():[];const on=!o.tags.includes(k);
+  if(on)o.tags.push(k);else o.tags=o.tags.filter(x=>x!==k);if(!o.tags.length)delete o.tags;
+  o.comments=o.comments||[];o.comments.push({author:session.name,role:session.role,text:'标签：'+(on?'＋':'－')+T.l,time:Date.now()});
+  const ok=await ordSave();if(ok!==false)toast((on?'已标记「':'已取消「')+T.l+'」');return ok!==false;
+}
+window.ordTagToggle=ordTagToggle;window.ORD_TAGS=ORD_TAGS;
+
 let _kanOn=false,_kanDrag=null;
 async function kanSet(o,k,silent){
   if(roGuard())return false;
@@ -9475,7 +10062,7 @@ function kanRender(){
       (items.length?items.map(o=>{
         const ar=ordArStat(o),ap=ordApStat(o);
         return '<div class="kan-card'+(col.k==='issue'?' issue':'')+'" draggable="'+(isRO()?'false':'true')+'" data-id="'+esc(o.id)+'">'+
-          '<span class="no">'+esc(o.orderNo||'—')+'</span>'+
+          '<span class="no">'+esc(o.orderNo||'—')+'</span>'+ordTagsHtml(o)+
           '<span class="cu" title="'+esc(o.customer||'')+'">'+esc(o.customer?cliShort(o.customer):'—')+'</span>'+
           '<span class="mt">'+ordStateBadge(o)+
             '<span class="badge '+(ar==='paid'?'paid':ar==='none'?'bad':'part')+'" style="font-size:10.5px">收:'+(ar==='paid'?'讫':ar==='none'?'未开':'待')+'</span>'+
@@ -9583,7 +10170,7 @@ function renderORD(){
     tr.innerHTML=
       '<td style="font-family:var(--font-num);white-space:nowrap">'+(cd?cd.getFullYear()+'-'+z(cd.getMonth()+1)+'-'+z(cd.getDate()):'—')+'</td>'+
       '<td style="font-family:var(--font-num)"><b>'+esc(o.orderNo)+'</b></td>'+
-      '<td title="'+esc(o.customer||'')+'"><span class="p360-lnk" data-kind="cli" data-name="'+esc(o.customer||'')+'">'+esc(o.customer?cliShort(o.customer):'—')+'</span></td>'+
+      '<td title="'+esc(o.customer||'')+'"><span class="p360-lnk" data-kind="cli" data-name="'+esc(o.customer||'')+'">'+esc(o.customer?cliShort(o.customer):'—')+'</span>'+ordTagsHtml(o)+'</td>'+
       '<td>'+esc(o.owner||'—')+(function(){try{const who=ordAssigneeOf(o)||ordCreatorOf(o)||'';const L=who&&typeof hrOnLeave==='function'?hrOnLeave(who):null;return L?'<span class="badge" style="background:var(--warn-bg);color:var(--warn);font-size:10px;padding:1px 5px;margin-left:4px" title="'+esc(who)+' '+esc(L.rec.from)+'→'+esc(L.rec.to||L.rec.from)+' 休假">休假中'+(L.deputy?' · 代办 '+esc(L.deputy):'')+'</span>':'';}catch(e){return '';}})()+'</td>'+
       '<td class="amount">'+(o.salePrice?fmt(o.salePrice)+'<span class="cur">'+esc(o.saleCur||'EUR')+'</span>':'—')+'</td>'+
       '<td class="amount"'+(c.grossN?' title="含 '+c.grossN+' 张待录成本明细的发票（该部分按含税额计入，录入明细后自动转净额）"':'')+'>'+(c.v!==null&&c.v!==undefined&&c.cur&&c.cur!=='混合'?fmt(c.v)+'<span class="cur">'+esc(c.cur)+'</span>'+(c.src==='quote'?'<span class="cur" title="按选定报价，应付发票录入后自动切换">报价</span>':'')+(c.grossN?'<span class="cur" style="color:var(--warn)" title="含 '+c.grossN+' 张待录明细票（含税口径）">≈</span>':''):(c.cur==='混合'?'多币种':'—'))+'</td>'+
@@ -9729,6 +10316,12 @@ function ordDetail(o){
     const cur=document.createElement('span');cur.innerHTML=logiBadge(o);lb.appendChild(cur);
     lb.onclick=e=>e.stopPropagation();
     left.appendChild(lb);
+
+    const tg=document.createElement('div');tg.className='ord-tags-row';
+    tg.style.cssText='display:flex;align-items:center;gap:6px;margin:-3px 0 9px;font-size:12px;flex-wrap:wrap';
+    tg.innerHTML='<span style="color:var(--ink-soft)">标签</span>'+ORD_TAGS.map(x=>{const on=(o.tags||[]).includes(x.k);return '<button type="button" class="btn-sm ord-tag-btn" data-k="'+x.k+'" aria-pressed="'+on+'" style="padding:2px 9px;border-radius:12px;'+(on?'background:var(--'+x.c+'-bg);color:var(--'+x.c+');border-color:var(--'+x.c+')':'opacity:.75')+'"'+(isRO()?' disabled':'')+'>'+(on?'✓ ':'')+esc(x.l)+'</button>';}).join('');
+    tg.onclick=async e=>{e.stopPropagation();const b=e.target.closest('.ord-tag-btn');if(!b)return;await ordTagToggle(o,b.dataset.k);renderORD();};
+    left.appendChild(tg);
   }
 
   if(o.type!=='inq'&&o.flag!=='lost'){
@@ -9905,7 +10498,8 @@ function ordDetail(o){
         sub.style.cssText='margin:-2px 0 6px 26px;font-size:11.5px;color:var(--ink-soft)';
         const _tos=(s.addrTos&&s.addrTos.length?s.addrTos:(s.addrTo?[s.addrTo]:[]));
         if(s.addrFrom||_tos.length){
-          const tosTxt=_tos.length>1?_tos.map(function(a,ix){return '收'+'①②③'[ix]+' '+esc(a);}).join(' ／ '):('收 '+esc(_tos[0]||'—'));
+          const _opsOf=function(ix){try{const id=(s.locTos||[])[ix];const L=id?locById(id):null;const g=L?locOpsTags(L):[];return g.length?' <span style="color:var(--warn)">〔'+esc(g.join(' · '))+'〕</span>':'';}catch(e){return '';}};
+          const tosTxt=_tos.length>1?_tos.map(function(a,ix){return '收'+'①②③'[ix]+' '+esc(a)+_opsOf(ix);}).join(' ／ '):('收 '+esc(_tos[0]||'—')+_opsOf(0));
           const shp=[s.mode?({FTL:'整车',LTL:'零担','20GP':"20'",'40HQ':"40'",VAN:'厢车',OTHER:'其他'}[s.mode]||s.mode):'',s.pallets!=null?s.pallets+' 托/件':'',s.weightKg!=null?fmt(s.weightKg)+' kg':''].filter(Boolean).join(' · ');
           sub.innerHTML='📍 发 '+esc(s.addrFrom||'—')+' → '+tosTxt+(shp?' <span style="color:var(--info)">🚚 '+esc(shp)+'</span>':'')+((o.type!=='inq'&&(!s.addrFrom||!_tos.length))?' <span style="color:var(--bad);font-weight:700">⚠ 缺收发货地址</span>':'');
         }else if(o.type!=='inq'){
@@ -10057,10 +10651,12 @@ function ordDetail(o){
       iAT2=document.createElement('input');iAT2.placeholder='收货地址②(可选)';iAT2.style.cssText=st+';flex:1;min-width:180px;display:none';
       iAT3=document.createElement('input');iAT3.placeholder='收货地址③(可选)';iAT3.style.cssText=st+';flex:1;min-width:180px;display:none';
       iAF.style.display='none';iAT.style.display='none';
-      const bAddrPlus=document.createElement('button');bAddrPlus.className='btn-sm';bAddrPlus.type='button';bAddrPlus.textContent='＋';bAddrPlus.title='再加一个收货地址（最多3个）';
+      const bAddrPlus=document.createElement('button');bAddrPlus.className='btn-sm';bAddrPlus.type='button';bAddrPlus.textContent='＋ 再加一个收货地（最多 3 个）';bAddrPlus.title='一辆车派送多个地址：点一次出现收货地②，再点一次出现③';
       bAddrPlus.onclick=e=>{e.stopPropagation();
         if(toBlks[1].el.style.display==='none')toBlks[1].el.style.display='';
         else if(toBlks[2].el.style.display==='none'){toBlks[2].el.style.display='';bAddrPlus.style.display='none';}
+        if(toBlks[1].el.style.display!=='none'&&toBlks[2].el.style.display!=='none')bAddrPlus.style.display='none';
+        if(!plusWrap.querySelector('.ms-hint')){const h=document.createElement('span');h.className='ms-hint';h.style.cssText='font-size:11px;color:var(--warn);margin-left:10px;align-self:center';h.textContent='💡 多个收货地：别忘了另加服务项「多点停靠」';plusWrap.appendChild(h);}
       };
 
       let _addrErr='';const _lastLocs={from:null,tos:[]};
@@ -10093,10 +10689,11 @@ function ordDetail(o){
       for(const el of [iAF,iAT,iAT2,iAT3]){el.dataset.init='';el.onclick=e=>e.stopPropagation();el.autocomplete='off';}
       iAF.setAttribute('list','locListFrom');for(const el of [iAT,iAT2,iAT3])el.setAttribute('list','locListTo');
       try{locDatalist(o.customer);}catch(e){}
-      const bLoc=document.createElement('button');bLoc.className='btn-sm';bLoc.type='button';bLoc.textContent='＋ 地点';bLoc.title='按标准格式新建地点（名称/街道门牌/邮编/城市/国家）并填入';
+      const bLoc=document.createElement('button');bLoc.className='btn-sm';bLoc.type='button';bLoc.textContent='＋ 新建地点（存入地点簿）';bLoc.title='按标准格式新建地点（名称/街道门牌/邮编/城市/国家）并填入';
       bLoc.onclick=e=>{e.stopPropagation();const target=[iAF,iAT,iAT2,iAT3].find(function(x){return x.style.display!=='none'&&!x.value.trim();})||iAT;const pre=(typeof locParse==='function')?locParse(target.value):null;locFormOpen(pre&&pre.ok?{name:pre.name,kind:pre.kind,street:pre.street,houseNo:pre.houseNo,extra:pre.extra,postcode:pre.postcode,city:pre.city,country:pre.country,locode:pre.locode}:null,function(L){target.value=locFmt(L);});};
-      const shipWrap=document.createElement('div');shipWrap.style.cssText='display:flex;gap:6px;align-items:center;width:100%;flex-wrap:wrap';const shipLab=document.createElement('span');shipLab.textContent='运量';shipLab.style.cssText='font-size:11px;color:var(--ink-soft);min-width:52px';shipWrap.append(shipLab,iMode,iPal,iWt,bAddrPlus,bLoc);
-      addrRow.append(addrHint,fromWrap,fromBlk.el,toBlks[0].el,toBlks[1].el,toBlks[2].el,iAF,iAT,iAT2,iAT3,shipWrap);
+      const shipWrap=document.createElement('div');shipWrap.style.cssText='display:flex;gap:6px;align-items:center;width:100%;flex-wrap:wrap';const shipLab=document.createElement('span');shipLab.textContent='运量';shipLab.style.cssText='font-size:11px;color:var(--ink-soft);min-width:52px';shipWrap.append(shipLab,iMode,iPal,iWt,bLoc);
+      const plusWrap=document.createElement('div');plusWrap.style.cssText='display:flex;width:100%;padding-left:58px';plusWrap.appendChild(bAddrPlus);
+      addrRow.append(addrHint,fromWrap,fromBlk.el,toBlks[0].el,toBlks[1].el,toBlks[2].el,plusWrap,iAF,iAT,iAT2,iAT3,shipWrap);
       addrRow.onclick=e=>e.stopPropagation();
       addrRowSync=function(){
         const nmX=iName.value.trim();
@@ -16978,7 +17575,148 @@ Object.assign(I18N,{
 "近 7 天降级登录的账号（收紧数据库权限前需为 0）":{en:"Accounts using fallback login in the last 7 days (must be 0 before tightening DB rules)",de:"Konten mit Notfall-Anmeldung in den letzten 7 Tagen (vor Verschärfung der DB-Regeln muss 0 sein)"},
 "缩小 —":{en:"Minimize —",de:"Minimieren —"},
 "展开 ◂":{en:"Expand ◂",de:"Aufklappen ◂"},
-"收到右侧边缘，列表恢复全宽；内容和已输入的都保留":{en:"Tuck to the right edge; the list gets full width and everything you typed is kept",de:"An den rechten Rand einklappen; die Liste erhält volle Breite, Eingaben bleiben erhalten"}
+"收到右侧边缘，列表恢复全宽；内容和已输入的都保留":{en:"Tuck to the right edge; the list gets full width and everything you typed is kept",de:"An den rechten Rand einklappen; die Liste erhält volle Breite, Eingaben bleiben erhalten"},
+"有装卸平台":{en:"Loading dock",de:"Laderampe"},
+"无装卸平台·需尾板":{en:"No dock · tail-lift needed",de:"Keine Rampe · Hebebühne nötig"},
+"住宅地址":{en:"Residential address",de:"Privatadresse"},
+"需预约送货":{en:"Delivery by appointment",de:"Anlieferung nur mit Termin"},
+"作业信息（选填 · 派送时提醒司机/供应商）":{en:"Operational info (optional · shown to drivers/carriers)",de:"Betriebsinfos (optional · Hinweis für Fahrer/Spediteur)"},
+"地址类型":{en:"Address type",de:"Adresstyp"},
+"未填":{en:"Not set",de:"Nicht angegeben"},
+"商业 · 有装卸平台":{en:"Business · loading dock",de:"Gewerbe · mit Laderampe"},
+"商业 · 无装卸平台（需尾板）":{en:"Business · no dock (tail-lift)",de:"Gewerbe · ohne Rampe (Hebebühne)"},
+"营业 / 收货时间":{en:"Opening / receiving hours",de:"Öffnungs- / Annahmezeiten"},
+"收货联系人":{en:"Receiving contact",de:"Ansprechpartner Warenannahme"},
+"电话":{en:"Phone",de:"Telefon"},
+"作业备注":{en:"Operational note",de:"Betriebshinweis"},
+"作业信息未填":{en:"No operational info",de:"Keine Betriebsinfos"},
+"补充作业信息":{en:"Add operational info",de:"Betriebsinfos ergänzen"},
+"修改":{en:"Edit",de:"Ändern"},
+"＋ 再加一个收货地（最多 3 个）":{en:"+ Add another delivery address (max. 3)",de:"+ Weitere Lieferadresse (max. 3)"},
+"一辆车派送多个地址：点一次出现收货地②，再点一次出现③":{en:"One truck, several drops: click once for address ②, again for ③",de:"Ein Lkw, mehrere Stopps: einmal klicken für ②, nochmals für ③"},
+"＋ 新建地点（存入地点簿）":{en:"+ New location (save to address book)",de:"+ Neuer Ort (ins Adressbuch)"},
+"加急":{en:"Urgent",de:"Eilig"},
+"待客户确认":{en:"Awaiting customer",de:"Wartet auf Kunde"},
+"暂停":{en:"On hold",de:"Pausiert"},
+"重点关注":{en:"Watch",de:"Beobachten"},
+"标签":{en:"Tags",de:"Markierungen"},
+"💡 多个收货地：别忘了另加服务项「多点停靠」":{en:"💡 Several drops: remember to add the «Multi-stop» service",de:"💡 Mehrere Stopps: Leistung «Mehrfachstopp» nicht vergessen"},
+"运输节点":{en:"Transport milestones",de:"Transportschritte"},
+"🚚 运输节点":{en:"🚚 Transport milestones",de:"🚚 Transportschritte"},
+"填写时间后状态自动推进 · 签收按整单记":{en:"Status advances automatically · POD per order",de:"Status läuft automatisch · Zustellnachweis je Auftrag"},
+"① 已订车":{en:"① Truck booked",de:"① Lkw gebucht"},
+"② 提货":{en:"② Pickup",de:"② Abholung"},
+"③ 清关（可跳过）":{en:"③ Customs (optional)",de:"③ Verzollung (optional)"},
+"④ 派送":{en:"④ Delivery",de:"④ Zustellung"},
+"⑤ 签收回单 POD":{en:"⑤ Proof of delivery (POD)",de:"⑤ Zustellnachweis (POD)"},
+"承运商":{en:"Carrier",de:"Frachtführer"},
+"车牌 / 承运商单号":{en:"Plate / carrier ref.",de:"Kennzeichen / Referenz"},
+"实际":{en:"Actual",de:"Ist"},
+"开始":{en:"Start",de:"Beginn"},
+"放行":{en:"Released",de:"Freigabe"},
+"签收人":{en:"Signed by",de:"Empfangen von"},
+"从订单附件中选择…":{en:"Choose from order attachments…",de:"Aus Auftragsanhängen wählen…"},
+"先在下方「订单附件」上传签收单，再回来选择":{en:"Upload the POD under «Order attachments» below, then select it here",de:"POD unten bei «Auftragsanhänge» hochladen und hier auswählen"},
+"延误":{en:"Delay",de:"Verspätung"},
+"货损":{en:"Damage",de:"Schaden"},
+"拒收":{en:"Refused",de:"Annahme verweigert"},
+"地址错误":{en:"Wrong address",de:"Falsche Adresse"},
+"海关查验":{en:"Customs inspection",de:"Zollbeschau"},
+"说明（必填）":{en:"Note (required)",de:"Hinweis (Pflicht)"},
+"＋ 记录异常":{en:"+ Log exception",de:"+ Störung erfassen"},
+"已解决":{en:"Resolved",de:"Erledigt"},
+"⚠ 尚未标记签收回单（POD）。可以照常开票，建议收到后补上。":{en:"⚠ No POD marked yet. You can still invoice; please add it when received.",de:"⚠ Noch kein POD markiert. Rechnung trotzdem möglich – bitte nachtragen."},
+"缺 POD":{en:"POD missing",de:"POD fehlt"},
+"运输提醒":{en:"Transport alerts",de:"Transporthinweise"},
+"请填写异常说明":{en:"Please describe the exception",de:"Bitte Störung beschreiben"},
+"已按现在记为实际送达时间，可在「运输节点」修改":{en:"Delivery time set to now – edit under «Transport milestones»",de:"Zustellzeit auf jetzt gesetzt – unter «Transportschritte» änderbar"},
+"异常":{en:"Exception",de:"Störung"},
+"其他":{en:"Other",de:"Sonstiges"},
+"预计提货":{en:"Expected pickup",de:"Geplante Abholung"},
+"实际提货":{en:"Actual pickup",de:"Tatsächliche Abholung"},
+"预计送达":{en:"Expected delivery",de:"Geplante Zustellung"},
+"实际送达":{en:"Actual delivery",de:"Tatsächliche Zustellung"},
+"📨 派送委托":{en:"📨 Transport order",de:"📨 Transportauftrag"},
+"生成给承运商的派送委托（德语/英语邮件正文，可选 PDF）":{en:"Create a transport order for the carrier (German/English e-mail text, optional PDF)",de:"Transportauftrag für den Frachtführer erstellen (E-Mail-Text DE/EN, optional PDF)"},
+"这张订单还没有带地址的派送服务项，无法生成派送委托。":{en:"This order has no delivery line with addresses yet.",de:"Dieser Auftrag hat noch keine Zustellposition mit Adressen."},
+"语言":{en:"Language",de:"Sprache"},
+"运费（给这家承运商，只含派送）":{en:"Freight (this carrier, delivery only)",de:"Fracht (dieser Frachtführer, nur Zustellung)"},
+"付款条件（按供应商；留空则不写）":{en:"Payment terms (per supplier; leave empty to omit)",de:"Zahlungsbedingung (je Lieferant; leer = weglassen)"},
+"货物说明（选填）":{en:"Goods description (optional)",de:"Warenbeschreibung (optional)"},
+"我的邮箱":{en:"My e-mail",de:"Meine E-Mail"},
+"我的电话":{en:"My phone",de:"Mein Telefon"},
+"收件人（供应商邮箱）":{en:"Recipient (supplier e-mail)",de:"Empfänger (Lieferanten-E-Mail)"},
+"邮件主题":{en:"Subject",de:"Betreff"},
+"邮件正文（可直接修改）":{en:"E-mail text (editable)",de:"E-Mail-Text (bearbeitbar)"},
+"生成 PDF":{en:"Create PDF",de:"PDF erstellen"},
+"用邮件打开":{en:"Open in e-mail",de:"In E-Mail öffnen"},
+"复制正文":{en:"Copy text",de:"Text kopieren"},
+"只生成邮件和 PDF，不会修改订单。我的邮箱/电话、该供应商的付款条件和邮箱会记住，下次自动带出。":{en:"Only creates e-mail and PDF; the order is not changed. Your contact data and the payment terms of this supplier are remembered.",de:"Erstellt nur E-Mail und PDF; der Auftrag bleibt unverändert. Ihre Kontaktdaten und die Zahlungsbedingung des Lieferanten werden gespeichert."},
+"公司资料（单据页脚）":{en:"Company data (document footer)",de:"Firmendaten (Dokumentfuß)"},
+"IMG Europe 增值税号（USt-IdNr.）":{en:"IMG Europe VAT ID (USt-IdNr.)",de:"IMG Europe USt-IdNr."},
+"显示在派送委托书 PDF 的页脚。":{en:"Shown in the footer of the transport order PDF.",de:"Wird im Fuß des Transportauftrags (PDF) angezeigt."},
+"已保存公司增值税号":{en:"Company VAT ID saved",de:"USt-IdNr. gespeichert"},
+"已复制主题和正文":{en:"Subject and text copied",de:"Betreff und Text kopiert"},
+"已复制正文":{en:"Text copied",de:"Text kopiert"},
+"弹窗被拦截，请允许本站弹窗后重试":{en:"Pop-up blocked; please allow pop-ups for this site",de:"Pop-up blockiert; bitte Pop-ups für diese Seite erlauben"},
+"例如 30 Tage netto":{en:"e.g. 30 Tage netto",de:"z. B. 30 Tage netto"},
+"例如 Allgemeine Ware, nicht stapelbar":{en:"e.g. general cargo, not stackable",de:"z. B. Allgemeine Ware, nicht stapelbar"},
+"⇆ 左右对照":{en:"⇆ Side-by-side matching",de:"⇆ Abgleich nebeneinander"},
+"左边待处理流水、右边对方未结发票，勾选核对后确认":{en:"Bank lines on the left, open invoices of the counterparty on the right; tick, check and confirm",de:"Links Kontobewegungen, rechts offene Rechnungen der Gegenseite; anhaken, prüfen, bestätigen"},
+"⇆ 银行流水左右对照":{en:"⇆ Bank matching side by side",de:"⇆ Bankabgleich nebeneinander"},
+"左边选流水，右边勾发票；确认与银行页「确认」完全相同":{en:"Pick a bank line on the left, tick invoices on the right; confirming works exactly like «Confirm» on the bank page",de:"Links Buchung wählen, rechts Rechnungen anhaken; Bestätigen wie auf der Bankseite"},
+"没有待处理的流水 🎉":{en:"No open bank lines 🎉",de:"Keine offenen Kontobewegungen 🎉"},
+"← 点左边一笔流水，右边列出对方所有未结发票":{en:"← Pick a bank line on the left to list all open invoices of the counterparty",de:"← Links eine Buchung wählen, um offene Rechnungen der Gegenseite zu sehen"},
+"搜客户名 / 发票号 / 成单号":{en:"Search customer / invoice no. / order no.",de:"Kunde / Rechnungs-Nr. / Auftrags-Nr. suchen"},
+"搜供应商名 / 发票号 / 成单号":{en:"Search supplier / invoice no. / order no.",de:"Lieferant / Rechnungs-Nr. / Auftrags-Nr. suchen"},
+"全选":{en:"Select all",de:"Alle auswählen"},
+"发票号":{en:"Invoice no.",de:"Rechnungs-Nr."},
+"发票日期":{en:"Invoice date",de:"Rechnungsdatum"},
+"到期":{en:"Due",de:"Fällig"},
+"成单号":{en:"Order no.",de:"Auftrags-Nr."},
+"金额":{en:"Amount",de:"Betrag"},
+"未结":{en:"Open",de:"Offen"},
+"贷记单":{en:"Credit note",de:"Gutschrift"},
+"流水金额":{en:"Bank amount",de:"Buchungsbetrag"},
+"差额":{en:"Difference",de:"Differenz"},
+"保存指定":{en:"Save assignment",de:"Zuordnung speichern"},
+"保存并确认":{en:"Save and confirm",de:"Speichern und bestätigen"},
+"已确认（与银行页「确认」相同的处理）":{en:"Confirmed (same as «Confirm» on the bank page)",de:"Bestätigt (wie «Bestätigen» auf der Bankseite)"},
+"已保存指定，可在银行页确认":{en:"Assignment saved; confirm it on the bank page",de:"Zuordnung gespeichert; auf der Bankseite bestätigen"},
+"标为关税文件":{en:"Mark as customs document",de:"Als Zolldokument markieren"},
+"🛃 关税文件 ✓":{en:"🛃 Customs document ✓",de:"🛃 Zolldokument ✓"},
+"报关单 / 关税决定书（Einfuhrabgabenbescheid）":{en:"Customs declaration / duty assessment (Einfuhrabgabenbescheid)",de:"Zollanmeldung / Einfuhrabgabenbescheid"},
+"MRN（可选）":{en:"MRN (optional)",de:"MRN (optional)"},
+"⚠ 本单有":{en:"⚠ This order has ",de:"⚠ Dieser Auftrag hat "},
+"代垫关税":{en:"advanced customs duty",de:"verauslagten Zoll"},
+"，还没有关税文件。请把清关行提供的":{en:", but no customs document yet. Please upload the customs broker documents ",de:", aber noch kein Zolldokument. Bitte die vom Zollagenten erhaltene "},
+"报关单 / 关税决定书":{en:"customs declaration / duty assessment",de:"Zollanmeldung / Einfuhrabgabenbescheid"},
+"上传到下方「订单附件」，并点「标为关税文件」。财务开票时要把它合并进发票发给客户。":{en:" under «Order attachments» below and click «Mark as customs document». Finance merges it into the invoice for the customer.",de:" unten bei «Auftragsanhänge» hochladen und «Als Zolldokument markieren» klicken. Die Buchhaltung fügt sie der Rechnung an den Kunden bei."},
+"合并下载":{en:"Download merged",de:"Zusammengeführt herunterladen"},
+"✓ 已生成完整发票":{en:"✓ Complete invoice created",de:"✓ Vollständige Rechnung erstellt"},
+"把上方 sevDesk 发票与关税文件合成一份完整 PDF":{en:"Merge the sevDesk invoice above with the customs documents into one PDF",de:"sevDesk-Rechnung oben mit den Zolldokumenten zu einer PDF zusammenführen"},
+"先上传 sevDesk 导出的发票 PDF，再点合并":{en:"Upload the sevDesk invoice PDF first, then merge",de:"Zuerst die sevDesk-Rechnung (PDF) hochladen, dann zusammenführen"},
+"⚠ 对应订单有代垫关税，但业务还没上传关税文件":{en:"⚠ The order has advanced customs duty, but no customs document has been uploaded yet",de:"⚠ Der Auftrag enthält verauslagten Zoll, aber noch kein Zolldokument"},
+"正在合并关税文件…":{en:"Merging customs documents…",de:"Zolldokumente werden zusammengeführt…"},
+"已下载合并后的关税文件":{en:"Merged customs documents downloaded",de:"Zusammengeführte Zolldokumente heruntergeladen"},
+"正在合并发票与关税文件…":{en:"Merging invoice and customs documents…",de:"Rechnung und Zolldokumente werden zusammengeführt…"},
+"✓ 完整发票（含关税文件）— 请发这份":{en:"✓ Complete invoice (incl. customs documents): send this one",de:"✓ Vollständige Rechnung (inkl. Zolldokumente): bitte diese senden"},
+"财务后备：自动合并失败时，下载后在 sevDesk 手工合并":{en:"Finance fallback: if automatic merging fails, download and merge manually in sevDesk",de:"Fallback Buchhaltung: falls das automatische Zusammenführen scheitert, herunterladen und in sevDesk manuell zusammenführen"},
+"🧹 主数据整理（sevDesk 2026-10-31）":{en:"🧹 Master data clean-up (sevDesk 2026-10-31)",de:"🧹 Stammdatenbereinigung (sevDesk 31.10.2026)"},
+"预览整理":{en:"Preview clean-up",de:"Bereinigung ansehen"},
+"执行整理":{en:"Run clean-up",de:"Bereinigung ausführen"},
+"改名":{en:"Rename",de:"Umbenennen"},
+"合并":{en:"Merge",de:"Zusammenführen"},
+"涉及记录":{en:"Records affected",de:"Betroffene Datensätze"},
+"现名称":{en:"Current name",de:"Aktueller Name"},
+"改为":{en:"New name",de:"Neuer Name"},
+"方式":{en:"Action",de:"Aktion"},
+"原值":{en:"Old value",de:"Alter Wert"},
+"新值":{en:"New value",de:"Neuer Wert"},
+"新增":{en:"Add",de:"Neu"},
+"主数据整理完成":{en:"Master data clean-up completed",de:"Stammdatenbereinigung abgeschlossen"},
+"正在执行…":{en:"Running…",de:"Wird ausgeführt…"},
+"按 sevDesk 最新联系人统一客户/供应商名称（含 H&H 合并）、补充税号与国家、新增与停用。先预览，确认后执行；执行前自动快照。":{en:"Unify customer/supplier names with the latest sevDesk contacts (incl. merging H&H), add VAT IDs and countries, add and deactivate entries. Preview first, then run; a snapshot is taken automatically.",de:"Kunden-/Lieferantennamen an die aktuellen sevDesk-Kontakte angleichen (inkl. Zusammenführung H&H), USt-IdNr. und Länder ergänzen, Einträge anlegen und deaktivieren. Erst Vorschau, dann ausführen; vorher automatischer Snapshot."}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
@@ -17167,6 +17905,15 @@ I18N_RULES.push(
 [/^(.+) · 运输$/,{en:"$1 · Transport",de:"$1 · Transport"}],
 [/^(.+) · 派送$/,{en:"$1 · Delivery",de:"$1 · Zustellung"}],
 [/^(.+) · 其他$/,{en:"$1 · Other",de:"$1 · Sonstiges"}],
+[/^关税文件（(\d+) 份）$/,{en:"Customs documents ($1)",de:"Zolldokumente ($1)"}],
+[/^🛃 合并关税文件（(\d+) 份）$/,{en:"🛃 Merge customs documents ($1)",de:"🛃 Zolldokumente zusammenführen ($1)"}],
+[/^已选 (\d+) 张 · 合计$/,{en:"$1 selected · total",de:"$1 ausgewählt · Summe"}],
+[/^(应收|应付)未结发票(.*)$/,{en:"Open invoices$2",de:"Offene Rechnungen$2"}],
+[/^已逾期 (\d+) 天 · ETA (.+)$/,{en:"$1 days overdue · ETA $2",de:"$1 Tage überfällig · ETA $2"}],
+[/^提货 (\S+)( · 未提)?$/,{en:"Pickup $1",de:"Abholung $1"}],
+[/^💡 别忘了另加服务项：(.+)$/,{en:"💡 Remember to add the service: $1",de:"💡 Leistung nicht vergessen: $1"}],
+[/^营业 (.+)$/,{en:"Hours $1",de:"Zeiten $1"}],
+[/^联系 (.+)$/,{en:"Contact $1",de:"Kontakt $1"}],
 [/^(\d+) 天未更新$/,{en:"$1 days without update",de:"$1 Tage ohne Änderung"}],
 [/^(\d+) 张 · 最久 (\d+) 天$/,{en:"$1 invoices · oldest $2 days",de:"$1 Rechnungen · älteste $2 Tage"}],
 [/^早上好，(.+)$/,{en:"Good morning, $1",de:"Guten Morgen, $1"}],
