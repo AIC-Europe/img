@@ -713,7 +713,7 @@ td{font-size:12.5px}
     <div class="field">
         <label for="loginUser">用户名</label>
         <input id="loginUser" list="acctDL" placeholder="Emma / Steven / Minglu / Teri / Bowen / Lucy / Peter / Christina" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
-        <datalist id="acctDL"><option value="Emma"></option><option value="Steven"></option><option value="Minglu"></option><option value="Teri"></option><option value="Bowen"></option><option value="Lucy"></option><option value="Peter"></option><option value="Christina"></option></datalist>
+        <datalist id="acctDL"><option value="Emma"></option><option value="Steven"></option><option value="Minglu"></option><option value="Teri"></option><option value="Bowen"></option><option value="Lucy"></option><option value="Peter"></option><option value="Christina"></option><option value="Yaxuan"></option></datalist>
       </div>
     <div class="field">
       <label for="loginPass">密码</label>
@@ -1020,7 +1020,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v39.5</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v39.7</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1116,7 +1116,7 @@ td{font-size:12.5px}
       <div class="field">
         <label for="oOwner">业务负责人</label>
         <input id="oOwner" list="ownerDL" placeholder="默认为当前账户，可改；多人用逗号分隔">
-        <datalist id="ownerDL"><option value="Minglu"></option><option value="Teri"></option><option value="Bowen"></option><option value="Lucy"></option><option value="Peter"></option><option value="Christina"></option><option value="Emma"></option><option value="Steven"></option></datalist>
+        <datalist id="ownerDL"><option value="Minglu"></option><option value="Teri"></option><option value="Bowen"></option><option value="Lucy"></option><option value="Peter"></option><option value="Christina"></option><option value="Emma"></option><option value="Steven"></option><option value="Yaxuan"></option></datalist>
       </div>
       <div class="field full"><label for="oDesc">需求描述</label><textarea id="oDesc" rows="2" placeholder="例如：上海→汉堡 整柜 40HQ ×2，8月底提货"></textarea></div>
     </div>
@@ -1674,7 +1674,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=39.5;
+const APP_VERSION=39.7;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2103,7 +2103,7 @@ function mergeRemote(remote){
   }
 }
 
-const ACCT_LIST=['Emma','Steven','Minglu','Teri','Bowen','Lucy','Peter','Christina','Man'];
+const ACCT_LIST=['Emma','Steven','Minglu','Teri','Bowen','Lucy','Peter','Christina','Man','Yaxuan'];
 const AUTH_DOMAIN_SUFFIX='@img-europe.local';
 
 const AUTH_PROXY_NEW='';
@@ -2114,7 +2114,7 @@ const PROXY_KEY='img-auth-proxy-on';
 let _proxyOn=false;
 
 const FB_SALT='img-europe-2026-fallback';
-const ACCT_HASH={'Emma':'867ebedfa81afd5fd4d7754d486d35d207eaa861654c9a110cff28cde0338a24','Steven':'005ad6acd11542fa2d73eb82386158c5d758bd9d11aacf4240da78fdbb1667f1','Minglu':'28bd4d5c53c75dafd28a7febf0c545acec7babc7fa3c33e705d62ed074da2024','Teri':'7dfa5ccb1cc2f6f98f4d8421f58b64088f1b779441e8b24331f47bf9fd1a5bb1','Bowen':'fd6799724957625584b2b19b792703bffa9de4c07c15eff4ce674b5e1f770003','Lucy':'1a431a30178a64137bffb91591d06a757d6eb65528749adae84ec24709571a2e','Peter':'532f14cc0e8d789c19ae733b0024abe43f93106514a04a7917416de29a22ab0d','Christina':'7d0f49167053e34f6111881ff134546f39e8b95fbe875f4a035956b756330f30','Man':'1d6cdc61a02a24561aab6fea78361323acea529f9ac5704f4c446e1f1a381774'};
+const ACCT_HASH={'Emma':'867ebedfa81afd5fd4d7754d486d35d207eaa861654c9a110cff28cde0338a24','Steven':'005ad6acd11542fa2d73eb82386158c5d758bd9d11aacf4240da78fdbb1667f1','Minglu':'28bd4d5c53c75dafd28a7febf0c545acec7babc7fa3c33e705d62ed074da2024','Teri':'7dfa5ccb1cc2f6f98f4d8421f58b64088f1b779441e8b24331f47bf9fd1a5bb1','Bowen':'fd6799724957625584b2b19b792703bffa9de4c07c15eff4ce674b5e1f770003','Lucy':'1a431a30178a64137bffb91591d06a757d6eb65528749adae84ec24709571a2e','Peter':'532f14cc0e8d789c19ae733b0024abe43f93106514a04a7917416de29a22ab0d','Christina':'7d0f49167053e34f6111881ff134546f39e8b95fbe875f4a035956b756330f30','Man':'1d6cdc61a02a24561aab6fea78361323acea529f9ac5704f4c446e1f1a381774','Yaxuan':'96d9743dca7e426e2cadc479bfecc08f452d8dd7a8ee10c1633cd0b44cfb1162'};
 let AUTH_DEGRADED=false;
 function sha256Sync(msg){
   function rr(x,n){return (x>>>n)|(x<<(32-n));}
@@ -2204,7 +2204,7 @@ try{if(localStorage.getItem(PROXY_KEY)==='1')proxyEnable(false);}catch(e){}
 function acctEmail(name){return String(name||'').trim().toLowerCase()+AUTH_DOMAIN_SUFFIX;}
 const FIN_ACCTS=['Emma','Steven'];
 const RO_ACCTS=['Peter'];
-const DUN_ACCTS=['Minglu','Bowen','Christina','Teri','Man'];
+const DUN_ACCTS=['Minglu','Bowen','Christina','Teri','Man','Yaxuan'];
 function canDun(){return !!session&&!isRO()&&(session.role==='finance'||DUN_ACCTS.includes(session.name));}
 window.canDun=canDun;
 const MGMT_VIEW_ACCTS=['Man'];
@@ -6157,11 +6157,13 @@ async function cuMergePdf(parts){
   return await out.save();
 }
 window.cuMergePdf=cuMergePdf;
-async function cuDownloadMerged(o){
-  const fs=cuFiles(o);if(!fs.length)return;
-  try{toast('正在合并关税文件…');const bytes=await cuMergePdf(fs);(window.__cuSave||saveBlob)(new Blob([bytes],{type:'application/pdf'}),(o.orderNo||'order')+'_关税文件.pdf');toast('已下载合并后的关税文件');}
+async function cuDownloadMerged(o){return cuDownloadMergedFiles(cuFiles(o),o.orderNo||'order');}
+async function cuDownloadMergedFiles(fs,no){
+  if(!fs.length)return;
+  try{toast('正在合并关税文件…');const bytes=await cuMergePdf(fs);(window.__cuSave||saveBlob)(new Blob([bytes],{type:'application/pdf'}),no+'_关税文件.pdf');toast('已下载合并后的关税文件');}
   catch(e){toast('合并失败：'+(e.message||e)+'——请逐个下载');}
 }
+window.cuDownloadMergedFiles=cuDownloadMergedFiles;
 function cuOrdDecorate(){
   try{
     const det=document.querySelector('#ordBody tr.detail');if(!det||typeof ordOpenId==='undefined'||!ordOpenId||det.querySelector('.cu-box'))return;
@@ -6185,11 +6187,10 @@ function cuOrdDecorate(){
     const anchor=fb||det.querySelector('.trk-card');if(anchor&&anchor.parentNode)anchor.parentNode.insertBefore(box,anchor);else{const td=det.firstElementChild;if(td)td.appendChild(box);}
 
     try{const ib=[...det.querySelectorAll('div')].find(function(d){return d.firstElementChild&&/财务已上传发票/.test(d.firstElementChild.textContent||'');});
-      if(ib&&!ib.__cu){ib.__cu=true;const invs=ariItems.filter(function(r){return !r.deleted&&r.orderNo===o.orderNo;});
-        const merged=[],srcFids=new Set();invs.forEach(function(r){(r.files||[]).forEach(function(f){if(f.cuMerged){merged.push(f);(f.cuSrc||[]).forEach(function(id){srcFids.add(id);});}});});
-        if(merged.length){[...ib.querySelectorAll('button.ap-file')].forEach(function(b){const nm=b.textContent.replace(/^⬇ /,'');const all=[].concat.apply([],invs.map(function(r){return r.files||[];}));const f=all.find(function(x){return x.name===nm;});if(!f)return;const row=b.parentNode;
-          if(f.cuMerged){if(!row.querySelector('.cu-ok')){const t=document.createElement('span');t.className='cu-ok';t.style.cssText='font-size:11.5px;color:var(--ok);font-weight:600;white-space:nowrap';t.textContent='✓ 完整发票（含关税文件）— 请发这份';row.appendChild(t);}}
-          else if(srcFids.has(f.fid)&&session.role!=='finance'){row.style.display='none';row.classList.add('cu-hidden-src');}});}}}catch(e){}
+      if(ib&&!ib.__cu){ib.__cu=true;const invs=ariItems.filter(function(r){return !r.deleted&&r.orderNo===o.orderNo;});const all=[].concat.apply([],invs.map(function(r){return r.files||[];}));
+        [...ib.querySelectorAll('button.ap-file')].forEach(function(b){const nm=b.textContent.replace(/^⬇ /,'');const f=all.find(function(x){return x.name===nm;});if(!f)return;const row=b.parentNode;if(row.querySelector('.cu-ok'))return;
+          const t=document.createElement('span');t.className='cu-ok';t.style.cssText='font-size:11.5px;font-weight:600;white-space:nowrap;'+(f.cuMerged?'color:var(--bad)':'color:var(--ok)');
+          t.textContent=f.cuMerged?'⚠ 平台合并版，不是电子发票——请改发 sevDesk 原件':'✓ 电子发票原件，请原样发送（不要修改或重新合并）';row.appendChild(t);});}}catch(e){}
 
     const up=[...det.querySelectorAll('button')].find(function(b){return /推进/.test(b.textContent);});
     if(up&&!up.__cu){up.__cu=true;up.addEventListener('click',function(e){
@@ -6198,6 +6199,7 @@ function cuOrdDecorate(){
   }catch(e){}
 }
 function cuAriDecorate(){
+
   try{
     if(!session||session.role!=='finance')return;
     const det=document.querySelector('#ariBody tr.detail');if(!det||typeof ariOpenId==='undefined'||!ariOpenId||det.querySelector('.cu-merge'))return;
@@ -6206,24 +6208,13 @@ function cuAriDecorate(){
     if(!cf.length&&!duty)return;
     const up=[...det.querySelectorAll('button')].find(function(b){return /上传发票 PDF/.test(b.textContent);});if(!up)return;
     const wrap=document.createElement('div');wrap.className='cu-merge';wrap.style.cssText='margin-top:6px;font-size:12px';
-    const inv=(x.files||[]).filter(function(f){return !f.cuMerged&&/\.pdf$/i.test(f.name||'');});const merged=(x.files||[]).some(function(f){return f.cuMerged;});
     if(!cf.length){wrap.innerHTML='<span style="color:var(--warn)">⚠ 对应订单有代垫关税，但业务还没上传关税文件</span>';}
     else{
-      wrap.innerHTML='<button type="button" class="btn-sm cu-mbtn" style="border-color:var(--info);color:var(--info)"'+(inv.length?'':' disabled')+'>🛃 合并关税文件（'+cf.length+' 份）</button> '+
-        (merged?'<span style="color:var(--ok)">✓ 已生成完整发票</span>':(inv.length?'<span style="color:var(--ink-soft)">把上方 sevDesk 发票与关税文件合成一份完整 PDF</span>':'<span style="color:var(--ink-soft)">先上传 sevDesk 导出的发票 PDF，再点合并</span>'));
-      const mb=wrap.querySelector('.cu-mbtn');
-      mb.onclick=async function(e){e.stopPropagation();if(mb.disabled)return;mb.disabled=true;
-        try{
-          const base=inv[inv.length-1];toast('正在合并发票与关税文件…');
-          const bytes=await cuMergePdf([base].concat(cf));
-          const nm=String(base.name||'invoice.pdf').replace(/\.pdf$/i,'')+'_含关税文件.pdf';
-          const file=new File([bytes],nm,{type:'application/pdf'});
-          const meta=await ariPutFile(file);meta.cuMerged=true;meta.cuSrc=[base.fid].concat(cf.map(function(f){return f.fid;}));
-          (x.files=x.files||[]).push(meta);
-          (x.comments=x.comments||[]).push({author:session.name,role:'finance',text:'已生成完整发票（发票 + '+cf.length+' 份关税文件）：'+nm+'，请业务下载发送客户。',time:Date.now()});
-          await ariSaveAll();toast('✓ 已生成完整发票：'+nm);renderARI();
-        }catch(err){mb.disabled=false;toast('合并失败：'+(err.message||err)+'——可改用订单里的「合并下载」后在 sevDesk 手工合并');}
-      };
+      wrap.innerHTML='<div style="color:var(--ink-soft);margin-bottom:4px">🛃 关税文件（'+cf.length+' 份）：在 sevDesk 开票时作为附件挂上，生成完整电子发票后再上传到这里</div>'+
+        '<button type="button" class="btn-sm cu-dlall" style="border-color:var(--info);color:var(--info)">⬇ 下载关税文件（合成一个 PDF）</button> '+
+        cf.map(function(f,ix){return '<button type="button" class="btn-sm cu-one" data-ix="'+ix+'" style="font-size:11px">⬇ '+esc(f.name)+'</button>';}).join(' ');
+      wrap.querySelector('.cu-dlall').onclick=function(e){e.stopPropagation();cuDownloadMergedFiles(cf,(ords[0]&&ords[0].orderNo)||x.invNo||'order');};
+      wrap.querySelectorAll('.cu-one').forEach(function(b){b.onclick=function(e){e.stopPropagation();const f=cf[Number(b.dataset.ix)];try{(window.__cuDl||apDownload)(f);}catch(err){toast('下载失败：'+(err.message||err));}};});
     }
     up.insertAdjacentElement('afterend',wrap);
   }catch(e){}
@@ -13904,7 +13895,7 @@ window.ariItemsGet=function(){return ariItems;};window.ariState=function(x){retu
 
 const HR_PATH=DB_PREFIX+'img-hr/state';
 const HR_KEY='img-hr-state';
-const HR_STAFF=['Minglu','Christina','Bowen','Man'];
+const HR_STAFF=['Minglu','Christina','Bowen','Man','Yaxuan'];
 const HR_APPROVER='Peter';
 const HR_TYPES={vac:'年假',sick:'病假',comp:'调休（折加班）',ot:'加班登记'};
 let hrItems=[];let _hrStarted=false;
@@ -14179,7 +14170,7 @@ function renderHR(){
 }
 
 const HR_CFG_PATH=DB_PREFIX+'img-hr/config';
-const HR_CFG_DEFAULT={_hoursPerDay:8,Minglu:{quota:26,entry:'2026-01-01',carry:0,quotaYear:null},Bowen:{quota:26,entry:'2026-01-01',carry:0,quotaYear:null},Christina:{quota:24,entry:'2026-07-20',carry:0,quotaYear:null},Man:{quota:25,entry:'2026-10-01',carry:0,quotaYear:null}};
+const HR_CFG_DEFAULT={_hoursPerDay:8,Minglu:{quota:26,entry:'2026-01-01',carry:0,quotaYear:null},Bowen:{quota:26,entry:'2026-01-01',carry:0,quotaYear:null},Christina:{quota:24,entry:'2026-07-20',carry:0,quotaYear:null},Man:{quota:25,entry:'2026-10-01',carry:0,quotaYear:null},Yaxuan:{quota:25,entry:'2026-11-01',carry:0,quotaYear:null}};
 let hrCfg=null;let _hrCalYM=null;
 function hrCfgGet(){const c=hrCfg||HR_CFG_DEFAULT;const out={_hoursPerDay:Number(c._hoursPerDay)||8};for(const n of HR_STAFF)out[n]=Object.assign({},HR_CFG_DEFAULT[n],c[n]||{});return out;}
 function hrQuotaSuggest(p,Y){
@@ -14314,6 +14305,7 @@ function hrCfgCardEnsure(){
   }catch(e){}
 }
 window.hrBalance=hrBalance;window.HR_APPROVER=HR_APPROVER;window.canHR=canHR;
+window.hrQuotaSuggest=hrQuotaSuggest;
 
 const BANK_PATH=DB_PREFIX+'img-bank/state';
 const BANK_KEY='img-bank-state';
@@ -14921,7 +14913,7 @@ async function bankDupReceiptsFix(){
 }
 window.bankDupReceiptsScan=bankDupReceiptsScan;window.bankDupReceiptsFix=bankDupReceiptsFix;
 
-const BASE_CREATORS=['Christina','Minglu','Bowen','Teri','Man'];
+const BASE_CREATORS=['Christina','Minglu','Bowen','Teri','Man','Yaxuan'];
 function canBaseCreate(){return !!session&&(session.role==='finance'||BASE_CREATORS.includes(session.name));}
 
 function baseNameKey(s){
@@ -15006,7 +14998,7 @@ function baseQuickCreateOpen(key,input,preName){
 window.baseQuickCreateOpen=baseQuickCreateOpen;
 
 const EXP_PATH=DB_PREFIX+'img-ap/expenses';const EXP_KEY='img-exp-state';
-const EXP_STAFF=['Minglu','Bowen','Christina','Man','Peter'];
+const EXP_STAFF=['Minglu','Bowen','Christina','Man','Peter','Yaxuan'];
 const EXP_CATS=['Büromaterial','Lagermaterial','Bewirtung','Fachliteratur','Software / Lizenzen','Telefon / Internet','Porto / Versand','Fahrtkosten (ÖPNV)','Taxi / Fahrdienst','Arbeitsmittel','Fortbildung','Sonstige'];
 const EXP_CAT_ACCT={'Büromaterial':'办公费','Fachliteratur':'办公费','Arbeitsmittel':'办公费','Lagermaterial':'管理费用','Bewirtung':'管理费用','Software / Lizenzen':'管理费用','Telefon / Internet':'管理费用','Porto / Versand':'管理费用','Fahrtkosten (ÖPNV)':'管理费用','Taxi / Fahrdienst':'管理费用','Fortbildung':'管理费用','Sonstige':'其他应付款'};
 const EXP_STATUS={draft:'草稿',submitted:'待财务审核',approved:'已批准',rejected:'已驳回',paid:'已付款'};
@@ -17716,7 +17708,10 @@ Object.assign(I18N,{
 "新增":{en:"Add",de:"Neu"},
 "主数据整理完成":{en:"Master data clean-up completed",de:"Stammdatenbereinigung abgeschlossen"},
 "正在执行…":{en:"Running…",de:"Wird ausgeführt…"},
-"按 sevDesk 最新联系人统一客户/供应商名称（含 H&H 合并）、补充税号与国家、新增与停用。先预览，确认后执行；执行前自动快照。":{en:"Unify customer/supplier names with the latest sevDesk contacts (incl. merging H&H), add VAT IDs and countries, add and deactivate entries. Preview first, then run; a snapshot is taken automatically.",de:"Kunden-/Lieferantennamen an die aktuellen sevDesk-Kontakte angleichen (inkl. Zusammenführung H&H), USt-IdNr. und Länder ergänzen, Einträge anlegen und deaktivieren. Erst Vorschau, dann ausführen; vorher automatischer Snapshot."}
+"按 sevDesk 最新联系人统一客户/供应商名称（含 H&H 合并）、补充税号与国家、新增与停用。先预览，确认后执行；执行前自动快照。":{en:"Unify customer/supplier names with the latest sevDesk contacts (incl. merging H&H), add VAT IDs and countries, add and deactivate entries. Preview first, then run; a snapshot is taken automatically.",de:"Kunden-/Lieferantennamen an die aktuellen sevDesk-Kontakte angleichen (inkl. Zusammenführung H&H), USt-IdNr. und Länder ergänzen, Einträge anlegen und deaktivieren. Erst Vorschau, dann ausführen; vorher automatischer Snapshot."},
+"⬇ 下载关税文件（合成一个 PDF）":{en:"⬇ Download customs documents (one PDF)",de:"⬇ Zolldokumente herunterladen (eine PDF)"},
+"⚠ 平台合并版，不是电子发票——请改发 sevDesk 原件":{en:"⚠ Merged by the platform, not an e-invoice: please send the sevDesk original",de:"⚠ Von der Plattform zusammengeführt, keine E-Rechnung: bitte das sevDesk-Original senden"},
+"✓ 电子发票原件，请原样发送（不要修改或重新合并）":{en:"✓ Original e-invoice: send as is (do not edit or merge)",de:"✓ Original-E-Rechnung: unverändert senden (nicht bearbeiten oder zusammenführen)"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
@@ -17882,6 +17877,8 @@ I18N_RULES.push(
 [/^📍\ 地点簿（(\d+(?:[.,]\d+)?)）$/,{en:"📍 Locations ($1)",de:"📍 Orte ($1)"}],
 [/^📍\ 派送费须填写收发货地址（从地点簿选择，输入名称\/城市联想；选不到点「＋\ 地点」新建；收货地址最多(\d+(?:[.,]\d+)?)个）$/,{en:"📍 Delivery lines need pick-up and delivery addresses (choose from the location book by typing name/city; click \"＋ Location\" to add; up to $1 delivery addresses)",de:"📍 Zustellzeilen brauchen Abhol- und Lieferadresse (aus dem Ortsverzeichnis per Name/Ort wählen; „＋ Ort\" für neue; bis zu $1 Lieferadressen)"}],
 [/^(\d+(?:[.,]\d+)?)'\ 集装箱$/,{en:"$1' container",de:"$1'-Container"}],
+[/^(\d+(?:[.,]\d+)?)\ 额度\(建议\ (\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)\)$/,{en:"$1 quota (suggested $2/$3/$4/$5/$6)",de:"$1 Anspruch (Vorschlag $2/$3/$4/$5/$6)"}],
+[/^(\d+(?:[.,]\d+)?)\ 额度\(建议\ (\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)\/(\d+(?:[.,]\d+)?)\)$/,{en:"$1 quota (suggested $2/$3/$4/$5/$6/$7)",de:"$1 Anspruch (Vorschlag $2/$3/$4/$5/$6/$7)"}],
 [/^休假中 · 代办 (.+)$/,{en:"On leave · deputy $1",de:"Abwesend · Vertretung $1"}],
 [/^默认 (.+)$/,{en:"Default $1",de:"Standard $1"}],
 [/^代办中（(.+) 休假）$/,{en:"Covering ($1 on leave)",de:"Vertretung ($1 abwesend)"}],
@@ -17905,6 +17902,7 @@ I18N_RULES.push(
 [/^(.+) · 运输$/,{en:"$1 · Transport",de:"$1 · Transport"}],
 [/^(.+) · 派送$/,{en:"$1 · Delivery",de:"$1 · Zustellung"}],
 [/^(.+) · 其他$/,{en:"$1 · Other",de:"$1 · Sonstiges"}],
+[/^🛃 关税文件（(\d+) 份）：在 sevDesk 开票时作为附件挂上，生成完整电子发票后再上传到这里$/,{en:"🛃 Customs documents ($1): attach them to the invoice in sevDesk, then upload the complete e-invoice here",de:"🛃 Zolldokumente ($1): in sevDesk an die Rechnung anhängen, dann die vollständige E-Rechnung hier hochladen"}],
 [/^关税文件（(\d+) 份）$/,{en:"Customs documents ($1)",de:"Zolldokumente ($1)"}],
 [/^🛃 合并关税文件（(\d+) 份）$/,{en:"🛃 Merge customs documents ($1)",de:"🛃 Zolldokumente zusammenführen ($1)"}],
 [/^已选 (\d+) 张 · 合计$/,{en:"$1 selected · total",de:"$1 ausgewählt · Summe"}],
