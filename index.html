@@ -1034,7 +1034,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v39.8</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v40.0</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1688,7 +1688,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=39.8;
+const APP_VERSION=40.0;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -6144,8 +6144,15 @@ function brRenderRight(){
   const b1=box.querySelector('#brSave'),b2=box.querySelector('#brConfirm');
   if(b1)b1.onclick=function(){brApply(tx,C.rows,false);};if(b2)b2.onclick=function(){brApply(tx,C.rows,true);};
 }
+var _brBusy=false;
 async function brApply(tx,rows,andConfirm){
   if(!canBank())return false;
+  if(_brBusy){toast('正在处理上一笔，请稍候');return false;}
+  if(tx.status==='confirmed'||(typeof bankTxHasPostings==='function'&&bankTxHasPostings(tx))){toast('这笔流水已经确认过，不会重复记账');return false;}
+  _brBusy=true;try{const b1=document.getElementById('brSave'),b2=document.getElementById('brConfirm');if(b1)b1.disabled=true;if(b2){b2.disabled=true;b2.textContent='正在确认…';}}catch(e){}
+  try{return await _brApplyCore(tx,rows,andConfirm);}finally{_brBusy=false;}
+}
+async function _brApplyCore(tx,rows,andConfirm){
   const isIn=tx.amount>0;const sel=rows.filter(function(r){return _brPick[r.id];});if(!sel.length)return false;
   const al=bankAllocate(sel.map(function(r){return {id:r.id,no:r.no,open:r.open,extra:isIn?undefined:{ord:r.ord}};}),tx.amount);
   if((al.unalloc||Math.abs(al.gap)>0.005)&&!confirm(bankGapMsg(al,tx)))return false;
@@ -7099,8 +7106,14 @@ function healthCalc(){
   try{const m={};for(const o of ordItems){if(o.deleted||!o.orderNo)continue;(m[o.orderNo]=m[o.orderNo]||[]).push(o);}const dups=Object.keys(m).filter(k=>m[k].length>1);add('ordDupNo','成单号重复',dups.length,'bad',dups.length?('重复：'+dups.slice(0,5).join('、')+'。请在订单详情「编辑」改号或删除其中一张；慢链路端新建前先刷新'):'','ord');}catch(e){}
 
   try{const m={};for(const x of ariItems){if(x.deleted||!x.invNo||x.storno||x.cancelledBy)continue;(m[x.invNo]=m[x.invNo]||[]).push(x);}const d=Object.keys(m).filter(function(k){return m[k].length>1;});add('ariDupNo','应收发票号重复',d.length,'bad',d.length?('重复：'+d.slice(0,6).join('、')+(d.length>6?' 等':'')+'。系统设置「🧹 清理重复发票」可预览清理'):'','ari');}catch(e){}
-  try{const S=[];for(const t of (typeof bankItems!=='undefined'?bankItems:[])){if(t.deleted||t.status!=='confirmed'||!t.match||t.match.kind!=='ar'||!(t.amount>0))continue;const got=payments.filter(function(p){return !p.deleted&&p.bankTx===t.id;}).reduce(function(a,p){return a+(Number(p.amount)||0);},0);if(got>=t.amount-0.01)continue;const lo=(t.match.refs||[]).filter(function(r){return r.linkOnly||r.unalloc;});if(!lo.length)continue;const open=lo.some(function(r){const x=ariItems.find(function(i){return i.id===r.id&&!i.deleted;});return x&&ariState(x)!=='paid';});if(open)S.push(t);}
+  try{const S=[];for(const t of (typeof bankItems!=='undefined'?bankItems:[])){if(t.deleted||t.status!=='confirmed'||!t.match||t.match.kind!=='ar'||!(t.amount>0))continue;const got=payments.filter(function(p){return !p.deleted&&p.bankTx===t.id;}).reduce(function(a,p){return a+(Number(p.amount)||0);},0);if(got>=t.amount-0.01)continue;const lo=(t.match.refs||[]).filter(function(r){return r.linkOnly||r.unalloc;});if(!lo.length)continue;const open=lo.some(function(r){const x=ariItems.find(function(i){return i.id===r.id&&!i.deleted;});return x&&!x.storno&&!x.cancelledBy&&ariState(x)!=='paid';}); if(open)S.push(t);}
     add('bankArShort','银行进款已确认但到账少记',S.length,'bad',S.length?(S.slice(0,5).map(function(t){return t.date+' '+(t.cpName||'')+' '+fmt(t.amount);}).join('；')+' —— 关联发票显示未付清，但这笔流水生成的到账小于流水金额；请在银行页撤回后重新确认'):'','bank');}catch(e){}
+
+  try{const cnt={};for(const p of payments){if(p.deleted||!p.bankTx||!/银行流水自动核销/.test(p.note||''))continue;cnt[p.bankTx]=(cnt[p.bankTx]||0)+1;}
+
+    for(const a of apItems){if(a.deleted)continue;const per={};for(const p of (a.payments||[])){if(p.deleted||!p.bankTx||!/^银行流水 /.test(p.note||''))continue;per[p.bankTx]=(per[p.bankTx]||0)+(Number(p.amount)||0);}const amt=Number(a.amount)||0;for(const k in per){const v=per[k];if(amt>=0?v>amt+0.01:v<amt-0.01)cnt[k]=Math.max(cnt[k]||0,2);}}
+    const ids=Object.keys(cnt).filter(function(k){return cnt[k]>1;});const txs=ids.map(function(id){return (typeof bankItems!=='undefined'?bankItems:[]).find(function(t){return t.id===id;});}).filter(Boolean);
+    add('bankDupPay','同一笔银行流水生成了多笔到账/付款',ids.length,'bad',ids.length?(txs.slice(0,5).map(function(t){return t.date+' '+(t.cpName||'')+' '+fmt(Math.abs(t.amount));}).join('；')+' —— 同一笔流水被重复记账；请在到账登记/应付里删掉多出的那笔（备注含"其余已登记"或"补登"）'):'','bank');}catch(e){}
 
   try{const I=window.__bankAllocIssues||[];add('bankAllocGap','银行流水分配不平（需手工核对）',I.length,'bad',I.length?I.slice(0,5).map(function(t){return t.date+' '+(t.cpName||'')+' '+fmt(Math.abs(t.amount));}).join('；'):'','bank');}catch(e){}
 
@@ -9988,7 +10001,7 @@ function ordSvcLines(o){
   return (o.svc||[]).filter(s=>s.price!=null).map(s=>({
     name:s.name,en:s.en||'',qty:s.qty||1,unit:s.unit||'unit',
     price:s.price,vat:s.vat!=null?s.vat:19,disc:s.disc||0,cur:s.cur||'EUR',
-    pm:s.pm||undefined,rate:s.rate||0,
+    pm:s.pm||undefined,rate:s.rate||0,note:s.note||undefined,
     amount:svcLineNet(s)
   }));
 }
@@ -10577,6 +10590,7 @@ function ordDetail(o){
            if(el)el.value=pm;
            iDisc.value=(pm==='rate')?(s.rate||0):(s.disc||0);}
           _svcEditSid=s.sid;bAdd.textContent='💾 保存修改';
+          try{if(typeof iNote!=='undefined'&&iNote)iNote.value=s.note||'';}catch(e){}
           try{window._svcRecalc&&window._svcRecalc();}catch(e){}
           if(iAF){iAF.value=s.addrFrom||'';
             const _t=(s.addrTos&&s.addrTos.length?s.addrTos:(s.addrTo?[s.addrTo]:[]));
@@ -10613,6 +10627,27 @@ function ordDetail(o){
           sub.innerHTML='<span style="color:var(--bad);font-weight:700" title="点右侧✏载入编辑行补填">⚠ 缺收发货地址</span>';
         }
         if(sub.innerHTML)svcBox.appendChild(sub);
+      }
+
+      const _noteEd=canOp&&!(typeof isRO==='function'&&isRO());
+      if(s.note||_noteEd){
+        const nl=document.createElement('div');nl.className='svc-note';nl.dataset.sid=s.sid;nl.style.cssText='margin:-2px 0 6px 26px;font-size:11.5px';
+        const show=function(){nl.innerHTML=(s.note?'📝 <span class="svc-note-t">'+esc(s.note)+'</span> ':'')+(_noteEd?'<a href="#" class="svc-note-ed" style="font-size:11px;color:var(--info)">'+(s.note?'修改备注':'＋ 备注')+'</a>':'');
+          const a=nl.querySelector('.svc-note-ed');if(a)a.onclick=function(ev){ev.preventDefault();ev.stopPropagation();edit();};};
+        const edit=function(){
+          nl.innerHTML='';const inp=document.createElement('input');inp.className='svc-note-in';inp.maxLength=200;inp.value=s.note||'';inp.placeholder='备注（客户可见：车牌号、等时费说明等）';inp.style.cssText='border:1.5px solid var(--line);border-radius:8px;padding:3px 8px;font-size:12px;width:min(420px,70%)';
+          const plate=(o.trk&&o.trk.ref)?String(o.trk.ref).trim():'';
+          const bP=document.createElement('button');bP.type='button';bP.className='btn-sm svc-note-plate';bP.textContent='带入车牌';bP.style.cssText='padding:1px 8px;font-size:11px;margin-left:4px';
+          bP.onclick=function(ev){ev.stopPropagation();if(plate&&inp.value.indexOf(plate)<0)inp.value=(inp.value?inp.value+' · ':'')+'车牌 '+plate;};
+          const bS=document.createElement('button');bS.type='button';bS.className='btn-sm svc-note-save';bS.textContent='保存';bS.style.cssText='padding:1px 10px;font-size:11px;margin-left:4px';
+          const bC=document.createElement('button');bC.type='button';bC.className='btn-sm svc-note-cancel';bC.textContent='取消';bC.style.cssText='padding:1px 8px;font-size:11px;margin-left:4px';
+          bS.onclick=function(ev){ev.stopPropagation();const v=inp.value.trim().slice(0,200);if((s.note||'')===v){show();return;}
+            ordDo(()=>{if(v)s.note=v;else delete s.note;s.up=Date.now();logAdd(o,'服务项备注：'+s.name+' → '+(v||'（清空）'));ordFinStubSyncLines(o);},'已保存备注');};
+          bC.onclick=function(ev){ev.stopPropagation();show();};
+          inp.onclick=function(ev){ev.stopPropagation();};inp.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();bS.click();}else if(ev.key==='Escape'){bC.click();}};
+          nl.appendChild(inp);if(plate&&svcIsDelivery(s.name,s.en))nl.appendChild(bP);nl.appendChild(bS);nl.appendChild(bC);try{inp.focus();}catch(e){}
+        };
+        nl.onclick=function(ev){ev.stopPropagation();};show();svcBox.appendChild(nl);
       }
     }
     if(netSum||true){
@@ -10670,7 +10705,7 @@ function ordDetail(o){
 
       iUnit=document.createElement('input');iUnit.type='hidden';iUnit.value='unit';
       iPrice=document.createElement('input');iPrice.type='text';iPrice.inputMode='decimal';iPrice.placeholder='Price (Net)';iPrice.title='单价·净额（可输入 1.234,56 或 1234.56）';iPrice.style.cssText=st+';width:96px;text-align:right';
-      iVat=document.createElement('select');iVat.title='VAT';
+      iVat=document.createElement('select');iVat.title='VAT';var iNote=null;
       for(const v of [['19','19%'],['0','0%']]){const op=document.createElement('option');op.value=v[0];op.textContent='VAT '+v[1];iVat.appendChild(op);}
   try{iVat.value=String((o.vatRate===0||o.vatRate)?o.vatRate:19);}catch(e){}
       iVat.style.cssText=st+';padding:6px 4px';
@@ -10721,6 +10756,7 @@ function ordDetail(o){
           try{metaSave();}catch(e){}
         }
         if(_isDel){item.mode=iMode.value||undefined;item.pallets=iPal.value!==''?Number(iPal.value):undefined;item.weightKg=iWt.value!==''?Number(iWt.value):undefined;}
+        {const _nt=(iNote&&iNote.value||'').trim().slice(0,200);item.note=_nt||undefined;}
         item.addrFrom=_isDel?(iAF.value.trim()||undefined):undefined;
         item.addrTo=_tos.length?_tos[0]:undefined;
         item.addrTos=_tos.length>1?_tos:undefined;
@@ -10743,6 +10779,10 @@ function ordDetail(o){
       addRow.append(iName,iQty,iUnit,iPrice,iCur,iVat,iPm,iDisc,discL,amtL,bAdd);
       addRow.onclick=e=>e.stopPropagation();
       svcBox.appendChild(addRow);
+
+      iNote=document.createElement('input');iNote.className='svc-note-new';iNote.maxLength=200;iNote.placeholder='备注（可选，客户可见：如车牌号、等时费说明）';
+      iNote.style.cssText='border:1.5px solid var(--line);border-radius:8px;padding:4px 8px;font-size:12px;width:min(520px,100%);margin:-2px 0 8px 0';
+      iNote.onclick=e=>e.stopPropagation();svcBox.appendChild(iNote);
 
       const addrRow=document.createElement('div');
       addrRow.style.cssText='display:none;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:center';
@@ -11242,7 +11282,7 @@ function ordQuotation(o){
   const qNo='Q-'+o.orderNo+'-1';
   const addr=(cli.addr||'').split(/\s*\/\s+|\s+\/\s*/).map(s=>s.trim()).filter(Boolean);
   const trs=lines.map((l,i)=>
-    '<tr><td class="dsc"><b>'+(i+1)+'. '+esc(l.name)+(l.en?' '+esc(l.en):'')+'</b> <span class="vt">· VAT '+l.vat+'%'+(l.disc?(l.disc>0?' · Discount -'+l.disc+'%':' · Surcharge +'+Math.abs(l.disc)+'%'):'')+'</span></td>'+
+    '<tr><td class="dsc"><b>'+(i+1)+'. '+esc(l.name)+(l.en?' '+esc(l.en):'')+'</b>'+(l.note?'<div class="vt" style="color:#333">'+esc(l.note)+'</div>':'')+' <span class="vt">· VAT '+l.vat+'%'+(l.disc?(l.disc>0?' · Discount -'+l.disc+'%':' · Surcharge +'+Math.abs(l.disc)+'%'):'')+'</span></td>'+
     '<td class="num">'+l.qty.toFixed(2)+' '+esc(l.unitN)+'</td>'+
     '<td class="num">'+de2(l.unit)+' '+(l.cur||cur)+'</td>'+
     '<td class="num"><b>'+de2(l.tot)+' '+(l.cur||cur)+'</b></td></tr>').join('');
@@ -12958,7 +12998,7 @@ function ariLinesHTML(x,compact){
   for(const l of ls){
     const _a=_amt(l);net+=_a;vat+=_a*(Number(l.vat)||0)/100;
     h+='<tr>'+
-      '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft)"><b>'+esc(l.name)+'</b>'+(l.en?' <span style="color:var(--ink-soft)">'+esc(l.en)+'</span>':'')+'</td>'+
+      '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft)"><b>'+esc(l.name)+'</b>'+(l.en?' <span style="color:var(--ink-soft)">'+esc(l.en)+'</span>':'')+(l.note?'<div class="ari-line-note" style="font-size:11.5px;color:var(--info)">📝 '+esc(l.note)+'</div>':'')+'</td>'+
       '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft);font-family:var(--font-num);white-space:nowrap">'+(l.qty==null?1:l.qty)+' '+esc(_unitLbl(l))+'</td>'+
       '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft);text-align:right;font-family:var(--font-num)">'+fmt(_pri(l))+'</td>'+
       '<td style="padding:3px 6px;border-bottom:1px solid var(--n-soft);font-family:var(--font-num)">'+(l.vat==null?0:l.vat)+'%</td>'+
@@ -14458,7 +14498,7 @@ async function bankSave(){
   }catch(e){console.error('bankSave:',e);throw e;}
 }
 
-function bankAllocRepairOne(tx){
+function bankAllocRepairOne(tx,dry){
   const m=tx&&tx.match;if(!m||tx.status!=='confirmed'||!(m.kind==='ap'||m.kind==='ops')||!(m.refs||[]).length)return {ok:false,why:'skip'};
   const r2=function(v){return Math.round(v*100)/100;};
   const its=m.refs.map(r=>apItems.find(x=>x.id===r.id&&!x.deleted)).filter(Boolean);if(!its.length)return {ok:false,why:'skip'};
@@ -14470,6 +14510,7 @@ function bankAllocRepairOne(tx){
   if(!deltas.length)return {ok:true,changed:0};
   const nowTotal=its.reduce((a,it)=>a+mine(it),0)+deltas.reduce((a,x)=>a+x.d,0);
   if(bad||al.unalloc||Math.abs(r2(nowTotal)-r2(Math.abs(tx.amount)))>0.011)return {ok:false,why:'gap',tx:tx};
+  if(dry)return {ok:false,why:'repair',tx:tx,changed:deltas.length};
   for(const x of deltas){(x.it.payments=x.it.payments||[]).push({amount:x.d,date:tx.date,by:'系统',note:'银行流水 '+tx.txNo+(x.credit?'（贷记单冲抵，v37.4 修复）':'（补登，v37.4 修复）'),time:Date.now(),bankTx:tx.id,bankTxNo:tx.txNo});
     (x.it.comments=x.it.comments||[]).push({author:'系统',role:'finance',text:'银行流水 '+tx.txNo+' 的分配修正：'+(x.credit?'贷记单冲抵 ':'补登付款 ')+fmt(x.d)+'（原分配未计贷记单，v37.4）',time:Date.now()});x.it.up=Date.now();}
   for(const r of al.refs){const mr=m.refs.find(x=>x.id===r.id);if(mr){mr.linkOnly=!!r.linkOnly;mr.unalloc=!!r.unalloc;mr.credit=!!r.credit;mr.amount=r.amount;}}
@@ -14477,10 +14518,12 @@ function bankAllocRepairOne(tx){
   return {ok:true,changed:deltas.length};
 }
 var _bankRepairDone=false;
-async function bankAllocRepairAll(){
+
+async function bankAllocRepairAll(opts){
   if(!canBank()||!Array.isArray(bankItems)||typeof apItems==='undefined')return {changed:0,issues:[]};
+  const write=!!(opts&&opts.write);
   let changed=0;const issues=[];
-  for(const tx of bankItems){const r=bankAllocRepairOne(tx);if(r.ok&&r.changed)changed+=r.changed;else if(!r.ok&&r.why==='gap')issues.push(tx);}
+  for(const tx of bankItems){const r=bankAllocRepairOne(tx,!write);if(r.ok&&r.changed)changed+=r.changed;else if(!r.ok&&(r.why==='gap'||r.why==='repair'))issues.push(tx);}
   window.__bankAllocIssues=issues;
   if(changed){try{await apSave();}catch(e){}try{await bankSave();}catch(e){}try{toast('已修正 '+changed+' 张含贷记单的银行付款分配（详见发票备注）');}catch(e){}}
   return {changed:changed,issues:issues};
@@ -14631,7 +14674,22 @@ function bankPickByAmount(c,amt){
   return null;
 }
 
+var _bankConfirming={};
+function bankTxHasPostings(tx){
+  try{if(payments.some(function(p){return !p.deleted&&p.bankTx===tx.id&&/银行流水自动核销/.test(p.note||'');}))return true;}catch(e){}
+  try{if(apItems.some(function(a){return !a.deleted&&(a.payments||[]).some(function(p){return !p.deleted&&p.bankTx===tx.id&&/^银行流水 /.test(p.note||'');});}))return true;}catch(e){}
+  return false;
+}
 async function bankConfirm(tx){
+  if(!canBank()||!tx||!tx.match)return false;
+  if(_bankConfirming[tx.id]){toast('这笔流水正在确认中，请稍候，不要重复点击');return false;}
+  if(tx.status==='confirmed'){toast('这笔流水已经确认过，不会重复记账');return false;}
+  if(bankTxHasPostings(tx)){toast('这笔流水已经生成过到账/付款，不会重复记账；如需重做请先「撤回」');return false;}
+  _bankConfirming[tx.id]=true;
+  try{return await _bankConfirmCore(tx);}finally{delete _bankConfirming[tx.id];}
+}
+window.bankTxHasPostings=bankTxHasPostings;
+async function _bankConfirmCore(tx){
   if(!canBank()||!tx||!tx.match)return false;
   const m=tx.match;
 
@@ -14745,7 +14803,7 @@ function bankBind(){
   if(q('bankFStatus'))q('bankFStatus').onchange=function(){bankFStatus=this.value;renderBANK();};
   if(q('bankFQ')){let t=null;q('bankFQ').oninput=function(){clearTimeout(t);const v=this.value;t=setTimeout(()=>{bankFQ=v;renderBANK();const el=$('bankFQ');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length);}},220);};}
   if(q('bankMore'))q('bankMore').onclick=()=>{_winN['bankBody']=(_winN['bankBody']||WIN_STEP)+WIN_STEP;renderBANK();};
-  box.querySelectorAll('.bk-ok').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;await bankConfirm(tx);const ap=(tx.match&&tx.match.applied)||{};toast(ap.linkOnly?'已确认：发票已登记过，仅挂流水号（未新建记录）':('已确认并写入台账'+(ap.linked?'，另 '+ap.linked+' 条已有记录挂上流水号':'')));renderBANK();});
+  box.querySelectorAll('.bk-ok').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx||b.disabled)return;b.disabled=true;b.textContent='确认中…'; const okc=await bankConfirm(tx);if(okc===false){b.disabled=false;b.textContent='确认';renderBANK();return;}const ap=(tx.match&&tx.match.applied)||{};toast(ap.linkOnly?'已确认：发票已登记过，仅挂流水号（未新建记录）':('已确认并写入台账'+(ap.linked?'，另 '+ap.linked+' 条已有记录挂上流水号':'')));renderBANK();});
   box.querySelectorAll('.bk-ign').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;const r=prompt('忽略原因（如：内部转账 / 退回）：');if(r===null)return;await bankIgnore(tx,r);renderBANK();});
   box.querySelectorAll('.bk-edit').forEach(b=>b.onclick=()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(tx)bankEditOpen(tx);});
   box.querySelectorAll('.bk-undo').forEach(b=>b.onclick=async()=>{const tx=bankItems.find(x=>x.id===b.dataset.id);if(!tx)return;const m=tx.match||{};
@@ -17838,7 +17896,20 @@ Object.assign(I18N,{
 "应收发票号重复":{en:"Duplicate AR invoice numbers",de:"Doppelte Debitoren-Rechnungsnummern"},
 "银行进款已确认但到账少记":{en:"Bank receipt confirmed but under-recorded",de:"Bankeingang bestätigt, aber zu wenig verbucht"},
 "没有待合并的记录":{en:"Nothing to merge",de:"Nichts zusammenzuführen"},
-"重试":{en:"Retry",de:"Erneut versuchen"}
+"重试":{en:"Retry",de:"Erneut versuchen"},
+"这笔流水正在确认中，请稍候，不要重复点击":{en:"This bank line is being confirmed; please wait and do not click again",de:"Diese Buchung wird gerade bestätigt; bitte warten und nicht erneut klicken"},
+"这笔流水已经确认过，不会重复记账":{en:"This bank line is already confirmed; it will not be posted twice",de:"Diese Buchung ist bereits bestätigt und wird nicht doppelt verbucht"},
+"这笔流水已经生成过到账/付款，不会重复记账；如需重做请先「撤回」":{en:"Postings already exist for this bank line; withdraw it first to redo",de:"Für diese Buchung gibt es bereits Buchungen; zum Wiederholen zuerst «Zurückziehen»"},
+"确认中…":{en:"Confirming…",de:"Wird bestätigt…"},
+"正在确认…":{en:"Confirming…",de:"Wird bestätigt…"},
+"正在处理上一笔，请稍候":{en:"Still processing the previous one, please wait",de:"Vorheriger Vorgang läuft noch, bitte warten"},
+"同一笔银行流水生成了多笔到账/付款":{en:"One bank line created several postings",de:"Eine Bankbuchung hat mehrere Buchungen erzeugt"},
+"＋ 备注":{en:"+ Note",de:"+ Notiz"},
+"修改备注":{en:"Edit note",de:"Notiz bearbeiten"},
+"带入车牌":{en:"Insert plate",de:"Kennzeichen einfügen"},
+"已保存备注":{en:"Note saved",de:"Notiz gespeichert"},
+"备注（客户可见：车牌号、等时费说明等）":{en:"Note (visible to customer: plate, waiting time etc.)",de:"Notiz (für Kunden sichtbar: Kennzeichen, Wartezeit usw.)"},
+"备注（可选，客户可见：如车牌号、等时费说明）":{en:"Note (optional, visible to customer: e.g. plate, waiting time)",de:"Notiz (optional, für Kunden sichtbar: z. B. Kennzeichen, Wartezeit)"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
