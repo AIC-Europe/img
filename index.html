@@ -79,6 +79,20 @@ try{
   localStorage.setItem=function(k,v){if(k&&String(k).indexOf("firebase:")===0)return;try{_origSet(k,v)}catch(e){}};
   for(var _i=localStorage.length-1;_i>=0;_i--){var _k=localStorage.key(_i);if(_k&&_k.indexOf("firebase:")===0)localStorage.removeItem(_k);}
 }catch(e){}
+/* v39.8 升级后一次性完整重新下载（Emma 11/04：Teri 改单号后 Christina/Yaxuan 本地旧副本一直不更新）。
+   条件：本机没有待同步的写入队列。做法：清掉台账本地缓存与增量同步书签 → 本次登录从云端整表加载，各电脑数据对齐。只做一次。 */
+try{
+  if(!localStorage.getItem('img-resync-398')){
+    var _ob=localStorage.getItem('img-outbox-pending');var _pend=false;try{var _o=_ob?JSON.parse(_ob):null;_pend=!!(_o&&Object.keys(_o).length);}catch(e){_pend=!!_ob;}
+    if(!_pend){
+      var _ks=['img-ord-items','img-ap-items','img-ari-items','img-ar-payments'];var _rm=[];
+      for(var _j=localStorage.length-1;_j>=0;_j--){var _kk=localStorage.key(_j);if(!_kk)continue;var _b=_kk.replace(/^staging:/,'');if(_ks.indexOf(_b)>=0||_b.indexOf('img-v2sv-')===0||_b.indexOf('img-v2since-')===0)_rm.push(_kk);}
+      _rm.forEach(function(k){localStorage.removeItem(k);});
+      localStorage.setItem('img-resync-398',String(Date.now()));
+      window.__resync398=_rm.length;
+    }
+  }
+}catch(e){}
 if(USE_CLOUD){
   try{
     if(typeof firebase==="undefined")throw new Error("sdk not loaded");
@@ -1020,7 +1034,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v39.7</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v39.8</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1674,7 +1688,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=39.7;
+const APP_VERSION=39.8;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2043,7 +2057,7 @@ async function seedImport(){
   if(added){try{await store.set(KEY_DATA,JSON.stringify(payments));}catch(e){}}
 }
 async function savePayments(){
-  try{stampChanged(payments,'up',_payStamp);}catch(e){}
+  try{stampChanged(payments,'up',_payStamp,CLOUD_PATH);}catch(e){}
   if(roGuard())return false;
   try{alcInvalidate();}catch(e){}
   try{
@@ -2069,10 +2083,12 @@ function lwwMerge(l,r,upKey,KEEP,ARR){
   l[upKey]=r[upKey];return true;
 }
 
-function stampChanged(list,upKey,state){
+function stampChanged(list,upKey,state,path){
   const now=Date.now();const snap=new Map();
   if(state.dirty){state.dirty=false;state.snap=null;}
-  for(const it of list){const o=Object.assign({},it);delete o[upKey];const j=JSON.stringify(o);snap.set(it.id,j);if(state.snap&&state.snap.get(it.id)!==j)it[upKey]=Math.max(now,(Number(it[upKey])||0)+1);}
+
+  const base=(!state.snap&&path&&typeof _v2Last!=='undefined'&&_v2Last[path])?_v2Last[path]:null;
+  for(const it of list){const o=Object.assign({},it);delete o[upKey];const j=JSON.stringify(o);snap.set(it.id,j);if(state.snap?state.snap.get(it.id)!==j:(base&&base[it.id]&&base[it.id]!==v2Canon(it)))it[upKey]=Math.max(now,(Number(it[upKey])||0)+1);}
   state.snap=snap;
 }
 window.lwwMerge=lwwMerge;window.stampChanged=stampChanged;
@@ -2397,6 +2413,7 @@ function enterApp(){
   try{brInit();}catch(e){}
   try{cuInit();}catch(e){}
   try{mdInit();}catch(e){}
+  try{dfInit();}catch(e){}
   try{if(session&&session.role==='finance'&&typeof errlogLoad==='function'){setTimeout(function(){errlogLoad();authStatLoad();},5000);setInterval(function(){errlogLoad();authStatLoad();},600000);}}catch(e){}
   try{outboxRegister(CLOUD_PATH,'到账',async function(){const ok=await v2ReadMergeDelta(CLOUD_PATH,mergeRemote);if(!ok)throw new Error('read');await v2Write(CLOUD_PATH,payments,'到账');CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();try{render();}catch(e){}});setTimeout(function(){try{outboxRestore();}catch(e){}},2500);}catch(e){}
   if(USE_CLOUD&&rtdb){netProbe().then(function(){
@@ -3090,8 +3107,11 @@ function inboxBadge(){
   for(const k in _inboxPending){for(const it of _inboxPending[k]){all++;if(it._client===CLOUD_CLIENT_ID||_inboxLocal[k].has(it.id))mine++;if(!oldest||it._at<oldest)oldest=it._at;}}
   if(!all){el.style.display='none';return;}
   const age=oldest?Math.round((Date.now()-oldest)/60000):0;
-  el.style.display='';el.textContent='⏳ 待合并 '+all+(mine?'（本机 '+mine+'）':'')+(age>=10?' · 已等 '+age+' 分钟':'');
-  el.title='慢链路投递箱：这些记录已写到云端投递箱，等任一线路正常的客户端合并进主表。本机记录已保留，刷新不丢。';
+  const fin=(typeof session!=='undefined'&&session&&session.role==='finance');const late=age>=15;const errN=Object.keys(_inboxLastErr).length;
+  el.style.display='';el.textContent='⏳ 待合并 '+all+(mine?'（本机 '+mine+'）':'')+(age>=10?' · 已等 '+age+' 分钟':'')+(fin&&(late||errN)?' · 点此立即合并':'');
+  el.title='慢链路投递箱：这些记录已写到云端投递箱，等任一线路正常的客户端合并进主表。本机记录已保留，刷新不丢。'+(errN?('\n上次合并失败：'+Object.keys(_inboxLastErr).map(function(k){return k+' '+_inboxLastErr[k];}).join('；')):'');
+  el.style.cursor=(fin&&(late||errN))?'pointer':'';
+  el.onclick=(fin&&(late||errN))?function(){if(confirm('立即把投递箱里的 '+all+' 条记录合并进正式台账？\n\n（与网络正常的电脑自动合并完全相同；失败时记录保留在投递箱，不会丢）'))inboxMergeNow();}:null;
 }
 function inboxAll(){let n=0;for(const k in _inboxPending)n+=_inboxPending[k].length;return n;}
 function inboxOldestAge(){let o=0;for(const k in _inboxPending)for(const it of _inboxPending[k])if(!o||it._at<o)o=it._at;return o?Date.now()-o:0;}
@@ -3101,8 +3121,37 @@ async function inboxClear(k,items){
     try{await new Promise(function(res){rtdb.ref(INBOX_ROOT+k+'/'+it.id).transaction(function(cur){if(cur&&cur._at===it._at)return null;return cur;},function(){res();});});}catch(e){}
   }
 }
+
+var _inboxMergeFns={},_inboxLastErr={},_inboxTimer=null;
+async function inboxRunMerge(k,force){
+  const items=(_inboxPending[k]||[]).slice();const fn=_inboxMergeFns[k];
+  if(!items.length||!fn)return 0;
+  if(!force&&_netSlow!==false)return 0;
+  if(typeof isRO==='function'&&isRO())return 0;
+  if(_inboxMerging[k])return 0;
+  _inboxMerging[k]=true;
+  try{await fn(items.map(function(x){return x.rec;}));await inboxClear(k,items);delete _inboxLastErr[k];console.log('inbox['+k+'] 已合并 '+items.length+' 条');return items.length;}
+  catch(e){_inboxLastErr[k]=String(e&&e.message||e);console.warn('inbox merge '+k,e&&e.message);try{if(typeof errlogAdd==='function')errlogAdd('inbox-merge',k+'：'+_inboxLastErr[k]);}catch(_){}throw e;}
+  finally{_inboxMerging[k]=false;try{inboxBadge();}catch(e){}}
+}
+async function inboxMergeNow(){
+  let n=0;const errs=[];
+  for(const k in _inboxPending){if(!(_inboxPending[k]||[]).length)continue;try{n+=await inboxRunMerge(k,true);}catch(e){errs.push((INBOX_LEDGERS[k]||k)+'：'+(e&&e.message||e));}}
+  if(errs.length){toast('合并未完成：'+errs.join('；'));return {ok:false,n:n,errs:errs};}
+  toast(n?('✓ 已合并 '+n+' 条'):'没有待合并的记录');return {ok:true,n:n};
+}
+function inboxRetryTick(){
+  try{if(_netSlow!==false||!inboxAll())return;for(const k in _inboxPending){if((_inboxPending[k]||[]).length)inboxRunMerge(k,false).catch(function(){});}}catch(e){}
+}
+function inboxStartTimers(){
+  if(_inboxTimer)return;
+  _inboxTimer=setInterval(inboxRetryTick,120000);
+  setInterval(function(){let f=null;try{f=localStorage.getItem('img-netslow');}catch(e){}if(f==='0'||f==='1')return;netProbe().then(inboxRetryTick).catch(function(){});},300000);
+}
+window.inboxMergeNow=inboxMergeNow;window.inboxRunMerge=inboxRunMerge;window.inboxRetryTick=inboxRetryTick;window.inboxLastErrGet=function(){return _inboxLastErr;};
 function inboxListen(k,mergeAndSave){
   if(!USE_CLOUD||!rtdb)return;
+  _inboxMergeFns[k]=mergeAndSave;try{inboxStartTimers();}catch(e){}
   rtdb.ref(INBOX_ROOT+k).on('value',function(s){
     const v=s&&s.val();const items=[];
     if(v)for(const id in v){try{const e=v[id];if(!e||!e.json)continue;items.push({id:id,rec:JSON.parse(e.json),_at:e._at,_by:e._by,_client:e._client});}catch(e){}}
@@ -3113,21 +3162,16 @@ function inboxListen(k,mergeAndSave){
     try{inboxBadge();}catch(e){}
     if(!items.length)return;
     if(_netSlow!==false)return;
-    if(typeof isRO==='function'&&isRO())return;
-    if(_inboxMerging[k])return;
-    _inboxMerging[k]=true;
-    setTimeout(async function(){
-      try{await mergeAndSave(items.map(function(x){return x.rec;}));await inboxClear(k,items);console.log('inbox['+k+'] 已合并 '+items.length+' 条');}
-      catch(e){console.warn('inbox merge '+k,e&&e.message);}
-      finally{_inboxMerging[k]=false;}
-    },300+Math.random()*700);
+    setTimeout(function(){inboxRunMerge(k,false).catch(function(){});},300+Math.random()*700);
   });
 }
 async function netProbe(){
 
   try{const f=localStorage.getItem('img-netslow');if(f==='1'){_netSlow=true;return;}if(f==='0'){_netSlow=false;return;}}catch(e){}
   if(!USE_CLOUD||!rtdb){_netSlow=false;return;}
-  try{const t=Date.now();await _withTimeout(rtdb.ref(DB_PREFIX+'img-ap/_ping').once('value'),8000,'探测');_netRtt=Date.now()-t;_netSlow=_netRtt>400;}
+
+  try{const ts=[];for(let i=0;i<3;i++){const t=Date.now();await _withTimeout(rtdb.ref(DB_PREFIX+'img-ap/_ping').once('value'),8000,'探测');ts.push(Date.now()-t);}
+    ts.sort(function(a,b){return a-b;});_netRtt=ts[1];_netSlow=_netRtt>700;}
   catch(e){_netSlow=true;}
   try{const el=$('storeStatus');if(el&&_netSlow)el.title=(el.title||'')+' · 数据库往返 '+(_netRtt==null?'>8000':_netRtt)+' ms（慢链路模式：大写入自动走投递箱）';}catch(e){}
 }
@@ -3139,11 +3183,12 @@ function nosKey(no){return String(no||'').trim().replace(/[.#$\/\[\]]/g,'_');}
 var _noClaimSoft=0;
 async function noClaimSoft(no,id,why){
   const ref=rtdb.ref(NOS_ROOT+nosKey(no));let cur=null;
-  try{const s=await _withTimeout(ref.once('value'),8000,'占号表读取');cur=s&&s.val();}
-  catch(e){console.warn('noClaim 读超时，放行（本地查重兜底）',no,e&&e.message);_noClaimSoft++;return 'pass';}
+
+  let ok=false;for(let i=0;i<2&&!ok;i++){try{const s=await _withTimeout(ref.once('value'),8000,'占号表读取');cur=s&&s.val();ok=true;}catch(e){console.warn('noClaim 读超时',no,e&&e.message);}}
+  if(!ok)throw new Error('网络太慢，暂时无法确认成单号 '+no+' 是否已被占用。为避免重号，本次没有保存——已填内容仍在，请稍后再点「保存」');
   if(cur&&cur.id&&cur.id!==id)throw new Error('成单号 '+no+' 已被 '+(cur.by||'他人')+' 使用（云端登记），请换号或先刷新页面');
   try{await _withTimeout(ref.set({id:id,by:(session&&session.name)||'',at:Date.now(),soft:true,why:why||''}),10000,'占号登记');}
-  catch(e){console.warn('noClaim 软登记超时，放行',no,e&&e.message);_noClaimSoft++;return 'pass';}
+  catch(e){console.warn('noClaim 软登记超时',no,e&&e.message);throw new Error('网络太慢，成单号 '+no+' 占号登记没有成功。为避免重号，本次没有保存——已填内容仍在，请稍后再点「保存」');}
   _noClaimSoft++;return 'soft';
 }
 async function noClaim(no,id){
@@ -4347,8 +4392,9 @@ let _apUpSnap=null,_apUpSnapDirty=false;
 function apStampUp(){
   const now=Date.now();const snap=new Map();
   if(_apUpSnapDirty){_apUpSnapDirty=false;_apUpSnap=null;}
+  const base=(!_apUpSnap&&typeof _v2Last!=='undefined'&&_v2Last[AP_PATH])?_v2Last[AP_PATH]:null;
   for(const it of apItems){const o=Object.assign({},it);delete o.up;const j=JSON.stringify(o);snap.set(it.id,j);
-    if(_apUpSnap&&_apUpSnap.get(it.id)!==j)it.up=now;}
+    if(_apUpSnap?_apUpSnap.get(it.id)!==j:(base&&base[it.id]&&base[it.id]!==v2Canon(it)))it.up=now;}
   _apUpSnap=snap;
 }
 window.apItemsGet=function(){return apItems;};window.apState=function(x){return apState(x);};
@@ -6321,6 +6367,67 @@ function mdCard(){
 function mdInit(){if(typeof renderBASE==='function'&&!renderBASE.__md){const _b=renderBASE;renderBASE=function(){const r=_b.apply(this,arguments);mdCard();return r;};renderBASE.__md=true;}}
 window.mdInit=mdInit;
 
+function dfNorm(s){return String(s||'').replace(/（/g,'(').replace(/）/g,')').replace(/\s+/g,' ').trim().toLowerCase();}
+
+function dfActivity(x,refIds){return !!((x.comments||[]).length||(x.files||[]).length||(x.lines||[]).length||refIds.has(x.id)||x.invNoLocked||x.linesLocked);}
+function dfScan(){
+  const refIds=new Set();
+  for(const p of payments){if(p.deleted)continue;(p.linkIds||[]).forEach(function(id){refIds.add(id);});(p.alloc||[]).forEach(function(a){if(a&&a.invId)refIds.add(a.invId);});}
+  for(const t of (typeof bankItems!=='undefined'?bankItems:[])){for(const r of ((t.match&&t.match.refs)||[]))if(r&&r.id)refIds.add(r.id);}
+  const g={};for(const x of ariItems){if(x.deleted||!x.invNo)continue;(g[x.invNo]=g[x.invNo]||[]).push(x);}
+  const out=[];
+  for(const no in g){const L=g[no];if(L.length<2)continue;
+    const cand=L.filter(function(x){return x.createdBy==='系统导入'&&x.fromImport&&!dfActivity(x,refIds);});
+    if(!cand.length)continue;
+
+    const ranked=L.slice().sort(function(a,b){const aa=dfActivity(a,refIds)?0:1,bb=dfActivity(b,refIds)?0:1;if(aa!==bb)return aa-bb;return (Number(a._up)||0)-(Number(b._up)||0);});
+    const keep=ranked[0];
+    for(const x of cand){if(x===keep)continue;
+      const twin=L.find(function(y){return y!==x&&!out.some(function(o){return o.x===y;})&&dfNorm(y.customer)===dfNorm(x.customer)&&Math.abs((Number(y.gross)||0)-(Number(x.gross)||0))<=0.02;});
+      if(!twin)continue;
+      out.push({x:x,keep:twin,no:no});}
+  }
+  return out;
+}
+window.dfScan=dfScan;
+async function dfApply(list){
+  if(!session||session.role!=='finance'){toast('只有财务可以执行');return 0;}
+  list=list||dfScan();if(!list.length)return 0;
+  try{await saveSnapshot('清理重复发票前（'+list.length+' 张）');}catch(e){if(!confirm('执行前快照没有成功（'+(e.message||e)+'）。仍要继续吗？'))return 0;}
+  const now=Date.now();
+  for(const it of list){const x=it.x;x.deleted=true;x.deletedAt=now;x.deletedBy=session.name;x.deleteReason='v39.8 清理重复导入（与 '+(it.keep.orderNo||it.keep.id)+' 相同）';x._up=now;}
+  meta.dfDone=Object.assign({},meta.dfDone||{},{v398:{at:now,by:session.name,n:list.length}});
+  await ariSaveAll();try{await metaSave();}catch(e){}
+  try{ariAlertUpdate();}catch(e){}
+  return list.length;
+}
+window.dfApply=dfApply;
+function dfOpen(){
+  const L=dfScan();const ov=document.createElement('div');ov.className='overlay open';ov.id='dfOvl';ov.style.display='flex';
+  const sum=L.reduce(function(a,it){return a+(it.x.storno||it.x.settledManual?0:(Number(it.x.gross)||0));},0);
+  ov.innerHTML='<div class="modal" style="max-width:900px;width:96vw;max-height:88vh;overflow:auto"><h3 style="margin-top:0">🧹 清理重复应收发票（'+L.length+' 张）</h3>'+
+    '<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">这些发票与右侧的原件发票号、客户、金额相同（个别差 1 分），且自身没有到账、银行流水、备注、附件或明细，是 11 月 2 日系统重复导入生成的。执行前自动快照，可在「数据备份与恢复」整体回滚。未清金额将减少约 € '+fmt(sum)+'。</div>'+
+    '<table class="mini" style="width:100%;font-size:12px"><tr><th>发票号</th><th>客户</th><th style="text-align:right">金额</th><th>将删除（重复件）</th><th>保留（原件）</th></tr>'+
+    L.map(function(it){return '<tr><td>'+esc(it.no)+'</td><td>'+esc(it.x.customer||'')+'</td><td style="text-align:right">'+fmt(it.x.gross)+'</td><td style="color:var(--bad)">无成单号 · 系统导入</td><td>'+esc(it.keep.orderNo||'（无成单号，较早导入）')+'</td></tr>';}).join('')+'</table>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button type="button" class="btn-ghost" id="dfCancel">关闭</button><button type="button" class="btn" style="width:auto" id="dfGo"'+(L.length?'':' disabled')+'>删除这 '+L.length+' 张重复发票</button></div></div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#dfCancel').onclick=function(){ov.remove();};
+  ov.querySelector('#dfGo').onclick=async function(){if(!confirm('确认删除 '+L.length+' 张重复发票？执行前会自动快照。'))return;if(!confirm('⚠ 再次确认：现在执行？'))return;const b=ov.querySelector('#dfGo');b.disabled=true;b.textContent='正在执行…';
+    try{const n=await dfApply(L);ov.remove();toast('已清理 '+n+' 张重复发票');try{renderBASE();}catch(e){}}catch(e){b.disabled=false;b.textContent='重试';toast('执行失败：'+(e.message||e)+'——可用刚才的快照回滚');}};
+}
+window.dfOpen=dfOpen;
+function dfCard(){
+  try{if(!session||session.role!=='finance')return;const host=document.getElementById('baseCards');if(!host||document.getElementById('dfCard'))return;
+    const n=dfScan().length;const done=(meta.dfDone||{}).v398;
+    if(!n&&!done)return;
+    const c=document.createElement('div');c.className='base-card';c.id='dfCard';
+    c.innerHTML='<h3>🧹 清理重复发票（11 月 2 日系统重复导入）</h3><div style="font-size:12.5px;color:var(--ink-soft)">'+(n?('发现 <b style="color:var(--bad)">'+n+'</b> 张与原件完全相同的重复应收发票，会虚增未清应收。先预览，确认后删除；执行前自动快照。'):'没有重复发票。')+'</div>'+(done?'<div style="font-size:12px;color:var(--ok);margin-top:4px">✓ 已于 '+esc(ymdLocal(new Date(done.at)))+' 由 '+esc(done.by)+' 清理 '+done.n+' 张</div>':'')+(n?'<button type="button" class="btn-sm" id="dfBtn" style="margin-top:6px">预览重复发票</button>':'');
+    const anchor=document.getElementById('mdCard')||document.getElementById('coCard')||document.getElementById('bankRuleCard');if(anchor&&anchor.parentNode)anchor.parentNode.insertBefore(c,anchor);else host.parentNode.appendChild(c);
+    const b=c.querySelector('#dfBtn');if(b)b.onclick=dfOpen;}catch(e){}
+}
+function dfInit(){if(typeof renderBASE==='function'&&!renderBASE.__df){const _b=renderBASE;renderBASE=function(){const r=_b.apply(this,arguments);dfCard();return r;};renderBASE.__df=true;}}
+window.dfInit=dfInit;
+
 function rcBigModel(d1,d2,label){
   const R=rcBigRows();
   const inR=function(d){return d>=d1&&d<=d2;};
@@ -6990,6 +7097,10 @@ function healthCalc(){
   add('stubDated','待开票存根带日期或金额',ariItems.filter(function(x){return !x.deleted&&!x.invNo&&!x.storno&&!x.cancelledBy&&(x.invDate||(Number(x.gross)||0)||(Number(x.net)||0));}).length,'warn','存根应无日期与金额；请核对是否漏填发票号（报表已排除存根）','ari');
 
   try{const m={};for(const o of ordItems){if(o.deleted||!o.orderNo)continue;(m[o.orderNo]=m[o.orderNo]||[]).push(o);}const dups=Object.keys(m).filter(k=>m[k].length>1);add('ordDupNo','成单号重复',dups.length,'bad',dups.length?('重复：'+dups.slice(0,5).join('、')+'。请在订单详情「编辑」改号或删除其中一张；慢链路端新建前先刷新'):'','ord');}catch(e){}
+
+  try{const m={};for(const x of ariItems){if(x.deleted||!x.invNo||x.storno||x.cancelledBy)continue;(m[x.invNo]=m[x.invNo]||[]).push(x);}const d=Object.keys(m).filter(function(k){return m[k].length>1;});add('ariDupNo','应收发票号重复',d.length,'bad',d.length?('重复：'+d.slice(0,6).join('、')+(d.length>6?' 等':'')+'。系统设置「🧹 清理重复发票」可预览清理'):'','ari');}catch(e){}
+  try{const S=[];for(const t of (typeof bankItems!=='undefined'?bankItems:[])){if(t.deleted||t.status!=='confirmed'||!t.match||t.match.kind!=='ar'||!(t.amount>0))continue;const got=payments.filter(function(p){return !p.deleted&&p.bankTx===t.id;}).reduce(function(a,p){return a+(Number(p.amount)||0);},0);if(got>=t.amount-0.01)continue;const lo=(t.match.refs||[]).filter(function(r){return r.linkOnly||r.unalloc;});if(!lo.length)continue;const open=lo.some(function(r){const x=ariItems.find(function(i){return i.id===r.id&&!i.deleted;});return x&&ariState(x)!=='paid';});if(open)S.push(t);}
+    add('bankArShort','银行进款已确认但到账少记',S.length,'bad',S.length?(S.slice(0,5).map(function(t){return t.date+' '+(t.cpName||'')+' '+fmt(t.amount);}).join('；')+' —— 关联发票显示未付清，但这笔流水生成的到账小于流水金额；请在银行页撤回后重新确认'):'','bank');}catch(e){}
 
   try{const I=window.__bankAllocIssues||[];add('bankAllocGap','银行流水分配不平（需手工核对）',I.length,'bad',I.length?I.slice(0,5).map(function(t){return t.date+' '+(t.cpName||'')+' '+fmt(Math.abs(t.amount));}).join('；'):'','bank');}catch(e){}
 
@@ -9167,6 +9278,7 @@ window.ordMergeRemote=function(r){return ordMergeRemote(r);};
 function ordMergeRemote(remote){
   rcBigInvalidate();
   if(!Array.isArray(remote))return;
+  try{_ordStamp.dirty=true;}catch(e){}
   remote.forEach(ordMigrate);
   const byId=new Map(ordItems.map(x=>[x.id,x]));
   for(const r of remote){
@@ -9379,8 +9491,10 @@ function cloudWriteGuard(okTx,merged,label){
   }
   return false;
 }
+var _ordStamp={snap:null,dirty:false};
 async function ordSave(){
   rcBigInvalidate();
+  try{stampChanged(ordItems,'up',_ordStamp,ORD_PATH);}catch(e){}
   if(roGuard())return false;
   try{
     if(STORE_MODE==='v2'&&USE_CLOUD&&rtdb){
@@ -9927,6 +10041,8 @@ function ordFinStubSyncLines(o){
   }catch(e){}
 }
 async function ariImportEnsure(){
+
+  return;
   try{
     if(!meta||meta.ariImportV1)return;
     const have=new Set(ariItems.filter(x=>!x.deleted&&x.invNo).map(x=>String(x.invNo)));
@@ -12019,7 +12135,7 @@ function cloudTxWrite(path,mergeFn,buildJson){  if(window.__versionStale)return 
 const _ariStamp={snap:null,dirty:false};
 async function ariSaveAll(){
   rcBigInvalidate();
-  try{stampChanged(ariItems,'_up',_ariStamp);}catch(e){}
+  try{stampChanged(ariItems,'_up',_ariStamp,ARI_PATH);}catch(e){}
   if(roGuard())return false;
   try{alcInvalidate();}catch(e){}
   try{
@@ -17711,7 +17827,18 @@ Object.assign(I18N,{
 "按 sevDesk 最新联系人统一客户/供应商名称（含 H&H 合并）、补充税号与国家、新增与停用。先预览，确认后执行；执行前自动快照。":{en:"Unify customer/supplier names with the latest sevDesk contacts (incl. merging H&H), add VAT IDs and countries, add and deactivate entries. Preview first, then run; a snapshot is taken automatically.",de:"Kunden-/Lieferantennamen an die aktuellen sevDesk-Kontakte angleichen (inkl. Zusammenführung H&H), USt-IdNr. und Länder ergänzen, Einträge anlegen und deaktivieren. Erst Vorschau, dann ausführen; vorher automatischer Snapshot."},
 "⬇ 下载关税文件（合成一个 PDF）":{en:"⬇ Download customs documents (one PDF)",de:"⬇ Zolldokumente herunterladen (eine PDF)"},
 "⚠ 平台合并版，不是电子发票——请改发 sevDesk 原件":{en:"⚠ Merged by the platform, not an e-invoice: please send the sevDesk original",de:"⚠ Von der Plattform zusammengeführt, keine E-Rechnung: bitte das sevDesk-Original senden"},
-"✓ 电子发票原件，请原样发送（不要修改或重新合并）":{en:"✓ Original e-invoice: send as is (do not edit or merge)",de:"✓ Original-E-Rechnung: unverändert senden (nicht bearbeiten oder zusammenführen)"}
+"✓ 电子发票原件，请原样发送（不要修改或重新合并）":{en:"✓ Original e-invoice: send as is (do not edit or merge)",de:"✓ Original-E-Rechnung: unverändert senden (nicht bearbeiten oder zusammenführen)"},
+"🧹 清理重复发票（11 月 2 日系统重复导入）":{en:"🧹 Remove duplicate invoices (system re-import on 2 Nov)",de:"🧹 Doppelte Rechnungen bereinigen (System-Reimport am 02.11.)"},
+"预览重复发票":{en:"Preview duplicates",de:"Duplikate ansehen"},
+"没有重复发票。":{en:"No duplicate invoices.",de:"Keine doppelten Rechnungen."},
+"系统导入 · 无任何业务痕迹":{en:"System import · no activity",de:"Systemimport · ohne Aktivität"},
+"将删除（重复件）":{en:"To delete (duplicate)",de:"Wird gelöscht (Duplikat)"},
+"保留（原件）":{en:"Keep (original)",de:"Behalten (Original)"},
+"（无成单号，较早导入）":{en:"(no order no., imported earlier)",de:"(ohne Auftrags-Nr., früher importiert)"},
+"应收发票号重复":{en:"Duplicate AR invoice numbers",de:"Doppelte Debitoren-Rechnungsnummern"},
+"银行进款已确认但到账少记":{en:"Bank receipt confirmed but under-recorded",de:"Bankeingang bestätigt, aber zu wenig verbucht"},
+"没有待合并的记录":{en:"Nothing to merge",de:"Nichts zusammenzuführen"},
+"重试":{en:"Retry",de:"Erneut versuchen"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
@@ -17902,6 +18029,10 @@ I18N_RULES.push(
 [/^(.+) · 运输$/,{en:"$1 · Transport",de:"$1 · Transport"}],
 [/^(.+) · 派送$/,{en:"$1 · Delivery",de:"$1 · Zustellung"}],
 [/^(.+) · 其他$/,{en:"$1 · Other",de:"$1 · Sonstiges"}],
+[/^🧹 清理重复应收发票（(\\d+) 张）$/,{en:"🧹 Remove duplicate AR invoices ($1)",de:"🧹 Doppelte Debitorenrechnungen bereinigen ($1)"}],
+[/^删除这 (\\d+) 张重复发票$/,{en:"Delete these $1 duplicates",de:"Diese $1 Duplikate löschen"}],
+[/^已清理 (\\d+) 张重复发票$/,{en:"$1 duplicate invoices removed",de:"$1 doppelte Rechnungen entfernt"}],
+[/^✓ 已合并 (\\d+) 条$/,{en:"✓ $1 records merged",de:"✓ $1 Datensätze zusammengeführt"}],
 [/^🛃 关税文件（(\d+) 份）：在 sevDesk 开票时作为附件挂上，生成完整电子发票后再上传到这里$/,{en:"🛃 Customs documents ($1): attach them to the invoice in sevDesk, then upload the complete e-invoice here",de:"🛃 Zolldokumente ($1): in sevDesk an die Rechnung anhängen, dann die vollständige E-Rechnung hier hochladen"}],
 [/^关税文件（(\d+) 份）$/,{en:"Customs documents ($1)",de:"Zolldokumente ($1)"}],
 [/^🛃 合并关税文件（(\d+) 份）$/,{en:"🛃 Merge customs documents ($1)",de:"🛃 Zolldokumente zusammenführen ($1)"}],
