@@ -1034,7 +1034,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v40.0</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v40.1</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1688,7 +1688,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=40.0;
+const APP_VERSION=40.1;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -7108,6 +7108,9 @@ function healthCalc(){
   try{const m={};for(const x of ariItems){if(x.deleted||!x.invNo||x.storno||x.cancelledBy)continue;(m[x.invNo]=m[x.invNo]||[]).push(x);}const d=Object.keys(m).filter(function(k){return m[k].length>1;});add('ariDupNo','应收发票号重复',d.length,'bad',d.length?('重复：'+d.slice(0,6).join('、')+(d.length>6?' 等':'')+'。系统设置「🧹 清理重复发票」可预览清理'):'','ari');}catch(e){}
   try{const S=[];for(const t of (typeof bankItems!=='undefined'?bankItems:[])){if(t.deleted||t.status!=='confirmed'||!t.match||t.match.kind!=='ar'||!(t.amount>0))continue;const got=payments.filter(function(p){return !p.deleted&&p.bankTx===t.id;}).reduce(function(a,p){return a+(Number(p.amount)||0);},0);if(got>=t.amount-0.01)continue;const lo=(t.match.refs||[]).filter(function(r){return r.linkOnly||r.unalloc;});if(!lo.length)continue;const open=lo.some(function(r){const x=ariItems.find(function(i){return i.id===r.id&&!i.deleted;});return x&&!x.storno&&!x.cancelledBy&&ariState(x)!=='paid';}); if(open)S.push(t);}
     add('bankArShort','银行进款已确认但到账少记',S.length,'bad',S.length?(S.slice(0,5).map(function(t){return t.date+' '+(t.cpName||'')+' '+fmt(t.amount);}).join('；')+' —— 关联发票显示未付清，但这笔流水生成的到账小于流水金额；请在银行页撤回后重新确认'):'','bank');}catch(e){}
+
+  try{const L=(typeof bankItems!=='undefined'?bankItems:[]).filter(function(t){return !t.deleted&&t.status!=='confirmed'&&typeof bankTxHasPostings==='function'&&bankTxHasPostings(t);});
+    add('bankStatusLost','银行流水已记账但状态未确认',L.length,'warn',L.length?(L.slice(0,5).map(function(t){return t.date+' '+(t.cpName||'')+' '+fmt(Math.abs(t.amount));}).join('；')+' —— 在银行页点「确认」即可补标为已确认（不会重复记账）'):'','bank');}catch(e){}
 
   try{const cnt={};for(const p of payments){if(p.deleted||!p.bankTx||!/银行流水自动核销/.test(p.note||''))continue;cnt[p.bankTx]=(cnt[p.bankTx]||0)+1;}
 
@@ -14474,10 +14477,19 @@ function bankCloudStart(){
   bankAlertUpdate();
 }
 let _bankPermErr='';
+
+function bankWin(cur,x){
+  const cC=cur.status==='confirmed',xC=x.status==='confirmed';
+  const cAt=(cur.match&&cur.match.confirmedAt)||0,xAt=(x.match&&x.match.confirmedAt)||0;
+  if(cC&&!xC)return !!(x.unconfirmedAt&&x.unconfirmedAt>=cAt);
+  if(!cC&&xC)return !(cur.unconfirmedAt&&cur.unconfirmedAt>=xAt);
+  return (x.up||0)>(cur.up||0);
+}
+window.bankWin=bankWin;
 function bankMerge(arr){
   try{const map={};for(const x of bankItems)if(x&&x.id)map[x.id]=x;
 
-    for(const x of (arr||[]))if(x&&x.id){const cur=map[x.id];if(!cur)map[x.id]=x;else if((x.up||0)>(cur.up||0)){for(const k of Object.keys(cur))delete cur[k];Object.assign(cur,x);}}
+    for(const x of (arr||[]))if(x&&x.id){const cur=map[x.id];if(!cur)map[x.id]=x;else if(bankWin(cur,x)){for(const k of Object.keys(cur))delete cur[k];Object.assign(cur,x);}}
     bankItems=Object.values(map).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
   }catch(e){}
 }
@@ -14531,7 +14543,10 @@ async function bankAllocRepairAll(opts){
 window.bankAllocRepairOne=bankAllocRepairOne;window.bankAllocRepairAll=bankAllocRepairAll;
 function bankApplyRemote(s){
   try{if(!_bankRepairDone&&canBank()){_bankRepairDone=true;setTimeout(function(){bankAllocRepairAll().catch(function(){});},3000);}}catch(e){}
-  try{bankItems=keepUnsavedLocal(bankItems,JSON.parse(s.json||'[]'),s._at,'银行');store.set(BANK_KEY,JSON.stringify(bankItems));}catch(e){}
+  try{const prev={};for(const x of bankItems)if(x&&x.id)prev[x.id]=x;
+    bankItems=keepUnsavedLocal(bankItems,JSON.parse(s.json||'[]'),s._at,'银行');
+    bankItems=bankItems.map(function(x){const p=prev[x.id];return (p&&p!==x&&!bankWin(p,x))?p:x;});
+    store.set(BANK_KEY,JSON.stringify(bankItems));}catch(e){}
   if(session){try{if(document.body.dataset.mod==='bank')renderBANK();}catch(e){}bankAlertUpdate();}
 }
 function bankAlertUpdate(){
@@ -14684,7 +14699,12 @@ async function bankConfirm(tx){
   if(!canBank()||!tx||!tx.match)return false;
   if(_bankConfirming[tx.id]){toast('这笔流水正在确认中，请稍候，不要重复点击');return false;}
   if(tx.status==='confirmed'){toast('这笔流水已经确认过，不会重复记账');return false;}
-  if(bankTxHasPostings(tx)){toast('这笔流水已经生成过到账/付款，不会重复记账；如需重做请先「撤回」');return false;}
+  if(bankTxHasPostings(tx)){
+
+    if(confirm('这笔流水之前已经确认过，并生成了到账/付款，只是「已确认」状态被其他电脑上的旧数据改回了待确认。\n\n现在把它补标为已确认？（只改状态，不会重复记账）')){
+      tx.status='confirmed';tx.match=Object.assign({},tx.match,{confirmedBy:session.name,confirmedAt:Date.now(),applied:{healed:true,linked:0,created:0}});tx.up=Date.now();delete tx.hint;
+      await bankSave();toast('已补标为已确认（未新增任何到账/付款）');try{renderBANK();}catch(e){}return true;}
+    return false;}
   _bankConfirming[tx.id]=true;
   try{return await _bankConfirmCore(tx);}finally{delete _bankConfirming[tx.id];}
 }
@@ -15058,7 +15078,7 @@ async function bankUnconfirm(tx,reason){
   }
   if(arTouched){try{alcInvalidate();}catch(e){}await savePayments();}
   if(apTouched)await apSave();
-  tx.status='pending';tx.prevMatch=tx.match;tx.match=null;tx.hint='已撤回确认'+(reason?('：'+reason):'')+'（原匹配：'+((m.refs||[]).map(r=>r.no).join(' ')||m.summary||'')+'）';tx.up=Date.now();
+  tx.status='pending';tx.unconfirmedAt=Date.now(); tx.prevMatch=tx.match;tx.match=null;tx.hint='已撤回确认'+(reason?('：'+reason):'')+'（原匹配：'+((m.refs||[]).map(r=>r.no).join(' ')||m.summary||'')+'）';tx.up=Date.now();
   await bankSave();
   return {removed:removed,unlinked:unlinked};
 }
@@ -17909,7 +17929,9 @@ Object.assign(I18N,{
 "带入车牌":{en:"Insert plate",de:"Kennzeichen einfügen"},
 "已保存备注":{en:"Note saved",de:"Notiz gespeichert"},
 "备注（客户可见：车牌号、等时费说明等）":{en:"Note (visible to customer: plate, waiting time etc.)",de:"Notiz (für Kunden sichtbar: Kennzeichen, Wartezeit usw.)"},
-"备注（可选，客户可见：如车牌号、等时费说明）":{en:"Note (optional, visible to customer: e.g. plate, waiting time)",de:"Notiz (optional, für Kunden sichtbar: z. B. Kennzeichen, Wartezeit)"}
+"备注（可选，客户可见：如车牌号、等时费说明）":{en:"Note (optional, visible to customer: e.g. plate, waiting time)",de:"Notiz (optional, für Kunden sichtbar: z. B. Kennzeichen, Wartezeit)"},
+"已补标为已确认（未新增任何到账/付款）":{en:"Marked as confirmed (no new postings created)",de:"Als bestätigt markiert (keine neuen Buchungen)"},
+"银行流水已记账但状态未确认":{en:"Bank line posted but not marked confirmed",de:"Bankbuchung verbucht, aber nicht als bestätigt markiert"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
