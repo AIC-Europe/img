@@ -934,7 +934,7 @@ td{font-size:12.5px}
       <button class="btn-ghost" id="ordCaBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-users"/></svg> 客户分析</button>
       <button class="btn-ghost" id="ordSupBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-truck"/></svg> 供应商分析</button>
       <button class="btn-ghost" id="rcBtn" type="button" title="按服务项/客户/月度分析收入成本毛利"><svg class="ic" aria-hidden="true"><use href="#i-coins"/></svg> 收入成本</button>
-      <button class="btn-ghost" id="ordStatsBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> 业务员分析</button><button class="btn-ghost" id="laneBtn" type="button" title="起运区 → 目的区 车次/售价/成本/毛利/供应商，包车候选">🗺 线路分析</button><button class="btn-ghost" id="benchBtn" type="button" title="按服务项汇总历史成本（应付成本明细）：近6个月/全部的笔数、中位、区间与主要供应商——询价时参考">📚 报价基准库</button><button class="btn-ghost" id="ordBulkBtn" type="button" style="display:none" title="对当前筛选结果批量操作（改负责人）">🧰 批量操作</button><button class="btn-ghost" id="hoBtn" type="button" style="display:none" title="把某位同事名下的在途订单/询价/未回执加急批量转给另一位（财务执行，留痕）">🔁 一键交接</button><button class="btn-ghost" id="ordInqSaBtn" type="button" style="display:none"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> 业务员分析</button>
+      <button class="btn-ghost" id="ordStatsBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> 业务员分析</button><button class="btn-ghost" id="laneBtn" type="button" title="起运区 → 目的区 车次/售价/成本/毛利/供应商，包车候选">🗺 线路分析</button><button class="btn-ghost" id="quoteBtn" type="button" style="display:none" title="按 IMG 成单号：对客报价与供应商报价放在一起，按业务员、客户、供应商、线路、时间查看">📑 报价管理</button><button class="btn-ghost" id="benchBtn" type="button" title="按服务项汇总历史成本（应付成本明细）：近6个月/全部的笔数、中位、区间与主要供应商——询价时参考">📚 报价基准库</button><button class="btn-ghost" id="ordBulkBtn" type="button" style="display:none" title="对当前筛选结果批量操作（改负责人）">🧰 批量操作</button><button class="btn-ghost" id="hoBtn" type="button" style="display:none" title="把某位同事名下的在途订单/询价/未回执加急批量转给另一位（财务执行，留痕）">🔁 一键交接</button><button class="btn-ghost" id="ordInqSaBtn" type="button" style="display:none"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> 业务员分析</button>
       <button class="btn-ghost" id="ordExportBtn" type="button">导出 Excel</button>
       <button class="btn-add" id="ordAddBtn" type="button">＋ 新建订单</button>
     </div>
@@ -1034,7 +1034,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v40.4</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v41.0</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1688,7 +1688,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=40.4;
+const APP_VERSION=41.0;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2354,6 +2354,7 @@ function enterApp(){
   const _ana=(session.role==='finance'||session.name==='Peter'||MGMT_VIEW_ACCTS.includes(session.name));
   if($('laneBtn'))$('laneBtn').style.display='';
   for(const id of ['ordMrBtn','ordCaBtn','ordSupBtn','ordStatsBtn'])$(id).style.display=_ana?'':'none';
+  if($('quoteBtn'))$('quoteBtn').style.display=_ana?'':'none';
   if($('ariRcBigBtn'))$('ariRcBigBtn').style.display=_ana?'':'none';
   if($('apDupScanBtn'))$('apDupScanBtn').style.display=(session.role==='finance')?'':'none';
   if($('ariArcBtn'))$('ariArcBtn').style.display=(session.role==='finance')?'':'none';
@@ -3852,6 +3853,128 @@ function laneOpen(){
 }
 window.laneOpen=laneOpen;
 if($('laneBtn'))$('laneBtn').onclick=laneOpen;
+
+const QM_UNIT={truck:'每车',total:'整单'};
+const QM_KIND={haul:'运费',customs:'清关',port:'港杂',extra:'附加费'};
+const QM_LOST={'1':'价格高','2':'客户取消','3':'无回复'};
+
+function qmLostReason(){const raw=(typeof prompt==='function')?prompt('未成交原因（必填）：\n1 = 价格高\n2 = 客户取消\n3 = 无回复\n或直接写原因',''):null;if(raw===null||raw===undefined)return '';const rs=String(raw).trim();if(!rs){toast('请填写未成交原因');return '';}return QM_LOST[rs]||rs.slice(0,80);}
+const QM_ST={sel:'已选定',quoted:'已报价未选定',pend:'待供应商报价',none:'未录报价'};
+function qmRows(opt){
+  opt=opt||{};const rows=[];
+  for(const o of ordItems){
+    if(o.deleted||o.type==='inq'||o.flag==='cancelled'||o.flag==='lost')continue;
+    const mon=o.createdAt?ymLocal(new Date(o.createdAt)):'';
+    if(opt.from&&mon<opt.from)continue;if(opt.to&&mon>opt.to)continue;
+    if(opt.customer&&o.customer!==opt.customer)continue;
+    const owners=ordOwnerSplit(o);if(opt.owner&&owners.indexOf(opt.owner)<0)continue;
+    const qs=(o.quotes||[]).slice();
+    if(opt.supplier&&!qs.some(function(q){return q.supplier===opt.supplier;}))continue;
+    const dl=(o.svc||[]).filter(function(s){return s.addrFrom||s.addrTo||(s.addrTos&&s.addrTos.length);});
+    const lanes=[];let trips=0;
+    for(const s of dl){trips+=Number(s.qty)||1;const fz=lanePlace(s.locFrom?locById(s.locFrom):null,s.addrFrom);
+      const ids=(s.locTos&&s.locTos.length)?s.locTos:[null];const tx=(s.addrTos&&s.addrTos.length)?s.addrTos:[s.addrTo];
+      ids.forEach(function(id,i){const tz=lanePlace(id?locById(id):null,tx[i]||tx[0]);const k=fz.labelZone+' → '+tz.labelZone;if(lanes.indexOf(k)<0)lanes.push(k);});}
+    const dsv=(o.svc||[]).filter(function(s){return svcIsDelivery(s.name,s.en);});
+    const delSale=dsv.length?Math.round(dsv.reduce(function(a,s){return a+(Number(s.price)||0)*(Number(s.qty)||0);},0)*100)/100:null;
+    const delUnit=Array.from(new Set(dsv.map(function(s){return Number(s.price)||0;}).filter(Boolean))).sort(function(a,b){return a-b;});
+    const delQty=dsv.reduce(function(a,s){return a+(Number(s.qty)||0);},0);
+    const priced=qs.filter(function(q){return Number(q.price)>0;});
+    const haulQ=priced.filter(function(q){return !q.kind||q.kind==='haul';});
+    let min=null;for(const q of haulQ){if(!min||Number(q.price)<Number(min.price))min=q;}
+    const sel=ordSelQuote(o);
+    let selTotal=null,gmWhy='';
+    if(!sel)gmWhy=qs.length?'未选定报价':'未录报价';
+    else if(!(Number(sel.price)>0))gmWhy='选定报价没有金额';
+    else if(sel.kind&&sel.kind!=='haul')gmWhy='选定报价不是运费';
+    else if(!sel.kind||!sel.unit)gmWhy='旧报价没有计价单位';
+    else if((sel.cur||'EUR')!=='EUR')gmWhy='报价不是 EUR';
+    else if(!(delSale>0))gmWhy='订单没有派送费';
+    else{const n=sel.unit==='truck'?(delQty||trips||0):1;if(!n)gmWhy='车次为 0';else selTotal=Math.round(Number(sel.price)*n*100)/100;}
+    const gm=selTotal===null?null:Math.round((delSale-selTotal)*100)/100;
+    const st=sel?'sel':(priced.length?'quoted':(qs.length?'pend':'none'));
+    if(opt.status&&st!==opt.status)continue;
+    const sale=ordSaleRef(o);
+    const r={o:o,no:o.orderNo||'',date:o.createdAt?ymdLocal(new Date(o.createdAt)):'',mon:mon,owners:owners,owner:owners.join('、'),customer:o.customer||'',lanes:lanes,trips:dl.length?Math.round(trips*100)/100:null,
+      delSale:delSale,delUnit:delUnit,sale:(sale===null||sale===undefined)?null:Number(sale),quotes:qs,nQ:qs.length,nSup:new Set(qs.map(function(q){return q.supplier;})).size,nPend:qs.length-priced.length,min:min,sel:sel||null,selTotal:selTotal,gm:gm,gmPct:(gm!==null&&delSale>0)?Math.round(gm/delSale*1000)/10:null,gmWhy:gmWhy,st:st};
+    if(opt.q){const t=String(opt.q).toLowerCase();if((r.no+' '+r.customer+' '+r.lanes.join(' ')+' '+qs.map(function(q){return q.supplier;}).join(' ')).toLowerCase().indexOf(t)<0)continue;}
+    rows.push(r);
+  }
+  rows.sort(function(a,b){return (b.o.createdAt||0)-(a.o.createdAt||0)||String(b.no).localeCompare(String(a.no));});
+  return rows;
+}
+
+function qmByOwner(rows){
+  const per={};const mk=function(){return {n:0,withQ:0,quotes:0,sel:0,quoted:0,pend:0,none:0,gmN:0,gm:0,gmSale:0};};
+  const add=function(x,r){x.n++;if(r.nQ)x.withQ++;x.quotes+=r.nQ;x[r.st]++;if(r.gm!==null){x.gmN++;x.gm+=r.gm;x.gmSale+=r.delSale;}};
+  const tot=mk();
+  for(const r of rows){add(tot,r);for(const k of r.owners){add(per[k]=per[k]||mk(),r);}}
+  const fin=function(x){x.cover=x.n?Math.round(x.withQ/x.n*100):0;x.avgQ=x.withQ?Math.round(x.quotes/x.withQ*10)/10:0;x.gm=Math.round(x.gm*100)/100;x.gmPct=x.gmSale>0?Math.round(x.gm/x.gmSale*1000)/10:null;return x;};
+  return {list:Object.keys(per).sort(function(a,b){return per[b].n-per[a].n||a.localeCompare(b);}).map(function(k){return Object.assign({owner:k},fin(per[k]));}),total:fin(tot)};
+}
+window.qmRows=qmRows;window.qmByOwner=qmByOwner;
+function qmOpen(){
+  if(!canAnalytics())return;
+  const old=document.getElementById('qmOvl');if(old)old.remove();
+  const ovl=document.createElement('div');ovl.id='qmOvl';ovl.style.cssText='position:fixed;inset:0;background:rgba(20,28,26,.45);z-index:2400;display:flex;align-items:center;justify-content:center';
+  const card=document.createElement('div');card.style.cssText='background:var(--card,#fff);border-radius:14px;padding:18px 22px;width:min(1640px,97vw);max-height:92vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:12.5px';
+  const live=ordItems.filter(function(o){return !o.deleted&&o.type!=='inq'&&o.flag!=='cancelled'&&o.flag!=='lost';});
+  const uniq=function(a){return Array.from(new Set(a.filter(Boolean))).sort();};
+  const months=uniq(live.map(function(o){return o.createdAt?ymLocal(new Date(o.createdAt)):'';}));
+  const custs=uniq(live.map(function(o){return o.customer;}));
+  const owners=uniq([].concat.apply([],live.map(function(o){return ordOwnerSplit(o);})).filter(function(x){return x!=='—';}));
+  const sups=uniq([].concat.apply([],live.map(function(o){return (o.quotes||[]).map(function(q){return q.supplier;});})));
+  const sel=function(id,opts,first,vals){return '<select id="'+id+'" style="border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12px;max-width:230px"><option value="">'+first+'</option>'+opts.map(function(x,i){return '<option value="'+esc(vals?vals[i]:x)+'">'+esc(x)+'</option>';}).join('')+'</select>';};
+  card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:700;font-size:15px">📑 报价管理（按 IMG 成单号）</div><button class="btn-ghost" id="qmClose" type="button">关闭</button></div>'+
+    '<div style="font-size:11.5px;color:var(--ink-soft);margin:6px 0 10px">只看已成单的订单（不含询价单、已取消），一张单一行；日期 = 建单日期；业务员 = 订单负责人。对客报价取派送费行（下方小字 = 单价、整单售价）；供应商报价取订单上录的报价。<b>报价毛利 = 对客派送费合计 − 选定的运费报价合计</b>（每车价 × 车次，或整单价），只有选定报价带计价单位时才算——v41.0 之前录的报价没有计价单位，显示"—"。点行展开该单全部报价。只读。</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+sel('qmM0',months,'起始月')+sel('qmM1',months,'截止月')+sel('qmOwner',owners,'全部业务员')+sel('qmCust',custs,'全部客户')+sel('qmSup',sups,'全部供应商')+sel('qmSt',Object.keys(QM_ST).map(function(k){return QM_ST[k];}),'全部状态',Object.keys(QM_ST))+
+    '<input id="qmQ" placeholder="搜索 单号 / 客户 / 线路 / 供应商" style="flex:1;min-width:180px;border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12px"><button class="btn-sm" id="qmXls" type="button">导出 Excel</button></div>'+
+    '<div id="qmSum"></div><div id="qmOut"></div>';
+  ovl.appendChild(card);document.body.appendChild(ovl);
+  const q=function(id){return card.querySelector('#'+id);};
+  ovl.onclick=function(e){if(e.target===ovl)ovl.remove();};q('qmClose').onclick=function(){ovl.remove();};
+  const num='text-align:right;font-family:var(--font-num);white-space:nowrap';const th='background:var(--n-wash);padding:5px 8px;text-align:left;white-space:nowrap';const td='padding:5px 8px;border-bottom:1px solid var(--n-line,var(--line));vertical-align:top';
+  const qd=function(t){return t?ymdLocal(new Date(Number(t))):'';};
+  const qp=function(x){return (Number(x.price)>0)?fmt(x.price)+' '+esc(x.cur||'EUR')+(x.unit&&QM_UNIT[x.unit]?' / '+QM_UNIT[x.unit]:''):'<i style="color:var(--ink-soft)">待报价</i>';};
+  let last=[],lastSum=null;
+  const run=function(){
+    last=qmRows({from:q('qmM0').value,to:q('qmM1').value,owner:q('qmOwner').value,customer:q('qmCust').value,supplier:q('qmSup').value,status:q('qmSt').value,q:q('qmQ').value.trim()});
+    lastSum=qmByOwner(last);const T=lastSum.total;
+    let h='<div style="font-weight:700;margin:4px 0 6px">业务员报价情况 <span style="font-weight:400;color:var(--ink-soft)">· '+T.n+' 张成单，'+T.withQ+' 张录了供应商报价（'+T.cover+'%），共 '+T.quotes+' 条报价</span></div>'+
+      '<table id="qmOwnerTbl" style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:14px"><tr>'+['业务员','成单数','录了报价的单','报价覆盖率','报价条数','平均每单报价','已选定','已报价未选定','待供应商报价','未录报价','可算毛利的单','报价毛利','报价毛利%'].map(function(x,i){return '<th style="'+th+(i?';text-align:right':'')+'">'+x+'</th>';}).join('')+'</tr>';
+    const line=function(name,x,bold){return '<tr'+(bold?' style="font-weight:700;background:var(--n-wash)"':'')+'><td style="'+td+'">'+esc(name)+'</td>'+[x.n,x.withQ,x.cover+'%',x.quotes,x.avgQ?String(x.avgQ).replace('.',','):'—',x.sel,x.quoted,x.pend,x.none,x.gmN,x.gmN?fmt(x.gm):'—',x.gmPct===null?'—':String(x.gmPct).replace('.',',')+'%'].map(function(v){return '<td style="'+td+';'+num+'">'+v+'</td>';}).join('')+'</tr>';};
+    for(const x of lastSum.list)h+=line(x.owner,x,false);
+    h+=line('合计（按单）',T,true)+'</table>';
+    q('qmSum').innerHTML=h;
+    let t='<div style="font-weight:700;margin:4px 0 6px">成单报价明细 <span style="font-weight:400;color:var(--ink-soft)">· '+last.length+' 张</span></div><table id="qmTbl" style="width:100%;border-collapse:collapse;font-size:12px"><tr>'+
+      ['成单号 / 建单日期','业务员','客户','线路','车次','对客派送费','供应商报价','最低运费报价','选定报价','报价毛利','状态'].map(function(x,i){return '<th style="'+th+((i===4||i===5||i===9)?';text-align:right':'')+'">'+x+'</th>';}).join('')+'</tr>';
+    last.slice(0,400).forEach(function(r,ix){
+      const lane=r.lanes.length?esc(r.lanes[0])+(r.lanes.length>1?' <span style="color:var(--ink-soft)">等 '+r.lanes.length+' 条</span>':''):'<span style="color:var(--ink-soft)">—</span>';
+      const del=(r.delSale===null?'—':fmt(r.delSale)+(r.delUnit.length?'<div style="font-size:11px;color:var(--ink-soft)">单价 '+r.delUnit.slice(0,2).map(function(x){return fmt(x);}).join(' / ')+(r.delUnit.length>2?' …':'')+'</div>':''))+(r.sale!==null&&r.sale!==r.delSale?'<div style="font-size:11px;color:var(--ink-soft)">整单 '+fmt(r.sale)+'</div>':'');
+      const qn=r.nQ?(r.nQ+' 条 / '+r.nSup+' 家'+(r.nPend?'<div style="font-size:11px;color:var(--warn)">'+r.nPend+' 条待报价</div>':'')):'<span style="color:var(--ink-soft)">—</span>';
+      const mn=r.min?qp(r.min)+'<div style="font-size:11px;color:var(--ink-soft)">'+esc(r.min.supplier)+'</div>':'—';
+      const sl=r.sel?qp(r.sel)+'<div style="font-size:11px;color:var(--ink-soft)">'+esc(r.sel.supplier)+(r.sel.kind&&r.sel.kind!=='haul'?' · '+QM_KIND[r.sel.kind]:'')+'</div>':'—';
+      const gm=r.gm===null?'<span style="color:var(--ink-soft)" title="'+esc(r.gmWhy)+'">—</span>'+(r.sel?'<div style="font-size:11px;color:var(--ink-soft)">'+esc(r.gmWhy)+'</div>':''):'<b style="color:'+(r.gm<0?'var(--bad)':'var(--ok)')+'">'+fmt(r.gm)+'</b><div style="font-size:11px;color:var(--ink-soft)">'+String(r.gmPct).replace('.',',')+'%</div>';
+      const stc={sel:'var(--ok)',quoted:'var(--brass)',pend:'var(--warn)',none:'var(--ink-soft)'}[r.st];
+      t+='<tr class="qm-row" data-ix="'+ix+'" style="cursor:pointer"><td style="'+td+';white-space:nowrap"><b>'+esc(r.no)+'</b><div style="font-size:11px;color:var(--ink-soft)">'+esc(r.date)+'</div></td><td style="'+td+'">'+esc(r.owner)+'</td><td style="'+td+'">'+esc(r.customer)+'</td><td style="'+td+'">'+lane+'</td><td style="'+td+';'+num+'">'+(r.trips===null?'—':String(r.trips).replace('.',','))+'</td><td style="'+td+';'+num+'">'+del+'</td><td style="'+td+'">'+qn+'</td><td style="'+td+'">'+mn+'</td><td style="'+td+'">'+sl+'</td><td style="'+td+';'+num+'">'+gm+'</td><td style="'+td+';color:'+stc+';white-space:nowrap">'+QM_ST[r.st]+'</td></tr>';
+      t+='<tr class="qm-det" data-ix="'+ix+'" style="display:none"><td colspan="11" style="padding:6px 10px 12px 28px;background:var(--n-wash)">'+(r.lanes.length>1?'<div style="margin-bottom:6px;color:var(--ink-soft)">线路：'+r.lanes.map(esc).join('；')+'</div>':'')+
+        (r.quotes.length?'<table style="border-collapse:collapse;font-size:12px"><tr>'+['报价日期','供应商','费用类型','报价','报价人','选定','备注'].map(function(x){return '<th style="padding:3px 10px;text-align:left;color:var(--ink-soft)">'+x+'</th>';}).join('')+'</tr>'+r.quotes.slice().sort(function(a,b){return (a.time||0)-(b.time||0);}).map(function(x){return '<tr><td style="padding:3px 10px">'+esc(qd(x.time))+'</td><td style="padding:3px 10px;font-weight:600">'+esc(x.supplier||'')+'</td><td style="padding:3px 10px">'+(x.kind?QM_KIND[x.kind]||esc(x.kind):'<span style="color:var(--ink-soft)">未分类</span>')+'</td><td style="padding:3px 10px;font-family:var(--font-num)">'+qp(x)+'</td><td style="padding:3px 10px">'+esc(x.by||'')+'</td><td style="padding:3px 10px;color:var(--ok)">'+(r.sel&&r.sel.qid===x.qid?'✓':'')+'</td><td style="padding:3px 10px;color:var(--ink-soft)">'+esc(x.note||'')+'</td></tr>';}).join('')+'</table>':'<span style="color:var(--ink-soft)">这张单没有录供应商报价</span>')+'</td></tr>';
+    });
+    t+='</table>'+(last.length>400?'<div style="color:var(--ink-soft);margin-top:6px">只显示前 400 张，请用筛选缩小范围；导出 Excel 含全部 '+last.length+' 张。</div>':'')+(last.length?'':'<div style="color:var(--ink-soft);text-align:center;padding:22px">没有符合条件的成单</div>');
+    q('qmOut').innerHTML=t;
+    q('qmOut').querySelectorAll('.qm-row').forEach(function(tr){tr.onclick=function(){const d=q('qmOut').querySelector('.qm-det[data-ix="'+tr.dataset.ix+'"]');if(d)d.style.display=d.style.display==='none'?'':'none';};});
+  };
+  ['qmM0','qmM1','qmOwner','qmCust','qmSup','qmSt'].forEach(function(id){q(id).onchange=run;});q('qmQ').oninput=run;
+  q('qmXls').onclick=async function(){
+    const a1=[['业务员','成单数','录了报价的单','报价覆盖率%','报价条数','平均每单报价','已选定','已报价未选定','待供应商报价','未录报价','可算毛利的单','报价毛利','报价毛利%']].concat(lastSum.list.concat([Object.assign({owner:'合计（按单）'},lastSum.total)]).map(function(x){return [x.owner,x.n,x.withQ,x.cover,x.quotes,x.avgQ,x.sel,x.quoted,x.pend,x.none,x.gmN,x.gmN?x.gm:'',x.gmPct===null?'':x.gmPct];}));
+    const a2=[['成单号','建单日期','业务员','客户','线路','车次','对客派送费合计','对客派送费单价','整单售价','报价条数','供应商家数','待报价条数','最低运费报价','最低报价供应商','选定供应商','选定报价','选定报价币种','选定报价计价单位','选定报价费用类型','选定报价合计','报价毛利','报价毛利%','未算毛利的原因','状态']].concat(last.map(function(r){return [r.no,r.date,r.owner,r.customer,r.lanes.join('；'),r.trips===null?'':r.trips,r.delSale===null?'':r.delSale,r.delUnit.join(' / '),r.sale===null?'':r.sale,r.nQ,r.nSup,r.nPend,r.min?Number(r.min.price):'',r.min?r.min.supplier:'',r.sel?r.sel.supplier:'',r.sel&&Number(r.sel.price)>0?Number(r.sel.price):'',r.sel?(r.sel.cur||'EUR'):'',r.sel&&r.sel.unit?QM_UNIT[r.sel.unit]:'',r.sel&&r.sel.kind?QM_KIND[r.sel.kind]:'',r.selTotal===null?'':r.selTotal,r.gm===null?'':r.gm,r.gmPct===null?'':r.gmPct,r.gm===null?r.gmWhy:'',QM_ST[r.st]];}));
+    const a3=[['成单号','建单日期','业务员','客户','线路','报价日期','供应商','费用类型','报价','币种','计价单位','报价人','选定','备注']];
+    for(const r of last)for(const x of r.quotes.slice().sort(function(a,b){return (a.time||0)-(b.time||0);}))a3.push([r.no,r.date,r.owner,r.customer,r.lanes.join('；'),qd(x.time),x.supplier||'',x.kind?QM_KIND[x.kind]||x.kind:'',Number(x.price)>0?Number(x.price):'',x.cur||'EUR',x.unit?QM_UNIT[x.unit]:'',x.by||'',r.sel&&r.sel.qid===x.qid?'是':'',x.note||'']);
+    try{await ensureXLSX();const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(a1),'业务员汇总');XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(a2),'成单报价');XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(a3),'报价明细');XLSX.writeFile(wb,'IMG-Europe-报价管理-'+todayStr()+'.xlsx');}catch(e){toast('导出失败：'+(e.message||e));}};
+  run();
+}
+window.qmOpen=qmOpen;
+if($('quoteBtn'))$('quoteBtn').onclick=qmOpen;
 
 var _obx={jobs:{},pending:{},fails:{},lastErr:{},running:false,timer:null,autoOn:false,stats:{ok:0,fail:0}};
 const OBX_LS='img-outbox-pending';
@@ -5570,7 +5693,7 @@ html.ui2 :is(#ordEditOverlay,#ariOverlay,#payOverlay,#apUpOverlay){justify-conte
 html.ui2 :is(#ordEditOverlay,#ariOverlay,#payOverlay,#apUpOverlay)>.modal{max-width:min(640px,96vw)!important;width:min(640px,96vw);height:100vh;max-height:none;border-radius:0;overflow-y:auto;box-shadow:-12px 0 32px rgba(14,59,51,.2)}
 }
 /* v38.4 分析中心：把散在订单/应收工具栏里的 17 个分析按钮集中到一处；新界面下工具栏不再显示这些按钮（原按钮仍在 DOM，由分析中心调用） */
-html.ui2 :is(#ordMrBtn,#ordCaBtn,#ordSupBtn,#rcBtn,#ordStatsBtn,#laneBtn,#benchBtn,#ordInqSaBtn,#ariRcBigBtn,#gmBtn,#blBtn,#cpBtn,#tmBtn,#cashBtn,#agingBtn,#closeBtn,#ariArcBtn){display:none!important}
+html.ui2 :is(#ordMrBtn,#ordCaBtn,#ordSupBtn,#rcBtn,#ordStatsBtn,#laneBtn,#quoteBtn,#benchBtn,#ordInqSaBtn,#ariRcBigBtn,#gmBtn,#blBtn,#cpBtn,#tmBtn,#cashBtn,#agingBtn,#closeBtn,#ariArcBtn){display:none!important}
 #anaOvl{position:fixed;inset:0;background:rgba(14,30,26,.45);z-index:2900;display:flex;justify-content:center;align-items:flex-start;padding-top:8vh}
 #anaBox{width:min(860px,94vw);max-height:80vh;overflow-y:auto;background:var(--card);color:var(--ink);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.3);padding:20px 22px}
 #anaBox h2{margin:0 0 4px;font-size:18px}
@@ -5805,7 +5928,7 @@ const ANA_GROUPS=[
   ['客户',[['ordCaBtn','客户分析','tabORD'],['cpBtn','客户盈利画像','tabAR'],['agingBtn','账龄分析','tabAR']]],
   ['供应商',[['ordSupBtn','供应商分析','tabORD'],['benchBtn','报价基准库','tabORD']]],
   ['线路',[['laneBtn','线路分析','tabORD']]],
-  ['团队',[['ordStatsBtn','业务员分析（成单）','tabORD'],['ordInqSaBtn','业务员分析（询价转化）','tabORD'],['tmBtn','团队效率','tabAR']]],
+  ['团队',[['quoteBtn','报价管理','tabORD'],['ordStatsBtn','业务员分析（成单）','tabORD'],['ordInqSaBtn','业务员分析（询价转化）','tabORD'],['tmBtn','团队效率','tabAR']]],
   ['现金与月结',[['cashBtn','现金流预测','tabAR'],['closeBtn','月结清单','tabAR'],['ariArcBtn','月度归档','tabAR']]]
 ];
 function anaAvailable(){
@@ -11098,7 +11221,8 @@ function ordDetail(o){
       const row=document.createElement('div');
       const qPend=qt.price===null||qt.price===undefined;
       row.className='q-row'+(o.selectedQuoteId===qt.qid?' sel':'');
-      row.innerHTML='<b>'+esc(qt.supplier)+'</b>'+(qPend?'<span style="color:var(--ink-soft);font-size:12px;font-style:italic">待报价</span>':'<span style="font-family:var(--font-num)">'+fmt(qt.price)+' '+esc(qt.cur||'EUR')+'</span>')+
+      row.innerHTML='<b>'+esc(qt.supplier)+'</b>'+(qPend?'<span style="color:var(--ink-soft);font-size:12px;font-style:italic">待报价</span>':'<span style="font-family:var(--font-num)">'+fmt(qt.price)+' '+esc(qt.cur||'EUR')+(qt.unit&&QM_UNIT[qt.unit]?' / '+QM_UNIT[qt.unit]:'')+'</span>')+
+        (qt.kind&&qt.kind!=='haul'&&QM_KIND[qt.kind]?'<span class="q-kind" style="font-size:11px;padding:1px 7px;border-radius:8px;background:var(--n-wash);color:var(--ink-soft)">'+QM_KIND[qt.kind]+'</span>':'')+
         (qt.note?'<span style="color:var(--ink-soft)">'+esc(qt.note)+'</span>':'')+
         (o.selectedQuoteId===qt.qid?'<span style="color:var(--ok);font-weight:700">✓ 已选定</span>':'')+
         '<span style="flex:1"></span>';
@@ -11124,20 +11248,23 @@ function ordDetail(o){
           for(const el of [eP,eN]){el.style.cssText='border:1.5px solid var(--line);border-radius:8px;padding:4px 8px;font-size:12.5px;width:110px';el.dataset.init=el.value||'';el.onclick=ev=>ev.stopPropagation();}
           eN.style.width='140px';
           eC.style.cssText='border:1.5px solid var(--line);border-radius:8px;padding:4px;font-size:12.5px';eC.dataset.init='';eC.onclick=ev=>ev.stopPropagation();
+          const qmSel=function(map,first,val){const s=document.createElement('select');if(first!==null){const o0=document.createElement('option');o0.value='';o0.textContent=first;s.appendChild(o0);}for(const k in map){const op=document.createElement('option');op.value=k;op.textContent=map[k];s.appendChild(op);}s.value=val||'';s.style.cssText='border:1.5px solid var(--line);border-radius:8px;padding:4px;font-size:12.5px';s.dataset.init='';s.onclick=function(ev){ev.stopPropagation();};return s;};
+          const eK=qmSel(QM_KIND,null,qt.kind||'haul'),eU=qmSel(QM_UNIT,'计价单位 *',qt.unit||'');eK.title='费用类型';eU.title='计价单位：每车 / 整单';eK.className='q-kind-edit';eU.className='q-unit-edit';
           const bSv=document.createElement('button');bSv.className='btn-sm';bSv.textContent='保存修改';
           bSv.onclick=ev=>{ev.stopPropagation();
             const raw=String(eP.value).trim(), np=raw===''?null:parseFloat(raw);
             if(raw!==''&&isNaN(np)){toast('报价金额格式不正确');return;}
+            if(np!==null&&!eU.value){toast('请选择计价单位（每车 / 整单）');return;}
             if(np===null&&o.selectedQuoteId===qt.qid){toast('已选定的报价不能改回待报价，请先另选或删除');return;}
             ordDo(()=>{
               const oldD=(qt.price===null||qt.price===undefined)?'待报价':fmt(qt.price)+' '+(qt.cur||'EUR');
-              qt.price=np===null?null:Math.round(np*100)/100;qt.cur=eC.value;qt.note=eN.value.trim();
+              qt.price=np===null?null:Math.round(np*100)/100;qt.cur=eC.value;qt.note=eN.value.trim();qt.kind=eK.value||'haul';if(eU.value)qt.unit=eU.value;
               const newD=(qt.price===null||qt.price===undefined)?'待报价':fmt(qt.price)+' '+qt.cur;
               logAdd(o,'修改报价：'+qt.supplier+' '+oldD+' → '+newD);
             },'报价已更新');};
           const bCc=document.createElement('button');bCc.className='btn-sm';bCc.textContent='取消';
           bCc.onclick=ev=>{ev.stopPropagation();renderORD();};
-          row.append(eP,eC,eN,bSv,bCc);
+          row.append(eK,eP,eC,eU,eN,bSv,bCc);
         };
         row.appendChild(ed);
         const del=document.createElement('button');del.className='btn-sm danger';
@@ -11164,20 +11291,23 @@ function ordDetail(o){
       for(const el of [iS,iP,iN]){el.style.cssText+=';border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12.5px';el.dataset.init='';el.onclick=e=>e.stopPropagation();}
       kbFlow([iS,iP],function(){bAdd.click();});kbFlow([iN],function(){bAdd.click();});
       iC.style.cssText='border:1.5px solid var(--line);border-radius:8px;padding:6px;font-size:12.5px';
+      const qmSel=function(map,first,val){const s=document.createElement('select');if(first!==null){const o0=document.createElement('option');o0.value='';o0.textContent=first;s.appendChild(o0);}for(const k in map){const op=document.createElement('option');op.value=k;op.textContent=map[k];s.appendChild(op);}s.value=val||'';s.style.cssText='border:1.5px solid var(--line);border-radius:8px;padding:4px;font-size:12.5px';s.dataset.init='';s.onclick=function(ev){ev.stopPropagation();};return s;};
+      const iK=qmSel(QM_KIND,null,'haul'),iU=qmSel(QM_UNIT,'计价单位 *','');iK.title='费用类型';iU.title='计价单位：每车 / 整单（填了金额就必须选）';iK.className='q-kind-sel';iU.className='q-unit-sel';
       const bAdd=document.createElement('button');bAdd.className='btn-sm';bAdd.textContent='＋ 添加报价';
       bAdd.onclick=e=>{e.stopPropagation();
         const sup=iS.value.trim(), prRaw=String(iP.value).trim(), pr=prRaw===''?null:parseFloat(prRaw);
         if(!sup){toast('请填写供应商名称');return;}
         if(pr!==null&&isNaN(pr)){toast('报价金额格式不正确');return;}
+        if(pr!==null&&!iU.value){toast('请选择计价单位（每车 / 整单）');return;}
         ordDo(()=>{
-          (o.quotes=o.quotes||[]).push({qid:'q'+Date.now()+Math.random().toString(36).slice(2,5),supplier:sup,price:pr===null?null:Math.round(pr*100)/100,cur:iC.value,note:iN.value.trim(),by:bizName(),time:Date.now()});
+          (o.quotes=o.quotes||[]).push(Object.assign({qid:'q'+Date.now()+Math.random().toString(36).slice(2,5),supplier:sup,price:pr===null?null:Math.round(pr*100)/100,cur:iC.value,note:iN.value.trim(),by:bizName(),time:Date.now(),kind:iK.value||'haul'},iU.value?{unit:iU.value}:{}));
           logAdd(o,'添加报价：'+sup+' '+(pr===null?'待报价':fmt(pr)+' '+iC.value));
 
           if(!meta.suppliers.some(s=>s.name===sup)){
             meta.suppliers.push({id:'su'+Date.now()+Math.random().toString(36).slice(2,5),name:sup,at:Date.now()});
             metaSave().catch(function(){});
           }},'报价已添加');};
-      addRow.append(iS,iNew,iP,iC,iN,bAdd);
+      addRow.append(iS,iNew,iK,iP,iC,iU,iN,bAdd);
       addRow.onclick=e=>e.stopPropagation();
       qBox.appendChild(addRow);
     }
@@ -11345,8 +11475,8 @@ function ordDetailPart2(o,wrap,left){
     const bLost=document.createElement('button');bLost.className='btn-sm danger';
     bLost.textContent='✖ 标记未成交';
     bLost.onclick=e=>{e.stopPropagation();
-      if(!confirmDelete('询价单「'+o.orderNo+'」标记为未成交（保留记录与报价历史）'))return;
-      ordDo(()=>{o.flag='lost';logAdd(o,'询价未成交');},'已标记未成交');};
+      if(!confirmDelete('询价单「'+o.orderNo+'」标记为未成交（保留记录与报价历史）'))return;const why=qmLostReason();if(!why)return;
+      ordDo(()=>{o.flag='lost';o.lostReason=why;logAdd(o,'询价未成交：'+why);},'已标记未成交');};
     act.appendChild(bLost);
   }
   if(canOp&&!isInq){
@@ -13686,7 +13816,7 @@ function ordSub(which){
   {const th=$('ordThNoTxt');if(th)th.textContent=which==='inq'?'询价单号':'IMG 成单号';}
   $('ordFStatus').style.display=which==='ord'?'':'none';
   inqStatsRender();
-  for(const id of ['ordMrBtn','ordSupBtn','ordStatsBtn']){const el=$(id);if(el)el.style.display=(which==='ord'&&canAnalytics())?'':'none';}
+  for(const id of ['ordMrBtn','ordSupBtn','ordStatsBtn','quoteBtn']){const el=$(id);if(el)el.style.display=(which==='ord'&&canAnalytics())?'':'none';}
   {const el=$('ordCaBtn');if(el)el.style.display=canAnalytics()?'':'none';}
   {const el=$('rcBtn');if(el)el.style.display=canAnalytics()?'':'none';}
   {const el=$('ordInqSaBtn');if(el)el.style.display=(which==='inq'&&canAnalytics())?'':'none';}
@@ -18169,7 +18299,20 @@ Object.assign(I18N,{
 "📍 地点簿整理（2026-11-15 审定）":{en:"📍 Location book clean-up (reviewed 2026-11-15)",de:"📍 Bereinigung Ortsverzeichnis (geprüft 15.11.2026)"},
 "改正记错国家/城市的地点、合并同一地址的多条记录、给缺编号的记录补编号，并把派送行改指到保留的那一条。只动地址，金额不变。先预览，确认后执行；执行前自动快照。":{en:"Corrects locations with a wrong country or city, merges multiple records of the same address, assigns missing IDs and re-points delivery lines to the record that is kept. Only addresses change, amounts stay the same. Preview first, then run; a snapshot is taken automatically.",de:"Korrigiert Orte mit falschem Land oder falscher Stadt, führt Mehrfacheinträge derselben Adresse zusammen, vergibt fehlende IDs und hängt die Zustellzeilen an den verbleibenden Eintrag um. Es ändern sich nur Adressen, keine Beträge. Erst Vorschau, dann ausführen; vorher wird automatisch ein Snapshot erstellt."},
 "有待整理的项目，请点预览查看":{en:"There are items to clean up – open the preview",de:"Es gibt Einträge zu bereinigen – bitte Vorschau öffnen"},
-"又出现待整理的项目，请点预览查看":{en:"New items to clean up have appeared – open the preview",de:"Es gibt wieder Einträge zu bereinigen – bitte Vorschau öffnen"}
+"又出现待整理的项目，请点预览查看":{en:"New items to clean up have appeared – open the preview",de:"Es gibt wieder Einträge zu bereinigen – bitte Vorschau öffnen"},
+"📑 报价管理":{en:"📑 Quote management",de:"📑 Angebotsübersicht"},
+"报价管理":{en:"Quote management",de:"Angebotsübersicht"},
+"按 IMG 成单号：对客报价与供应商报价放在一起，按业务员、客户、供应商、线路、时间查看":{en:"By IMG order no.: customer price and supplier quotes side by side, by salesperson, customer, supplier, lane and date",de:"Je IMG-Auftragsnr.: Kundenpreis und Lieferantenangebote nebeneinander, nach Sachbearbeiter, Kunde, Lieferant, Strecke und Datum"},
+"计价单位 *":{en:"Price basis *",de:"Preisbasis *"},
+"每车":{en:"per truck",de:"pro Lkw"},
+"整单":{en:"whole order",de:"Gesamtauftrag"},
+"费用类型":{en:"Cost type",de:"Kostenart"},
+"计价单位：每车 / 整单（填了金额就必须选）":{en:"Price basis: per truck / whole order (required once an amount is entered)",de:"Preisbasis: pro Lkw / Gesamtauftrag (Pflicht, sobald ein Betrag eingetragen ist)"},
+"计价单位：每车 / 整单":{en:"Price basis: per truck / whole order",de:"Preisbasis: pro Lkw / Gesamtauftrag"},
+"请选择计价单位（每车 / 整单）":{en:"Please select the price basis (per truck / whole order)",de:"Bitte Preisbasis wählen (pro Lkw / Gesamtauftrag)"},
+"请填写未成交原因":{en:"Please enter the reason for the lost inquiry",de:"Bitte Grund für die verlorene Anfrage angeben"},
+"港杂":{en:"Port charges",de:"Hafenkosten"},
+"附加费":{en:"Surcharge",de:"Zuschlag"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
