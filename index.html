@@ -1034,7 +1034,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v40.3</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v40.4</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1688,7 +1688,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=40.3;
+const APP_VERSION=40.4;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -6344,56 +6344,55 @@ function cuInit(){
 window.cuInit=cuInit;window.cuOrdDecorate=cuOrdDecorate;window.cuAriDecorate=cuAriDecorate;
 window.ariPutFile=function(f){return ariPutFile(f);};window.apFileBlob=function(f){return apFileBlob(f);};
 
-const LOC_PLAN={version:"locclean-2026-11-15",audited:"Emma 2026-11-15 审定",groups:[
+const LOC_PLAN={version:"locclean-2026-11-15b",audited:"Emma 2026-11-15 审定",groups:[
  {"g":1,"t":"c","k":{"pc":"10156","id":"loc1792267547800b24t"},"m":[{"pc":"10156","id":"loc1792328737869rmgs"}],"fix":{"street":"Strada del Cascinotto","houseNo":"156","name":"","extra":""}},
  {"g":2,"t":"c","k":{"pc":"1424CB","id":"loc17922675478111cst"},"m":[],"fix":{"country":"NL","city":"De Kwakel"}},
  {"g":3,"t":"c","k":{"pc":"28021","id":"loc1792267547819a348"},"m":[],"fix":{"country":"ES","name":"MAD-1 Madrid Warehouse No. 1"}},
  {"g":4,"t":"c","k":{"pc":"28830","id":"loc1792403003556klnk"},"m":[{"pc":"28830","id":"loc1792267547805aitq"},{"pc":"28906","id":"loc1793000724561ypfv"}],"fix":{"city":"San Fernando de Henares"}},
- {"g":5,"t":"c","k":{"pc":"28906","id":"loc179226754780799sc"},"m":[{"pc":"28906","id":"loc179232873787420wm"}],"fix":{"name":"","street":"Calle Calidad"}},
+ {"g":5,"t":"c","k":{"pc":"28906","id":"loc17924830649224ajv"},"m":[{"pc":"28906","id":"loc179226754780799sc"},{"pc":"28906","id":"loc179232873787420wm"}],"fix":{"city":"Getafe","name":"Correos Express","street":"Calle Calidad"}},
  {"g":6,"t":"c","k":{"pc":"28906","id":"loc1792267547814th2z"},"m":[{"pc":"28906","id":"loc1792328737879xt84"},{"pc":"28906","id":"loc1793609810733ug27"},{"pc":"28906","id":"loc1792572524477p83q"}],"fix":{"street":"Calle Torneros","houseNo":"9-11","extra":""}},
  {"g":7,"t":"c","k":{"pc":"77550","id":"loc17923971852425ntj"},"m":[{"pc":"77550","id":"loc1792267547815gzkv"},{"pc":"77550","id":"loc1792267547810dnu1"}],"fix":{"city":"Réau","name":"Mondial Relay – HUB de tri sur Réau"}},
  {"g":8,"t":"y","k":{"pc":"13581","id":"loc1792267547800te5d"},"m":[{"pc":"13581","id":"loc17922675477974lzg"}],"fix":{"city":"Berlin"}},
  {"g":9,"t":"y","k":{"pc":"1432JE","id":"loc179226754780965u5"},"m":[{"pc":"1432JE","id":"loc179226754781373tw"}],"fix":{"city":"Aalsmeer","name":"EUROPA CONNECTION BV"}},
  {"g":10,"t":"y","k":{"pc":"40221","id":"loc1792267547802rkzl"},"m":[],"fix":{"city":"Düsseldorf","street":"Cuxhavener Str.","houseNo":"4"}},
  {"g":11,"t":"y","k":{"pc":"19171","id":"loc1792267547818yca3"},"m":[{"pc":"19171","id":"loc1792267547817njqg"}],"fix":{"city":"Cabanillas del Campo","name":""}},
- {"g":12,"t":"y","k":{"pc":"28906","id":"loc17924830649224ajv"},"m":[],"fix":{"city":"Getafe","name":"Correos Express","street":"Calle Calidad"}},
- {"g":13,"t":"y","k":{"pc":"28830","id":"loc1793103045720q9mw"},"m":[{"pc":"28830","id":"loc179395609658706qh"}],"fix":{"city":"San Fernando de Henares","street":"Calle del Mar Egeo"}},
- {"g":14,"t":"y","k":{"pc":"93290","id":"loc179226754780862dv"},"m":[{"pc":"93290","id":"loc179239535383338ow"}],"fix":{"city":"Tremblay-en-France"}},
- {"g":15,"t":"y","k":{"pc":"95670","id":"loc1793180884599r2tj"},"m":[],"fix":{"city":"Marly-la-Ville","name":"CIRRO PARCEL FRANCE","street":""}},
- {"g":16,"t":"y","k":{"pc":"20-234","id":"loc1792267547808c96s"},"m":[],"fix":{"city":"Lublin","street":"ul. Mełgiewska","houseNo":"32A"}},
- {"g":17,"t":"y","k":{"pc":"4389PJ","id":"loc1792267547798gezd"},"m":[],"fix":{"city":"Ritthem","street":"Duitslandweg"}},
- {"g":18,"t":"y","k":{"pc":"05-552","id":"loc17922675477993vuk"},"m":[],"fix":{"city":"Stefanowo","name":"Home Sell"}},
- {"g":19,"t":"y","k":{"pc":"41066","id":"loc1792267547803o1k5"},"m":[],"fix":{"city":"Mönchengladbach","name":"ANKER DE WAREHOUSE (MG)","street":"Krefelder Str."}},
- {"g":20,"t":"d","k":{"pc":"1432JG","id":"loc1792267547796851a"},"m":[{"pc":"1432JG","id":"loc1792395353833qo4y"}],"fix":{}},
- {"g":21,"t":"d","k":{"pc":"2321","id":"loc1792267547817uzb0"},"m":[{"pc":"2322","id":"loc1792267547818yhsq"}],"fix":{}},
- {"g":22,"t":"d","k":{"pc":"30855","id":"loc1792267547808unxj"},"m":[{"pc":"30855","id":"loc17923287378750uwz"}],"fix":{}},
- {"g":23,"t":"d","k":{"pc":"31629","id":"loc1792267547804q1qa"},"m":[{"pc":"31629","id":"loc1792328737872iotb"}],"fix":{}},
- {"g":24,"t":"d","k":{"pc":"3225MA","id":"loc1794573336477jczl"},"m":[{"pc":"3225MA","sig":"logwise rotterdam b.v.|voltaweg 41-41a||3225ma|hellevoetsluis|nl"}],"fix":{}},
- {"g":25,"t":"d","k":{"pc":"40549","id":"loc1792267547817nit9"},"m":[{"pc":"40549","id":"loc1792328737881t6r4"}],"fix":{}},
- {"g":26,"t":"d","k":{"pc":"40764","id":"loc1792267547798u2am"},"m":[{"pc":"40764","id":"loc1792328737867nt5m"}],"fix":{}},
- {"g":27,"t":"d","k":{"pc":"41460","id":"loc1792267547809b7hq"},"m":[{"pc":"41460","id":"loc1792328737876fjf2"}],"fix":{}},
- {"g":28,"t":"d","k":{"pc":"41747","id":"loc1792267547806pxk3"},"m":[{"pc":"41747","id":"loc17923287378733bc8"}],"fix":{}},
- {"g":29,"t":"d","k":{"pc":"41751","id":"loc1792267547800v4y8"},"m":[{"pc":"41751","id":"loc1792328737869l7hp"}],"fix":{}},
- {"g":30,"t":"d","k":{"pc":"44807","id":"loc1792267547798hnfq"},"m":[{"pc":"44087","id":"loc1793956707673b73g"}],"fix":{}},
- {"g":31,"t":"d","k":{"pc":"44536","id":"loc1792267547803e0a8"},"m":[{"pc":"44536","id":"loc1792328737871km9l"}],"fix":{}},
- {"g":32,"t":"d","k":{"pc":"45143","id":"loc1792267547814pg8z"},"m":[{"pc":"45143","id":"loc1792328737880mt51"}],"fix":{}},
- {"g":33,"t":"d","k":{"pc":"46147","id":"loc1792267547804t2uo"},"m":[{"pc":"46147","id":"loc17923287378726ul8"}],"fix":{"street":"Im Lekkerland","houseNo":"4","extra":"Dock 89-95"}},
- {"g":34,"t":"d","k":{"pc":"46446","id":"loc17922675477980to5"},"m":[{"pc":"46446","id":"loc179232873786869vo"}],"fix":{}},
- {"g":35,"t":"d","k":{"pc":"53881","id":"loc1792267547814towp"},"m":[{"pc":"53881","id":"loc1792328737880yczx"}],"fix":{}},
- {"g":36,"t":"d","k":{"pc":"53909","id":"loc17922675478144eww"},"m":[{"pc":"53909","id":"loc17923287378794wb7"}],"fix":{}},
- {"g":37,"t":"d","k":{"pc":"64579","id":"loc1792267547816n9hb"},"m":[{"pc":"64579","id":"loc1792328737881kx92"},{"pc":"64579","id":"loc1792267547801l77x"}],"fix":{"name":"ZXD Global GmbH","street":"Friedrich-Wöhler-Str.","houseNo":"23"}},
- {"g":38,"t":"d","k":{"pc":"64832","id":"loc1792267547801urs0"},"m":[{"pc":"64832","id":"loc17923287378705r63"}],"fix":{}},
- {"g":39,"t":"d","k":{"pc":"64832","id":"loc1792584170634zx3t"},"m":[{"pc":"64832","sig":"zxd global gmbh|ostheimer weg|3-7|64832|babenhausen|de"}],"fix":{"name":"ZXD global GmbH","street":"Ostheimer Weg","houseNo":"3-7","extra":"TOR 23-24"}},
- {"g":40,"t":"i","k":{"pc":"55-080","sig":"conwest logistic poland sp. z o.o. park prologis park wroclaw iv budynek wroclaw iv dc2 (wro00402)|ul. księdza jerzego popiełuszki|17|55-080|kąty wrocławskie|pl"},"m":[],"fix":{}},
- {"g":41,"t":"i","k":{"pc":"69-110","sig":"hipark rzepin|kilińskiego|74b|69-110|rzepin|pl"},"m":[],"fix":{}},
- {"g":42,"t":"d","k":{"pc":"1437EM","id":"loc1792267547805oeey"},"m":[{"pc":"1437EM","id":"loc1792267547823fkyl"}],"fix":{}}
+ {"g":12,"t":"y","k":{"pc":"28830","id":"loc1793103045720q9mw"},"m":[{"pc":"28830","id":"loc179395609658706qh"}],"fix":{"city":"San Fernando de Henares","street":"Calle del Mar Egeo"}},
+ {"g":13,"t":"y","k":{"pc":"93290","id":"loc179226754780862dv"},"m":[{"pc":"93290","id":"loc179239535383338ow"}],"fix":{"city":"Tremblay-en-France"}},
+ {"g":14,"t":"y","k":{"pc":"95670","id":"loc1793180884599r2tj"},"m":[],"fix":{"city":"Marly-la-Ville","name":"CIRRO PARCEL FRANCE","street":""}},
+ {"g":15,"t":"y","k":{"pc":"20-234","id":"loc1792267547808c96s"},"m":[],"fix":{"city":"Lublin","street":"ul. Mełgiewska","houseNo":"32A"}},
+ {"g":16,"t":"y","k":{"pc":"4389PJ","id":"loc1792267547798gezd"},"m":[],"fix":{"city":"Ritthem","street":"Duitslandweg"}},
+ {"g":17,"t":"y","k":{"pc":"05-552","id":"loc17922675477993vuk"},"m":[],"fix":{"city":"Stefanowo","name":"Home Sell"}},
+ {"g":18,"t":"y","k":{"pc":"41066","id":"loc1792267547803o1k5"},"m":[],"fix":{"city":"Mönchengladbach","name":"ANKER DE WAREHOUSE (MG)","street":"Krefelder Str."}},
+ {"g":19,"t":"d","k":{"pc":"1432JG","id":"loc1792267547796851a"},"m":[{"pc":"1432JG","id":"loc1792395353833qo4y"}],"fix":{}},
+ {"g":20,"t":"d","k":{"pc":"2321","id":"loc1792267547817uzb0"},"m":[{"pc":"2322","id":"loc1792267547818yhsq"}],"fix":{}},
+ {"g":21,"t":"d","k":{"pc":"30855","id":"loc1792267547808unxj"},"m":[{"pc":"30855","id":"loc17923287378750uwz"}],"fix":{}},
+ {"g":22,"t":"d","k":{"pc":"31629","id":"loc1792267547804q1qa"},"m":[{"pc":"31629","id":"loc1792328737872iotb"}],"fix":{}},
+ {"g":23,"t":"d","k":{"pc":"3225MA","id":"loc1794573336477jczl"},"m":[{"pc":"3225MA","sig":"logwise rotterdam b.v.|voltaweg 41-41a||3225ma|hellevoetsluis|nl"}],"fix":{}},
+ {"g":24,"t":"d","k":{"pc":"40549","id":"loc1792267547817nit9"},"m":[{"pc":"40549","id":"loc1792328737881t6r4"}],"fix":{}},
+ {"g":25,"t":"d","k":{"pc":"40764","id":"loc1792267547798u2am"},"m":[{"pc":"40764","id":"loc1792328737867nt5m"}],"fix":{}},
+ {"g":26,"t":"d","k":{"pc":"41460","id":"loc1792267547809b7hq"},"m":[{"pc":"41460","id":"loc1792328737876fjf2"}],"fix":{}},
+ {"g":27,"t":"d","k":{"pc":"41747","id":"loc1792267547806pxk3"},"m":[{"pc":"41747","id":"loc17923287378733bc8"}],"fix":{}},
+ {"g":28,"t":"d","k":{"pc":"41751","id":"loc1792267547800v4y8"},"m":[{"pc":"41751","id":"loc1792328737869l7hp"}],"fix":{}},
+ {"g":29,"t":"d","k":{"pc":"44807","id":"loc1792267547798hnfq"},"m":[{"pc":"44087","id":"loc1793956707673b73g"}],"fix":{}},
+ {"g":30,"t":"d","k":{"pc":"44536","id":"loc1792267547803e0a8"},"m":[{"pc":"44536","id":"loc1792328737871km9l"}],"fix":{}},
+ {"g":31,"t":"d","k":{"pc":"45143","id":"loc1792267547814pg8z"},"m":[{"pc":"45143","id":"loc1792328737880mt51"}],"fix":{}},
+ {"g":32,"t":"d","k":{"pc":"46147","id":"loc1792267547804t2uo"},"m":[{"pc":"46147","id":"loc17923287378726ul8"}],"fix":{"street":"Im Lekkerland","houseNo":"4","extra":"Dock 89-95"}},
+ {"g":33,"t":"d","k":{"pc":"46446","id":"loc17922675477980to5"},"m":[{"pc":"46446","id":"loc179232873786869vo"}],"fix":{}},
+ {"g":34,"t":"d","k":{"pc":"53881","id":"loc1792267547814towp"},"m":[{"pc":"53881","id":"loc1792328737880yczx"}],"fix":{}},
+ {"g":35,"t":"d","k":{"pc":"53909","id":"loc17922675478144eww"},"m":[{"pc":"53909","id":"loc17923287378794wb7"}],"fix":{}},
+ {"g":36,"t":"d","k":{"pc":"64579","id":"loc1792267547816n9hb"},"m":[{"pc":"64579","id":"loc1792328737881kx92"},{"pc":"64579","id":"loc1792267547801l77x"}],"fix":{"name":"ZXD Global GmbH","street":"Friedrich-Wöhler-Str.","houseNo":"23"}},
+ {"g":37,"t":"d","k":{"pc":"64832","id":"loc1792267547801urs0"},"m":[{"pc":"64832","id":"loc17923287378705r63"}],"fix":{}},
+ {"g":38,"t":"d","k":{"pc":"64832","id":"loc1792584170634zx3t"},"m":[{"pc":"64832","sig":"zxd global gmbh|ostheimer weg|3-7|64832|babenhausen|de"}],"fix":{"name":"ZXD global GmbH","street":"Ostheimer Weg","houseNo":"3-7","extra":"TOR 23-24"}},
+ {"g":39,"t":"i","k":{"pc":"55-080","sig":"conwest logistic poland sp. z o.o. park prologis park wroclaw iv budynek wroclaw iv dc2 (wro00402)|ul. księdza jerzego popiełuszki|17|55-080|kąty wrocławskie|pl"},"m":[],"fix":{}},
+ {"g":40,"t":"i","k":{"pc":"69-110","sig":"hipark rzepin|kilińskiego|74b|69-110|rzepin|pl"},"m":[],"fix":{}},
+ {"g":41,"t":"d","k":{"pc":"1437EM","id":"loc1792267547805oeey"},"m":[{"pc":"1437EM","id":"loc1792267547823fkyl"}],"fix":{}}
 ]};
 function lcPc(s){return String(s||'').replace(/\s/g,'').toUpperCase();}
 function lcSig(L){const n=function(v){return String(v||'').replace(/\s+/g,' ').trim();};return [n(L.name),n(L.street),n(L.houseNo),lcPc(L.postcode),n(L.city),n(L.country)].join('|').toLowerCase();}
 function lcDone(L){return !!(L&&!L.incomplete&&(L.locode||(L.postcode&&L.city&&L.country)));}
 
 function lcCompute(plan,locs,orders,now,by){
-  const R={groups:[],ids:0,merged:0,fixed:0,country:0,lines:{repoint:0,refresh:0,relink:0},orders:[],skipped:[],changes:0};
+  const R={groups:[],ids:0,merged:0,moved:0,fixed:0,country:0,lines:{repoint:0,refresh:0,relink:0},orders:[],skipped:[],changes:0};
   const touched={},map={};
   const fresh={};for(const L of locs){if(L&&!L.id){L.id='loc'+now+Math.random().toString(36).slice(2,6);L.up=now;R.ids++;touched[L.id]=1;fresh[L.id]=1;}}
   const byId={};for(const L of locs)if(L&&L.id)byId[L.id]=L;
@@ -6410,6 +6409,7 @@ function lcCompute(plan,locs,orders,now,by){
       const M=find(mr);if(!M||M===K)continue;
       map[M.id]=K.id;
       if(M.inactive&&M.mergedInto===K.id)continue;
+      if(M.inactive){M.mergedInto=K.id;M.up=now;R.moved++;continue;}
       if(lcPc(M.postcode)!==mr.pc){delete map[M.id];R.skipped.push({g:g.g,why:'要并入的一条邮编已被改过，不自动并入：'+locFmt(M)});continue;}
       const txt=locFmt(M);if(M.country!==K.country)G.country=true;
       K.alias=Array.from(new Set((K.alias||[]).concat(M.alias||[],txt?[txt]:[])));
@@ -6455,7 +6455,7 @@ function lcCompute(plan,locs,orders,now,by){
     }
     if(n){o.up=now;o.log=o.log||[];o.log.push({t:now,by:by||'',txt:'地点簿整理（'+plan.version+'）：'+n+' 条派送行的地址改指/刷新为标准地点'});R.orders.push({no:o.orderNo||'',n:n});}
   }
-  R.changes=R.merged+R.fixed+R.ids+R.lines.repoint+R.lines.refresh+R.lines.relink+R.orders.length;
+  R.changes=R.merged+R.moved+R.fixed+R.ids+R.lines.repoint+R.lines.refresh+R.lines.relink+R.orders.length;
   return R;
 }
 function lcPreview(plan){
@@ -6485,12 +6485,12 @@ function lcOpen(){
   let h='<div class="modal" style="max-width:1080px;width:96vw;max-height:88vh;overflow:auto"><h3 style="margin-top:0">📍 地点簿整理预览 · '+esc(LOC_PLAN.audited)+'</h3>'+
     '<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">只改地点和派送行上的地址，<b>金额、车次、订单数都不变</b>。被并入的地点不删除，只是停用并记下并到了哪一条。执行前自动生成快照，可在「数据备份与恢复」整体回滚。以下按<b>当前最新数据</b>现算：</div>'+
     '<div id="lcSum" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px">'+
-    [['合并',pv.merged+' 条'],['改正',pv.fixed+' 条'],['其中国家记错',pv.country+' 组'],['补编号',pv.ids+' 条'],['派送行改指',pv.lines.repoint+' 处'],['重新关联',pv.lines.relink+' 处'],['地址文本刷新',pv.lines.refresh+' 行'],['涉及订单',pv.orders.length+' 张']].map(function(x){return '<span style="padding:4px 10px;border-radius:8px;background:var(--n-wash)">'+x[0]+' <b>'+x[1]+'</b></span>';}).join('')+'</div>';
+    [['合并',pv.merged+' 条']].concat(pv.moved?[['改并入去向',pv.moved+' 条']]:[]).concat([['改正',pv.fixed+' 条'],['其中国家记错',pv.country+' 组'],['补编号',pv.ids+' 条'],['派送行改指',pv.lines.repoint+' 处'],['重新关联',pv.lines.relink+' 处'],['地址文本刷新',pv.lines.refresh+' 行'],['涉及订单',pv.orders.length+' 张']]).map(function(x){return '<span style="padding:4px 10px;border-radius:8px;background:var(--n-wash)">'+x[0]+' <b>'+x[1]+'</b></span>';}).join('')+'</div>';
   if(pv.groups.length){h+='<table class="mini" style="width:100%;font-size:12px"><tr><th style="width:92px">类型</th><th>整理后保留的地点</th><th>原来的写法 / 并入的记录</th></tr>'+pv.groups.map(function(G){
       const left=[];if(G.fix.length&&G.before!==G.after)left.push('<div style="color:var(--ink-soft)">原：'+esc(G.before)+'</div>');
       G.merged.forEach(function(m){left.push('<div>并入：'+esc(m.text)+'</div>');});
       if(!left.length)left.push('<div style="color:var(--ink-soft)">补上编号，订单行才能关联到它</div>');
-      return '<tr><td>'+(G.country?'<b style="color:var(--bad)">国家记错</b>':TL[G.t])+'</td><td style="font-weight:600">'+esc(G.after)+'</td><td>'+left.join('')+'</td></tr>';}).join('')+'</table>';}
+      return '<tr><td>'+(G.country?'<b style="color:var(--bad)">国家记错</b>':TL[G.t==='c'?(G.merged.length?'d':'y'):G.t])+'</td><td style="font-weight:600">'+esc(G.after)+'</td><td>'+left.join('')+'</td></tr>';}).join('')+'</table>';}
   else h+='<div style="padding:10px;border-radius:8px;background:var(--ok-bg,#e8f5ee);color:var(--ok);font-weight:600">✓ 没有需要整理的项目</div>';
   if(pv.skipped.length)h+='<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:12px"><b>已跳过 '+pv.skipped.length+' 项（审定后记录被改过，不自动处理）：</b>'+pv.skipped.map(function(x){return '<div>第 '+x.g+' 组：'+esc(x.why)+'</div>';}).join('')+'</div>';
   h+='<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button type="button" class="btn-ghost" id="lcCancel">关闭</button><button type="button" class="btn" style="width:auto" id="lcGo"'+(pv.changes?'':' disabled')+'>执行整理</button></div></div>';
@@ -6504,7 +6504,7 @@ function lcOpen(){
 window.lcOpen=lcOpen;
 function lcCard(){
   try{if(!session||session.role!=='finance')return;const host=document.getElementById('baseCards');if(!host)return;const oldC=document.getElementById('lcCard');if(oldC)oldC.remove();
-    const done=(meta.locClean||{})[LOC_PLAN.version];let left=0;try{left=lcPreview().changes;}catch(e){}
+    const lcAll=meta.locClean||{};const done=lcAll[LOC_PLAN.version]||Object.keys(lcAll).map(function(k){return lcAll[k];}).sort(function(a,b){return (b.at||0)-(a.at||0);})[0]; let left=0;try{left=lcPreview().changes;}catch(e){}
     const c=document.createElement('div');c.className='base-card';c.id='lcCard';
     c.innerHTML='<h3>📍 地点簿整理（2026-11-15 审定）</h3><div style="font-size:12.5px;color:var(--ink-soft)">改正记错国家/城市的地点、合并同一地址的多条记录、给缺编号的记录补编号，并把派送行改指到保留的那一条。只动地址，金额不变。先预览，确认后执行；执行前自动快照。</div>'+
       (done?'<div style="font-size:12px;color:var(--ok);margin-top:4px">✓ 已于 '+esc(ymdLocal(new Date(done.at)))+' 由 '+esc(done.by)+' 执行</div>':'')+
