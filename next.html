@@ -2406,7 +2406,7 @@ function enterApp(){
   try{skelFill('ledgerBody',10,6);skelFill('ariBody',12,6);skelFill('apBody',11,6);skelFill('ordBody',11,6);}catch(e){}
   ariLoad().then(()=>{ariCloudStart();ariAlertUpdate();});
 
-  if(USE_CLOUD&&rtdb){setTimeout(function(){try{nosBackfill();}catch(e){}},6000);}
+  if(USE_CLOUD&&rtdb){setTimeout(function(){try{(typeof _cloudQuiet==='function'?_cloudQuiet(90000):Promise.resolve()).then(function(){try{nosBackfill();}catch(e){}});}catch(e){}},6000);}
   try{bkRestoreListen();verListen();}catch(e){}
   try{ui2Init();}catch(e){}
   try{trkInit();}catch(e){}
@@ -2416,7 +2416,7 @@ function enterApp(){
   try{mdInit();}catch(e){}
   try{dfInit();}catch(e){}
   try{lcInit();}catch(e){}
-  try{if(session&&session.role==='finance'&&typeof errlogLoad==='function'){var _hcAt=0;var _hcRun=function(){try{if(typeof document!=='undefined'&&document.hidden)return;}catch(e){}_hcAt=Date.now();errlogLoad();authStatLoad();};setTimeout(_hcRun,5000);setInterval(_hcRun,600000);try{document.addEventListener('visibilitychange',function(){if(!document.hidden&&Date.now()-_hcAt>600000)setTimeout(_hcRun,1500);});}catch(e){}}}catch(e){}
+  try{if(session&&session.role==='finance'&&typeof errlogLoad==='function'){var _hcAt=0;var _hcRun=function(){try{if(typeof document!=='undefined'&&document.hidden)return;}catch(e){}_hcAt=Date.now();errlogLoad();authStatLoad();};setTimeout(function(){(typeof _cloudQuiet==='function'?_cloudQuiet(90000):Promise.resolve()).then(_hcRun);},5000);setInterval(_hcRun,600000);try{document.addEventListener('visibilitychange',function(){if(!document.hidden&&Date.now()-_hcAt>600000)setTimeout(_hcRun,1500);});}catch(e){}}}catch(e){}
   try{outboxRegister(CLOUD_PATH,'到账',async function(){const ok=await v2ReadMergeDelta(CLOUD_PATH,mergeRemote);if(!ok)throw new Error('read');await v2Write(CLOUD_PATH,payments,'到账');CLOUD_ERR='';CLOUD_LAST_SYNC=Date.now();updateBadge();try{render();}catch(e){}});setTimeout(function(){try{outboxRestore();}catch(e){}},2500);}catch(e){}
   if(USE_CLOUD&&rtdb){netProbe().then(function(){
     try{inboxListen('orders',async function(recs){ordMergeRemote(recs);await ordSave();});}catch(e){}
@@ -3073,6 +3073,9 @@ var _netSlow=null,_netRtt=null,_inboxMerging={};
 var _bgSince=0;try{if(typeof document!=='undefined'){if(document.hidden)_bgSince=Date.now();document.addEventListener('visibilitychange',function(){_bgSince=Date.now();});}}catch(e){}
 function _bgDuring(t0){try{return (typeof document!=='undefined'&&document.hidden===true)||_bgSince>=t0;}catch(e){return false;}}
 window._bgDuring=_bgDuring;
+
+function _cloudQuiet(maxMs){try{if(!USE_CLOUD||!rtdb)return Promise.resolve();return Promise.race([rtdb.ref(DB_PREFIX+'img-ap/_ping').once('value').then(function(){},function(){}),new Promise(function(r){setTimeout(r,maxMs||90000);})]);}catch(e){return Promise.resolve();}}
+window._cloudQuiet=_cloudQuiet;
 function _withTimeout(p,ms,label){const _t0=Date.now();return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){try{if(typeof errlogPush==='function')errlogPush(_bgDuring(_t0)?'timeout-bg':'timeout',(label||'')+' 超时 '+Math.round(ms/1000)+'s','');}catch(e){}rej(new Error((label||'云端操作')+'超时（'+Math.round(ms/1000)+' s）'));},ms);})]);}
 function cloudAtNote(k,at){const a=Number(at)||0;if(a>(_cloudAt[k]||0))_cloudAt[k]=a;}
 function inboxDelta(k,snap){
