@@ -15223,6 +15223,7 @@ function bankEditOpen(tx){
   card.querySelector('#bkSave').onclick=async()=>{
     const acct=card.querySelector('#bkAcct').value,sum=card.querySelector('#bkSum').value.trim(),payee=card.querySelector('#bkPayee').value.trim();
     const nos=card.querySelector('#bkRefs').value.split(/[\s,;]+/).map(s=>s.trim()).filter(Boolean);
+    {const _raw=card.querySelector('#bkRefs').value.trim();if(_raw&&nos.length>1&&nos.indexOf(_raw)<0)nos.push(_raw);}
     let refs=[],kind='rule';
     if(nos.length){
       let found=0,linked=0;
