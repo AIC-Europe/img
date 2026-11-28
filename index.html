@@ -71,7 +71,36 @@ if(APP_ENV==='staging'){
   else if(FIREBASE_CONFIG_STAGING==='same-project'){DB_PREFIX='staging/';}
   else{FIREBASE_CONFIG={};document.addEventListener('DOMContentLoaded',function(){document.body.innerHTML='<div style="font-family:system-ui;padding:40px;color:#9A4A3B"><h2>预发布环境未配置</h2><p>当前地址被识别为 staging，但 FIREBASE_CONFIG_STAGING 尚未填写。为避免误写生产数据，已停止加载。</p></div>';});}
 }
-var USE_CLOUD=!!FIREBASE_CONFIG.databaseURL;
+/* ── v42.0 多公司（Emma 11/27：一部分业务剥离到香港公司 O B TRANS HK，仍由同一批业务同事维护）──
+   同一网址、同一套账号；网址带 ?co=hk 即进入香港公司。公司由【网址】决定而不是本机设置：两家可以各开一个标签页同时用，互不影响。
+   数据隔离沿用 v26.5 的 DB_PREFIX 机制：香港公司的全部云端路径在 hk/ 根节点下，本地缓存键加 hk: 前缀；德国公司的路径和键一字不变。
+   新增根节点 hk 需要在 Firebase 数据库规则里放行（与 staging 同理）。 */
+var CO_LIST={
+  de:{key:'de',short:'德国公司',name:'IMG Europe GmbH',brand:'IMG Europe',ordPrefix:'IMG',inqPrefix:'F',vat:true,docs:true,full:true},
+  hk:{key:'hk',short:'香港公司',name:'O B TRANS HK CO., LIMITED',brand:'O B TRANS HK',ordPrefix:'HK',inqPrefix:'HKF',vat:false,docs:false,full:false,
+      addr:'NO 2-309, 2/F Chungking Express, Nos 36 Nathan Road, Tsim Sha Tsui, Hong Kong',brNo:'78515227'}
+};
+var APP_CO=(function(){try{var m=/[?&]co=([a-z]+)(&|#|$)/.exec(location.search||'');if(m&&CO_LIST[m[1]])return m[1];}catch(e){}return 'de';})();
+var CO=CO_LIST[APP_CO];
+if(APP_CO!=='de')DB_PREFIX+=APP_CO+'/';
+/* 本地缓存前缀：德国生产为空串（键名不变）；staging → 'staging:'；香港 → 'hk:'；staging 的香港 → 'staging:hk:' */
+var LS_PREFIX=(APP_ENV==='staging'&&DB_PREFIX?'staging:':'')+(APP_CO!=='de'?APP_CO+':':'');
+/* ── v43.0 团队口令（Emma 11/28：数据库规则一直是公开读写，登录只挡住了界面；照启航工作台的做法，用团队口令保护数据）──
+   第一步「存储位置保密」：全部数据放在 vault/<由口令换算出的 48 位十六进制>/ 下，规则只允许按完整路径读写、不允许从上层列出，
+   所以只知道数据库地址的人读不到任何东西。数据仍是明文（内容加密是之后的第二步）。口令不上传、不写进代码；本机只保存换算结果。
+   不依赖 Firebase 登录服务，国内同事的降级登录不受影响。
+   VAULT_TEST：自动化测试用的 example.com 不要求口令、沿用旧路径（测试桩里没有口令这一层）；其他任何地址都必须有口令。 */
+var VAULT_TEST=(function(){try{return /(^|\.)example\.com$/.test(location.hostname||'');}catch(e){return false;}})();
+var VAULT_ID=(function(){try{var v=(window.sessionStorage&&sessionStorage.getItem('img-vault'))||localStorage.getItem('img-vault')||'';return /^[0-9a-f]{48}$/.test(v)?v:'';}catch(e){return '';}})();
+var VAULT_ON=!!VAULT_ID;
+var VAULT_GATE=!VAULT_ON&&!VAULT_TEST; /* 没有口令：不连云端，只显示口令页 */
+var VAULT_ROOT=VAULT_ON?('vault/'+VAULT_ID+'/'):'';
+var ENV_PREFIX=(APP_ENV==='staging'&&FIREBASE_CONFIG_STAGING==='same-project')?'staging/':'';
+/* 某家公司的数据根（供跨公司迁移订单用）；本公司的就是 DB_PREFIX */
+function coRoot(co){return VAULT_ROOT+ENV_PREFIX+((co&&co!=='de')?co+'/':'');}
+if(VAULT_ON){DB_PREFIX=VAULT_ROOT+DB_PREFIX;LS_PREFIX='v'+VAULT_ID.slice(0,8)+':'+LS_PREFIX;}
+function coUrl(co){try{var u=new URL(location.href);if(co&&co!=='de')u.searchParams.set('co',co);else u.searchParams.delete('co');u.hash='';return u.toString();}catch(e){return (co&&co!=='de')?'?co='+co:'?';}}
+var USE_CLOUD=!!FIREBASE_CONFIG.databaseURL&&!VAULT_GATE;
 var rtdb=null;
 /* 屏蔽 Firebase 往 localStorage 写缓存（与鲁商平台同款保护） */
 try{
@@ -681,7 +710,27 @@ td{font-size:12.5px}
 .mi{display:inline-block;cursor:help;color:var(--muted);font-size:11px;margin-left:4px;line-height:1;vertical-align:1px}
 .mi:hover{color:var(--info)}
 .base-row.base-inactive{opacity:.55}
-.base-row.base-inactive b{text-decoration:line-through;text-decoration-color:var(--muted)}</style>
+.base-row.base-inactive b{text-decoration:line-through;text-decoration-color:var(--muted)}
+.vg{position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,var(--pine-deep,var(--pine)),var(--pine));display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+.vg-card{background:var(--card);color:var(--ink);border-radius:16px;max-width:430px;width:100%;padding:28px 30px;box-shadow:0 18px 60px rgba(0,0,0,.35)}
+.vg-co{font-size:11px;letter-spacing:.28em;color:var(--muted);text-align:center}
+.vg-h{margin:8px 0 4px;text-align:center;font-size:21px;color:var(--ink)}
+.vg-h span{font-size:13px;font-weight:400;color:var(--muted)}
+.vg-lead{font-size:12.5px;color:var(--muted);text-align:center;margin:0 0 18px;line-height:1.6}
+.vg-hid{position:absolute;left:-9999px;width:1px}
+.vg-lab{font-size:13px;font-weight:600;display:block}
+.vg-inp{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--line);border-radius:9px;font-size:15px;margin:6px 0 12px;background:var(--card);color:var(--ink)}
+.vg-warn{font-size:12px;color:var(--bad);margin:-4px 0 12px;line-height:1.55}
+.vg-prog{margin:0 0 12px}
+.vg-track{height:10px;background:var(--line);border-radius:6px;overflow:hidden}
+.vg-bar{height:100%;width:0;background:var(--pine);transition:width .3s}
+.vg-txt{font-size:12.5px;color:var(--muted);margin-top:6px}
+.vg-rem{font-size:12.5px;display:flex;align-items:center;gap:7px;margin:0 0 14px}
+.vg-err{border:1px solid var(--bad);color:var(--bad);border-radius:8px;padding:8px 11px;font-size:12.5px;margin:0 0 12px;line-height:1.5}
+.vg-go{width:100%;padding:12px;border:0;border-radius:10px;background:var(--pine);color:#FFF;font-size:15px;font-weight:700;cursor:pointer}
+.vg-go:disabled{opacity:.6;cursor:wait}
+.vg-foot{text-align:center;margin-top:14px}
+.vg-foot a{font-size:12px;color:var(--muted)}</style>
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
@@ -1035,7 +1084,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v41.5</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v43.0</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1125,7 +1174,7 @@ td{font-size:12.5px}
       <div class="field"><label for="oSaleCur">币种</label>
         <select id="oSaleCur"><option>EUR</option><option>USD</option><option>GBP</option><option>CNY</option></select>
       </div>
-      <div class="field"><label for="oVatRate">VAT 税率（报价单）</label>
+      <div class="field co-de-only"><label for="oVatRate">VAT 税率（报价单）</label>
         <select id="oVatRate"><option value="19">19%（德国境内）</option><option value="0">0%（出口/反向征收）</option></select>
       </div>
       <div class="field">
@@ -1153,7 +1202,7 @@ td{font-size:12.5px}
       <div class="field"><label for="aiInvDate">发票日期 *</label><input type="date" id="aiInvDate"></div>
       <div class="field"><label for="aiOrderNo">IMG 成单号</label><input id="aiOrderNo" placeholder="填写后自动关联订单与到账"></div>
       <div class="field"><label for="aiNet">不含税金额 *</label><input type="number" id="aiNet" step="0.01" placeholder="净额"></div>
-      <div class="field"><label for="aiVatRate">税率</label>
+      <div class="field co-de-only"><label for="aiVatRate">税率</label>
         <select id="aiVatRate"><option value="19">19%（德国境内）</option><option value="0">0%（出口/反向征收）</option></select>
       </div>
       <div class="field"><label for="aiCur">币种</label>
@@ -1400,7 +1449,7 @@ td{font-size:12.5px}
       <div class="field"><label for="oInvNo">发票号 *</label><input id="oInvNo" placeholder="开票系统发票号"></div>
       <div class="field"><label for="oInvDate">开票日期 *</label><input type="date" id="oInvDate"></div>
       <div class="field"><label for="oInvAmount">不含税金额 *</label><input type="number" id="oInvAmount" step="0.01"></div>
-      <div class="field"><label for="oInvVat">税率</label>
+      <div class="field co-de-only"><label for="oInvVat">税率</label>
         <select id="oInvVat"><option value="19">19%</option><option value="0">0%</option></select>
       </div>
       <div class="field"><label for="oInvCur">币种</label>
@@ -1643,6 +1692,153 @@ td{font-size:12.5px}
 <div class="toast" id="toast"></div>
 
 <script>
+var VAULT_SALT='img-europe-platform-vault-v1';
+var VAULT_ITER=300000;
+function vaultDerive(pass){
+  var te=new TextEncoder();
+  return crypto.subtle.importKey('raw',te.encode(String(pass)),'PBKDF2',false,['deriveBits'])
+    .then(function(k){return crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:te.encode(VAULT_SALT),iterations:VAULT_ITER},k,192);})
+    .then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return ('0'+x.toString(16)).slice(-2);}).join('');});
+}
+
+function vaultRest(path,opt,query,ms){
+  var n=0;var go=function(){return vaultRest1(path,opt,query,ms).catch(function(e){if(e&&e.status)throw e;if(++n>=5)throw e;return new Promise(function(r){setTimeout(r,(window.__vaultRetryMs!=null?window.__vaultRetryMs:600)*n);}).then(go);});};
+  return go();
+}
+function vaultRest1(path,opt,query,ms){
+  var u=String(FIREBASE_CONFIG.databaseURL||'').replace(/\/+$/,'')+'/'+String(path).split('/').map(encodeURIComponent).join('/')+'.json'+(query?'?'+query:'');
+  var ctl=(typeof AbortController!=='undefined')?new AbortController():null;var tm=setTimeout(function(){try{ctl&&ctl.abort();}catch(e){}},ms||20000);
+  return fetch(u,Object.assign({cache:'no-store',signal:ctl?ctl.signal:undefined},opt||{})).then(function(r){clearTimeout(tm);if(!r.ok){var e=new Error('HTTP '+r.status);e.status=r.status;throw e;}if(r.status===204)return null;return r.text().then(function(t){return t?JSON.parse(t):null;});},function(e){clearTimeout(tm);throw e;});
+}
+
+var VAULT_SKIP={'img-ap/errlog':1,'hk/img-ap/errlog':1};
+var VAULT_LEGACY=['img-ap','img-ar','img-hr','img-bank','img-backup','hk/img-ap','hk/img-ar','hk/img-hr','hk/img-bank','hk/img-backup'];
+function vaultShallow(path){return vaultRest(path,null,'shallow=true').then(function(v){if(v==null)return null;if(typeof v==='object')return {keys:Object.keys(v)};return {val:v};});}
+async function vaultPlan(){
+  var plan=[],cols=[];
+  if(typeof ENV_PREFIX!=='undefined'&&ENV_PREFIX)return {plan:plan,cols:cols};
+  for(var i=0;i<VAULT_LEGACY.length;i++){var root=VAULT_LEGACY[i];
+    var s1=await vaultShallow(root);if(!s1)continue;
+    if(!s1.keys){plan.push(root);continue;}
+    for(var j=0;j<s1.keys.length;j++){var p1=root+'/'+s1.keys[j];if(VAULT_SKIP[p1])continue;var s2=await vaultShallow(p1);if(!s2)continue;
+      if(s2.keys){cols.push({path:p1,keys:s2.keys});for(var k=0;k<s2.keys.length;k++)plan.push(p1+'/'+s2.keys[k]);}else plan.push(p1);}
+  }
+  return {plan:plan,cols:cols};
+}
+
+function vaultAppVer(){try{var m=/v(\d+(?:\.\d+)?)/.exec((document.querySelector('footer')||{}).textContent||'');return m?Number(m[1]):0;}catch(e){return 0;}}
+var _vaultRunning=false;
+async function vaultMigrate(id,onProg,opt){
+  opt=opt||{};if(_vaultRunning)throw new Error('搬家正在进行');_vaultRunning=true;
+  var V='vault/'+id+'/';
+  try{
+    var prog=function(o){try{onProg&&onProg(o);}catch(e){}};
+    prog({stage:'plan',text:'正在清点旧位置的数据…'});
+    var pl=await vaultPlan();var plan=pl.plan;
+
+    var have={};
+    for(var i=0;i<pl.cols.length;i++){var c=pl.cols[i];if(!/\/files$/.test(c.path))continue;var t=await vaultShallow(V+c.path);if(t&&t.keys)t.keys.forEach(function(k){have[c.path+'/'+k]=1;});}
+    var todo=plan.filter(function(p){return !have[p];});
+    var done=0,fail=[],total=todo.length,skipped=plan.length-total;
+    prog({stage:'copy',done:0,total:total,skipped:skipped});
+    var one=async function(p){
+      var last;
+      for(var a=0;a<3;a++){
+        try{var v=await vaultRest(p,null,null,180000);if(v==null)return;
+          await vaultRest(V+p,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(v)},'print=silent',240000);return;
+        }catch(e){last=e;await new Promise(function(r){setTimeout(r,(window.__vaultRetryMs!=null?window.__vaultRetryMs:800)*(a+1));});}
+      }
+      fail.push({path:p,err:String((last&&last.message)||last)});
+    };
+    var idx=0,N=Math.max(1,Math.min(opt.jobs||4,6));
+    var worker=async function(){while(idx<todo.length){var p=todo[idx++];await one(p);done++;if(done%5===0||done===total)prog({stage:'copy',done:done,total:total,skipped:skipped,fail:fail.length});}};
+    var ws=[];for(var w=0;w<N;w++)ws.push(worker());await Promise.all(ws);
+    prog({stage:'verify',text:'正在核对…'});
+    var diff=[];
+    for(var q=0;q<pl.cols.length;q++){var cc=pl.cols[q];var tt=await vaultShallow(V+cc.path);var tk={};((tt&&tt.keys)||[]).forEach(function(k){tk[k]=1;});var miss=cc.keys.filter(function(k){return !tk[k];});if(miss.length)diff.push({path:cc.path,src:cc.keys.length,dst:Object.keys(tk).length,miss:miss.slice(0,5)});}
+    var ok=!fail.length&&!diff.length;
+    var res={ok:ok,total:plan.length,copied:total-fail.length,skipped:skipped,fail:fail,diff:diff};
+    if(ok){
+      var now=Date.now();
+      await vaultRest(V+'sys/migrated',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({at:now,n:plan.length,ver:vaultAppVer()})});
+
+      try{await vaultRest(V+'img-ap/sys/storeMode',{method:'PUT',headers:{'Content-Type':'application/json'},body:'"v2"'});await vaultRest(V+'hk/img-ap/sys/storeMode',{method:'PUT',headers:{'Content-Type':'application/json'},body:'"v2"'});}catch(e){}
+
+      if(plan.length&&vaultAppVer()){try{await vaultRest('img-ap/sys/minVersion',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(vaultAppVer())});}catch(e){}}
+      await vaultRest(V+'sys/init',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({at:now,v:1})});
+    }
+    prog({stage:'done',res:res});
+    return res;
+  }finally{_vaultRunning=false;}
+}
+window.vaultMigrate=vaultMigrate;window.vaultPlan=vaultPlan;
+function vaultStore(id,remember){
+  try{sessionStorage.setItem('img-vault',id);}catch(e){}
+  try{if(remember)localStorage.setItem('img-vault',id);else localStorage.removeItem('img-vault');}catch(e){}
+}
+function vaultForget(){try{sessionStorage.removeItem('img-vault');}catch(e){}try{localStorage.removeItem('img-vault');}catch(e){}}
+window.vaultDerive=vaultDerive;window.vaultForget=vaultForget;
+function vaultGateShow(){
+  if(document.getElementById('vaultGate'))return;
+  var d=document.createElement('div');d.id='vaultGate';
+  d.className='vg';
+  d.innerHTML='<div class="vg-card">'+
+    '<div class="vg-co">'+(typeof CO!=='undefined'?CO.name.toUpperCase():'IMG EUROPE')+'</div>'+
+    '<h2 class="vg-h">团队口令 <span>Team passphrase</span></h2>'+
+    '<p class="vg-lead">这台设备第一次使用，请输入团队口令。<br>口令只在本机换算成数据位置，不会上传。</p>'+
+    '<form id="vgForm" autocomplete="on"><input type="text" name="username" autocomplete="username" value="IMG 平台（团队口令）" readonly tabindex="-1" aria-hidden="true" class="vg-hid">'+
+    '<label class="vg-lab" for="vgPass">团队口令</label><input id="vgPass" class="vg-inp" type="password" autocomplete="current-password" required minlength="12" placeholder="请输入团队口令">'+
+    '<div id="vgSetup" style="display:none"><label class="vg-lab" for="vgPass2">再输入一次（首次设置）</label><input id="vgPass2" class="vg-inp" type="password" autocomplete="off" minlength="12" placeholder="再输入一次团队口令">'+
+    '<p class="vg-warn">首次设置只做一次，由管理员操作。口令至少 12 位，请妥善保管：<b>忘记口令就找不到数据</b>，平台无法找回。<br>确定后会把现有的全部数据复制到口令保护的新位置（只复制，不删除、不修改旧位置的数据），核对一致后才启用。期间请不要关闭页面；中断了可以用同一口令再做一次，附件会接着搬。</p></div>'+
+    '<div id="vgProg" class="vg-prog" style="display:none"><div class="vg-track"><div id="vgBar" class="vg-bar"></div></div><div id="vgTxt" class="vg-txt"></div></div>'+
+    '<label class="vg-rem"><input id="vgRem" type="checkbox" checked> 在这台设备上记住（公用电脑请取消勾选）</label>'+
+    '<div id="vgErr" class="vg-err" style="display:none"></div>'+
+    '<button id="vgGo" type="submit" class="vg-go">进入</button></form>'+
+    '<div class="vg-foot"><a id="vgToSetup" href="#">管理员首次设置</a></div></div>';
+  (document.body||document.documentElement).appendChild(d);
+  var setup=false;var $v=function(i){return document.getElementById(i);};
+  var err=function(m){var e=$v('vgErr');e.textContent=m||'';e.style.display=m?'block':'none';};
+  $v('vgToSetup').onclick=function(ev){ev.preventDefault();setup=!setup;$v('vgSetup').style.display=setup?'block':'none';$v('vgGo').textContent=setup?'完成首次设置':'进入';this.textContent=setup?'返回：我已有口令':'管理员首次设置';err('');};
+  $v('vgForm').onsubmit=function(ev){
+    ev.preventDefault();err('');
+    var p=$v('vgPass').value;
+    if(!p||p.length<12){err('口令至少 12 位。');return;}
+    if(setup&&p!==$v('vgPass2').value){err('两次输入的口令不一致。');return;}
+    if(!(window.crypto&&crypto.subtle)){err('这个浏览器不支持口令换算，请用最新版 Chrome 或 Edge，并通过 https 网址打开。');return;}
+    var go=$v('vgGo');go.disabled=true;go.textContent='正在核对…';
+    var done=function(m){go.disabled=false;go.textContent=setup?'完成首次设置':'进入';err(m);};
+    vaultDerive(p).then(function(id){
+      return vaultRest('vault/'+id+'/sys/init').then(function(v){
+        if(setup){
+          if(v)return {id:id};
+          $v('vgProg').style.display='block';go.textContent='正在搬家，请勿关闭页面…';
+          return vaultMigrate(id,function(p){
+            if(p.stage==='copy'){var pct=p.total?Math.round(p.done/p.total*100):100;$v('vgBar').style.width=pct+'%';$v('vgTxt').textContent='已复制 '+p.done+' / '+p.total+' 条'+(p.skipped?'（另有 '+p.skipped+' 个附件之前已搬过）':'')+(p.fail?' · 失败 '+p.fail:'');}
+            else if(p.text)$v('vgTxt').textContent=p.text;
+          }).then(function(res){
+            window.__vaultRes=res;
+            if(!res.ok){var e=new Error('partial');e.partial=res;throw e;}
+            $v('vgBar').style.width='100%';$v('vgTxt').textContent='搬家完成，核对一致：共 '+res.total+' 条。';
+            return {id:id};
+          });
+        }
+        if(!v){var e=new Error('nomatch');e.nomatch=true;throw e;}
+        return {id:id};
+      });
+    }).then(function(r){vaultStore(r.id,$v('vgRem').checked);window.__vaultOk=r.id;try{location.reload();}catch(e){}})
+    .catch(function(e){
+      if(e&&e.partial){var r=e.partial;return done('还没有搬完：'+(r.fail.length?'复制失败 '+r.fail.length+' 条（例如 '+r.fail[0].path+'：'+r.fail[0].err+'）。':'')+(r.diff.length?'核对不一致 '+r.diff.length+' 类（例如 '+r.diff[0].path+' 旧 '+r.diff[0].src+' / 新 '+r.diff[0].dst+'）。':'')+'旧位置的数据没有动，口令库尚未启用。请再点一次，附件会接着搬。');}
+      if(e&&e.nomatch)return done('口令不对。请核对大小写和空格；如果还没有人做过首次设置，请联系管理员。');
+      if(e&&(e.status===401||e.status===403))return done('数据库还没有开放口令库（规则未更新），请联系管理员。');
+      done('没有连上数据库：'+((e&&e.message)||e)+'。请检查网络后重试。');
+    });
+  };
+  try{$v('vgPass').focus();}catch(e){}
+}
+if(typeof VAULT_GATE!=='undefined'&&VAULT_GATE){
+  if(document.body)vaultGateShow();else document.addEventListener('DOMContentLoaded',vaultGateShow);
+}
+
 (function(){
 'use strict';
 const KEY_DATA='img-ar-payments';
@@ -1660,7 +1856,7 @@ function myNameSet(n){if(!myNameLegacy())return;_memName=n;if(hasLS){try{localSt
 function myNamePurge(){  if(myNameLegacy()||!hasLS||!session)return;try{const k='img-ar-myname-'+session.name;const v=localStorage.getItem(k);if(v&&v!==session.name){localStorage.removeItem(k);console.warn('已清除残留别名',v);}}catch(e){}}
 
 let _seenMem={};
-function seenKey(){return 'img-ar-seen-'+(session?session.name:'');}
+function seenKey(){return storeKey('img-ar-seen-'+(session?session.name:''));}
 function seenLoad(){
   if(hasLS){try{_seenMem=JSON.parse(localStorage.getItem(seenKey())||'{}');}catch(e){_seenMem={};}}
 }
@@ -1674,7 +1870,8 @@ function unreadCount(p){
   return (p.comments||[]).filter(c=>(c.time||0)>t&&c.author!==(session?session.name:'')).length;
 }
 
-function storeKey(k){return (typeof DB_PREFIX!=='undefined'&&DB_PREFIX)?('staging:'+k):k;}
+const VAT_DEF=(typeof CO!=='undefined'&&CO.vat===false)?0:19;
+function storeKey(k){return (typeof LS_PREFIX!=='undefined'&&LS_PREFIX)?(LS_PREFIX+k):k;}
 const store={
   async get(k){k=storeKey(k);
     if(hasStore())return await window.storage.get(k,true);
@@ -1689,7 +1886,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=41.5;
+const APP_VERSION=43.0;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -3968,7 +4165,7 @@ window.qmOpen=qmOpen;
 if($('quoteBtn'))$('quoteBtn').onclick=qmOpen;
 
 var _obx={jobs:{},pending:{},fails:{},lastErr:{},running:false,timer:null,autoOn:false,stats:{ok:0,fail:0}};
-const OBX_LS='img-outbox-pending';
+const OBX_LS=(typeof LS_PREFIX!=='undefined'?LS_PREFIX:'')+'img-outbox-pending';
 function outboxOn(){
   try{const f=localStorage.getItem('img-outbox');if(f==='1')return true;if(f==='0')return false;}catch(e){}
   return (typeof _netSlow!=='undefined'&&_netSlow===true)||_obx.autoOn===true;
@@ -4020,7 +4217,7 @@ function outboxOpen(){
 
 function outboxRestore(){
   try{const p=JSON.parse(localStorage.getItem(OBX_LS)||'{}');for(const k in p){
-    if(!_obx.jobs[k]&&/^file:/.test(k)){const fid=k.slice(5);let o=null;try{o=JSON.parse(localStorage.getItem('img-obx-file-'+fid)||'null');}catch(e){}
+    if(!_obx.jobs[k]&&/^file:/.test(k)){const fid=k.slice(5);let o=null;try{o=JSON.parse(localStorage.getItem(obxFileKey(fid))||'null');}catch(e){}
       if(o&&typeof apStoreFileChunked==='function'){outboxRegister(k,'附件 '+(o.name||fid),(function(fid,o){return async function(){await apStoreFileChunked(fid,o);};})(fid,o));}}
     if(_obx.jobs[k])_obx.pending[k]=p[k];}}catch(e){}
   outboxBadge();if(Object.keys(_obx.pending).length)outboxKick(3000);
@@ -4150,8 +4347,10 @@ function bkRestoreListen(){
     let pend=0;try{pend=(typeof outboxPendingList==='function')?outboxPendingList().length:0;}catch(e){}
     try{if(typeof outboxDiscardAll==='function')outboxDiscardAll();}catch(e){}
     try{
-      localStorage.removeItem('img-outbox-pending');
-      for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(/^img-v2sv-|^img-v2dirty-|^img-obx-file/.test(k))localStorage.removeItem(k);}
+      localStorage.removeItem(OBX_LS);
+
+      {const _lp=(typeof LS_PREFIX!=='undefined'?LS_PREFIX:'');const _mine=function(k){if(k.indexOf('img-v2sv-')===0||k.indexOf('img-v2dirty-')===0){const p=k.replace(/^img-v2(sv|dirty)-/,'');if(p.indexOf(DB_PREFIX)!==0)return false;const rest=p.slice(DB_PREFIX.length);return /^img-/.test(rest);} return k.indexOf(_lp+'img-obx-file')===0&&(_lp!==''||k.indexOf('img-obx-file')===0);};
+       for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i);if(k&&_mine(k))localStorage.removeItem(k);}}
     }catch(e){}
     if(v.phase==='start'){try{alert('财务（'+(v.by||'')+'）正在从备份恢复平台数据，请稍候。'+(pend?'\n\n你本机有 '+pend+' 项尚未同步的改动，已作废，恢复完成后请核对并重新录入。':'')+'\n\n页面将重新加载。');}catch(e){}}
     try{(window.__reloadHook||function(){location.reload();})();}catch(e){}
@@ -4200,14 +4399,18 @@ function exportCsv(){
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+function coTxt(s){return (typeof CO!=='undefined'&&CO.key!=='de'&&typeof s==='string')?s.replace(/IMG Europe GmbH/g,CO.name).replace(/IMG Europe/g,CO.brand):s;}
+function coAoa(aoa){if(typeof CO==='undefined'||CO.key==='de'||!Array.isArray(aoa))return aoa;return aoa.map(function(r,i){return (i<4&&Array.isArray(r))?r.map(coTxt):r;});}
+function coXlsxWrap(){try{if(typeof CO==='undefined'||CO.key==='de'||!window.XLSX||!XLSX.utils||XLSX.utils.__co)return;const f=XLSX.utils.aoa_to_sheet;XLSX.utils.aoa_to_sheet=function(a,o){return f.call(XLSX.utils,coAoa(a),o);};XLSX.utils.__co=true;}catch(e){}}
 function ensureXLSX(){
-  if(window.XLSX)return Promise.resolve();
+  if(window.XLSX){coXlsxWrap();return Promise.resolve();}
   return new Promise((res,rej)=>{
     const s=document.createElement('script');
     s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload=()=>window.XLSX?res():rej(new Error('load'));
+    s.onload=()=>{if(window.XLSX){coXlsxWrap();res();}else rej(new Error('load'));};
     s.onerror=()=>rej(new Error('load'));
-    setTimeout(()=>window.XLSX?res():rej(new Error('timeout')),7000);
+    setTimeout(()=>{if(window.XLSX){coXlsxWrap();res();}else rej(new Error('timeout'));},7000);
     document.head.appendChild(s);
   });
 }
@@ -4263,7 +4466,7 @@ function bkCounts(){
 }
 $('bkExport').onclick=()=>{
   const cc=bkCountsAll();
-  const data=Object.assign({_meta:{app:'IMG Europe 业财一体化平台',version:APP_VERSION,scope:'full',
+  const data=Object.assign({_meta:{app:'IMG Europe 业财一体化平台',co:CO.key,coName:CO.name,version:APP_VERSION,scope:'full',
       exportedAt:new Date().toISOString(),exportedBy:session.name,
       counts:cc,storeMode:STORE_MODE}},bkCollect());
   const a=document.createElement('a');
@@ -4285,6 +4488,8 @@ $('bkFile').onchange=function(){
     const arr=Array.isArray(data)?data:data.payments;
     if(!Array.isArray(arr)){toast('不是有效的备份文件');this.value='';return;}
     const D=Array.isArray(data)?{payments:arr}:data;
+
+    {const fco=(D._meta&&D._meta.co)||'de';if(fco!==CO.key){alert('这份备份属于「'+((CO_LIST[fco]||{}).short||fco)+'」，现在打开的是「'+CO.short+'」。\n\n为避免把一家公司的数据恢复到另一家，已取消。请切换到对应公司的界面再恢复。');this.value='';return;}}
     const bc=bkCountsAll(D),cur=bkCountsAll();
     const parts=[bkCountsText(bc)];
     const miss=['bankItems','hrItems','expItems'].filter(k=>!Array.isArray(D[k]));
@@ -5629,15 +5834,16 @@ async function filesMigrateToGS(opts){
 window.filesMigrateToGS=filesMigrateToGS;
 
 const OBX_FILE_PART=65536;
-function obxFileKey(fid){return 'img-obx-file-'+fid;}
+function obxFileKey(fid){return (typeof LS_PREFIX!=='undefined'?LS_PREFIX:'')+'img-obx-file-'+fid;}
+function obxFilePosKey(fid){return (typeof LS_PREFIX!=='undefined'?LS_PREFIX:'')+'img-obx-filepos-'+fid;}
 async function apStoreFileChunked(fid,obj){
   const ref=rtdb.ref(AP_FILES+'/'+fid);const data=String(obj.data||'');const n=Math.ceil(data.length/OBX_FILE_PART)||1;
-  let start=0;try{start=parseInt(localStorage.getItem('img-obx-filepos-'+fid)||'0',10)||0;}catch(e){}
+  let start=0;try{start=parseInt(localStorage.getItem(obxFilePosKey(fid))||'0',10)||0;}catch(e){}
   for(let i=start;i<n;i++){const part={};part['parts/'+String(i).padStart(4,'0')]=data.slice(i*OBX_FILE_PART,(i+1)*OBX_FILE_PART);
-    await _withTimeout(ref.update(part),window.__apFileTimeoutMs||30000,'附件分片 '+(i+1)+'/'+n);try{localStorage.setItem('img-obx-filepos-'+fid,String(i+1));}catch(e){}}
+    await _withTimeout(ref.update(part),window.__apFileTimeoutMs||30000,'附件分片 '+(i+1)+'/'+n);try{localStorage.setItem(obxFilePosKey(fid),String(i+1));}catch(e){}}
   const meta={};for(const k in obj){if(k!=='data')meta[k]=obj[k];}meta.chunked=true;meta.partsN=n;meta.dataLen=data.length;
   await _withTimeout(ref.update(meta),window.__apFileTimeoutMs||30000,'附件元数据');
-  try{localStorage.removeItem('img-obx-filepos-'+fid);localStorage.removeItem(obxFileKey(fid));}catch(e){}
+  try{localStorage.removeItem(obxFilePosKey(fid));localStorage.removeItem(obxFileKey(fid));}catch(e){}
 }
 function apFileAssemble(v){
   if(!v||!v.chunked)return v;const parts=v.parts||{};const keys=Object.keys(parts).sort();let data='';for(const k of keys)data+=parts[k];
@@ -8496,7 +8702,7 @@ function apCostPull(){
   let o=(typeof ordItems!=='undefined'?ordItems:[]).find(x=>x&&!x.deleted&&x.orderNo===no);
   if(!o||!(o.svc||[]).length){
     try{
-      const raw=localStorage.getItem(ORD_KEY);
+      const raw=localStorage.getItem(storeKey(ORD_KEY));
       if(raw){const arr=JSON.parse(raw)||[];const c=arr.find(x=>x&&!x.deleted&&x.orderNo===no);if(c&&(c.svc||[]).length)o=c;}
     }catch(e){}
   }
@@ -9867,7 +10073,7 @@ const SVC_ALIAS={"海运费":{"en":"Ocean Freight","cat":"运输"},"空运费":{
 function ordMigrate(o){
 
   try{
-    if(o.type==='inq'&&/^IMG/.test(String(o.orderNo||''))){o.type='order';(o.log=o.log||[]).push({t:Date.now(),by:'系统',txt:'修复：IMG 成单号记录误标为询价（v35.9）'});}
+    if(o.type==='inq'&&(/^IMG/.test(String(o.orderNo||''))||(typeof CO!=='undefined'&&CO.key!=='de'&&new RegExp('^'+CO.ordPrefix+'\\d').test(String(o.orderNo||''))))){o.type='order';(o.log=o.log||[]).push({t:Date.now(),by:'系统',txt:'修复：IMG 成单号记录误标为询价（v35.9）'});}
     if(o.inqNo&&!/^F/.test(String(o.inqNo))){for(const l of (o.log||[])){const m=/询价转成单：(F\d+)/.exec(l&&l.txt||'');if(m){o.inqNo=m[1];break;}}}
   }catch(e){}
 
@@ -9972,15 +10178,17 @@ function ordMergeRemote(remote){
 
 var STORE_MODE='v1';var _smReady=null;var _smInit=false;
 function storeModePath(){return DB_PREFIX+'img-ap/sys/storeMode';}
+
+function smOf(v){return (v==='v2'||(v==null&&((typeof APP_CO!=='undefined'&&APP_CO!=='de')||(typeof VAULT_ON!=='undefined'&&VAULT_ON))))?'v2':'v1';}
 function storeModeReady(){
   if(_smReady)return _smReady;
   if(!USE_CLOUD||!rtdb)return (_smReady=Promise.resolve('v1'));
   _smReady=new Promise(function(res){
     let done=false;const fin=function(m){if(done)return;done=true;STORE_MODE=m;res(m);};
-    try{rtdb.ref(storeModePath()).once('value').then(function(s){fin(s.val()==='v2'?'v2':'v1');}).catch(function(){fin('v1');});}catch(e){fin('v1');}
-    setTimeout(function(){fin('v1');},6000);
+    try{rtdb.ref(storeModePath()).once('value').then(function(s){const v=s.val();if(v==null&&smOf(v)==='v2'){try{rtdb.ref(storeModePath()).set('v2').catch(function(){});}catch(e){}}fin(smOf(v));}).catch(function(){fin(smOf(null));});}catch(e){fin(smOf(null));}
+    setTimeout(function(){fin(smOf(null));},6000);
   });
-  try{rtdb.ref(storeModePath()).on('value',function(s){const m=s.val()==='v2'?'v2':'v1';
+  try{rtdb.ref(storeModePath()).on('value',function(s){const m=smOf(s.val());
     if(_smInit&&m!==STORE_MODE){STORE_MODE=m;try{toast('存储模式已切换为 '+(m==='v2'?'逐条记录':'整表')+'，3 秒后刷新页面');}catch(e){}setTimeout(function(){try{location.reload();}catch(e){}},3000);}
     _smInit=true;});}catch(e){}
   return _smReady;
@@ -10085,7 +10293,7 @@ function v2Subscribe(path,applyFn,getLocal){
 window.v2SubStatsGet=function(){return _v2SubStats;};window.v2WriteStatsGet=function(){return _v2WriteStats;};window.v2Canon=v2Canon;
 let _cloudLastErr=null;
 function cloudReadFailMsg(){
-  if(_cloudLastErr&&_cloudLastErr.perm){const node=String(_cloudLastErr.path||'').replace(/^.*?(img-[a-z]+).*$/,'$1');return '数据库规则未开放节点「'+node+'」（PERMISSION_DENIED）——请在 Firebase 控制台 Realtime Database → Rules 为该节点加 ".read": true, ".write": true 后重试。本次未写入任何数据。';}
+  if(_cloudLastErr&&_cloudLastErr.perm){const _pp=String(_cloudLastErr.path||'');const node=(typeof VAULT_ON!=='undefined'&&VAULT_ON)?'vault':((typeof APP_CO!=='undefined'&&APP_CO!=='de'&&_pp.indexOf(APP_CO+'/')>=0)?APP_CO:_pp.replace(/^.*?(img-[a-z]+).*$/,'$1')); return '数据库规则未开放节点「'+node+'」（PERMISSION_DENIED）——请在 Firebase 控制台 Realtime Database → Rules 为该节点加 ".read": true, ".write": true 后重试。本次未写入任何数据。';}
   return '网络不稳定，未能读取云端最新数据；为避免覆盖他人记录已中止保存，请稍后重试。';
 }
 window.cloudReadFailMsg=cloudReadFailMsg;
@@ -10491,8 +10699,8 @@ function seqNextNo(prefix){
   while(used.has(cand)){n++;cand=prefix+ym+String(n).padStart(2,'0');}
   return cand;
 }
-function ordGenNo(){return seqNextNo('IMG');}
-function inqGenNo(){return seqNextNo('F');}
+function ordGenNo(){return seqNextNo(CO.ordPrefix);}
+function inqGenNo(){return seqNextNo(CO.inqPrefix);}
 
 const ORD_NOINV_DAYS=7;
 let _lkIdx=null,_lkAt=0;
@@ -10614,7 +10822,7 @@ function ordSvcLines(o){
 
   return (o.svc||[]).filter(s=>s.price!=null).map(s=>({
     name:s.name,en:s.en||'',qty:s.qty||1,unit:s.unit||'unit',
-    price:s.price,vat:s.vat!=null?s.vat:19,disc:s.disc||0,cur:s.cur||'EUR',
+    price:s.price,vat:s.vat!=null?s.vat:VAT_DEF,disc:s.disc||0,cur:s.cur||'EUR',
     pm:s.pm||undefined,rate:s.rate||0,note:s.note||undefined,
     amount:svcLineNet(s)
   }));
@@ -10705,7 +10913,7 @@ async function ordFinStubCreateExtra(o,term,note){
   ariItems.push({
     id:'ai'+Date.now()+Math.random().toString(36).slice(2,7),
     customer:o.customer,orderNo:o.orderNo,currency:o.saleCur||'EUR',term:term,
-    vatRate:o.vatRate??19,refSale:null,lines:ordSvcLines(o),extra:true,
+    vatRate:o.vatRate??VAT_DEF,refSale:null,lines:ordSvcLines(o),extra:true,
     note:'📣 追加开票：'+note,fromOrder:true,_up:Date.now(),
     comments:[],createdAt:Date.now(),createdBy:session&&session.name||''
   });
@@ -10723,7 +10931,7 @@ async function ordFinStubCreate(o,term){
   ariItems.push({
     id:'ai'+Date.now()+Math.random().toString(36).slice(2,7),
     customer:o.customer,orderNo:o.orderNo,currency:o.saleCur||'EUR',term:t,
-    vatRate:o.vatRate??19,refSale:_ref,lines:ordSvcLines(o),fromOrder:true,_up:Date.now(),
+    vatRate:o.vatRate??VAT_DEF,refSale:_ref,lines:ordSvcLines(o),fromOrder:true,_up:Date.now(),
     comments:[{author:bizName(),role:session.role,text:'订单 '+o.orderNo+' 服务完成，待财务开票。账期：'+(TERM_LABEL[t]||t+' 天')+'。'+(_ref?((_sv.v!=null?'服务项合计 ':'参考售价 ')+fmt(_ref)+' '+(o.saleCur||'EUR')+'。'):'')+(_sv.multi?'（多币种明细，请分币种核对。）':''),time:Date.now()}],
     createdBy:bizName(),createdAt:Date.now()
   });
@@ -11189,7 +11397,7 @@ function ordDetail(o){
       if(typeof svcIsPassThrough==='function'&&svcIsPassThrough(s.name)){
         row.appendChild(mk('<span class="badge" style="background:var(--info-bg);color:var(--info);font-size:10px;padding:1px 5px">代垫</span>',40));
       }else row.appendChild(mk('',40));
-      row.appendChild(mk('<span style="color:var(--ink-soft)">VAT '+(s.vat!=null?s.vat:19)+'%</span>',56));
+      row.appendChild(mk('<span style="color:var(--ink-soft)">VAT '+(s.vat!=null?s.vat:VAT_DEF)+'%</span>',56));
 
       if(s.pm==='rate')row.appendChild(mk('<span style="color:var(--brass);font-size:11px" title="基数 '+fmt(s.price||0)+' × '+(s.rate||0)+'% = '+fmt(svcLineNet(s))+'">费率 '+(s.rate||0)+'% = '+fmt(svcLineNet(s))+'</span>',110));
       else if(s.disc)row.appendChild(mk('<span style="color:var(--ink-soft);font-size:11px">折扣 '+s.disc+'%</span>',62));
@@ -11202,7 +11410,7 @@ function ordDetail(o){
         ed.title='载入下方编辑行修改';
         ed.onclick=e=>{e.stopPropagation();
           iName.value=s.name;iQty.value=s.qty||1;iUnit.value=s.unit||'unit';
-          iPrice.value=s.price!=null?s.price:'';iVat.value=String(s.vat!=null?s.vat:19);iCur.value=s.cur||'EUR';
+          iPrice.value=s.price!=null?s.price:'';iVat.value=String(s.vat!=null?s.vat:VAT_DEF);iCur.value=s.cur||'EUR';
 
           {const pm=(s.pm==='rate')?'rate':'disc';
            const el=document.querySelector('#ordBody tr.detail select[title^="折扣："]');
@@ -11326,7 +11534,7 @@ function ordDetail(o){
       iPrice=document.createElement('input');iPrice.type='text';iPrice.inputMode='decimal';iPrice.placeholder='Price (Net)';iPrice.title='单价·净额（可输入 1.234,56 或 1234.56）';iPrice.style.cssText=st+';width:96px;text-align:right';
       iVat=document.createElement('select');iVat.title='VAT';var iNote=null;
       for(const v of [['19','19%'],['0','0%']]){const op=document.createElement('option');op.value=v[0];op.textContent='VAT '+v[1];iVat.appendChild(op);}
-  try{iVat.value=String((o.vatRate===0||o.vatRate)?o.vatRate:19);}catch(e){}
+  try{iVat.value=String((o.vatRate===0||o.vatRate)?o.vatRate:VAT_DEF);}catch(e){}
       iVat.style.cssText=st+';padding:6px 4px';
       iCur=document.createElement('select');iCur.style.cssText=st+';width:64px';
       for(const c of ['EUR','USD','GBP','CNY']){const op=document.createElement('option');op.value=c;op.textContent=c;iCur.appendChild(op);}
@@ -11740,7 +11948,7 @@ function ordDetailPart2(o,wrap,left){
     bWin.onclick=e=>{e.stopPropagation();
       if(!confirm('确认成单？\n将分配下一个连续 IMG 成单号，询价号 '+o.orderNo+' 保留在订单里可随时查。'))return;
       ordDo(async()=>{
-        const newNo=await ordGenNoClaimed('IMG',o.id);
+        const newNo=await ordGenNoClaimed(CO.ordPrefix,o.id);
         if(!o.inqNo||!/^F/.test(String(o.inqNo)))o.inqNo=o.orderNo;
         o.orderNo=newNo;
         o.type='order';
@@ -11812,11 +12020,15 @@ function ordDetailPart2(o,wrap,left){
     bPack.onclick=e=>{e.stopPropagation();ordArchiveExport(o);};
     act.appendChild(bPack);
   }
-  const bQuote=document.createElement('button');bQuote.className='btn-sm';
+  const bQuote=document.createElement('button');bQuote.className='btn-sm co-de-only';
   bQuote.textContent='📄 报价单';
   bQuote.title='生成客户报价单，可打印或另存为 PDF';
   bQuote.onclick=e=>{e.stopPropagation();ordQuotation(o);};
   act.appendChild(bQuote);
+  if(CO.key==='de'&&session&&session.name==='Emma'&&!isRO()&&!o.deleted){
+    const bMv=document.createElement('button');bMv.className='btn-sm';bMv.id='coMoveBtn';bMv.textContent='→ 迁到香港公司';bMv.title='这张单属于香港公司业务：迁到香港公司界面，德国这边不再显示。已有应付 / 应收关联的不能直接迁';
+    bMv.onclick=e=>{e.stopPropagation();coMoveOrder(o);};act.appendChild(bMv);
+  }
   {
     const bEdit=document.createElement('button');bEdit.className='btn-sm';bEdit.textContent='编辑';
     bEdit.onclick=e=>{e.stopPropagation();ordOpenEdit(o);};
@@ -11925,7 +12137,7 @@ function ordOpenEdit(o){
   $('oSaleCur').value=o?(o.saleCur||'EUR'):'EUR';
   $('oDesc').value=o?(o.desc||''):'';
   $('oOwner').value=o?(o.owner||''):bizName();
-  $('oVatRate').value=o?String(o.vatRate??19):'19';
+  $('oVatRate').value=CO.vat?(o?String(o.vatRate??19):'19'):'0';
   $('ordEditErr').style.display='none';
   $('ordEditOverlay').classList.add('open');
   $('oCustomer').focus();
@@ -11955,7 +12167,7 @@ async function ordSaveEdit(){
       for(const k in cmp){if(String(o[k]??'')!==String(cmp[k][1]??''))changes.push(cmp[k][0]+'：'+(o[k]??'—')+' → '+(cmp[k][1]??'—'));}
       const oldNo=o.orderNo;
       if(no!==oldNo)await noClaim(no,o.id);
-      o.orderNo=no;o.customer=cust;o.owner=ownerV;o.salePrice=sale;o.saleCur=$('oSaleCur').value;o.desc=$('oDesc').value.trim();o.vatRate=parseFloat($('oVatRate').value)||0;
+      o.orderNo=no;o.customer=cust;o.owner=ownerV;o.salePrice=sale;o.saleCur=$('oSaleCur').value;o.desc=$('oDesc').value.trim();o.vatRate=CO.vat?(parseFloat($('oVatRate').value)||0):0;
       if(changes.length){logAdd(o,'编辑：'+changes.join('；'));ordCmt(o,'✎ 修改订单：'+changes.join('；'));}
       await ordSave();
 
@@ -11976,7 +12188,7 @@ async function ordSaveEdit(){
         id:'o'+Date.now()+Math.random().toString(36).slice(2,7),
         type:isInq?'inq':undefined,
         orderNo:no,customer:cust,owner:nm,
-        salePrice:sale,saleCur:$('oSaleCur').value,vatRate:parseFloat($('oVatRate').value)||19,desc:$('oDesc').value.trim(),
+        salePrice:sale,saleCur:$('oSaleCur').value,vatRate:CO.vat?(parseFloat($('oVatRate').value)||19):0,desc:$('oDesc').value.trim(),
         step:1,flag:'',svc:[],quotes:[],log:[],comments:[],
         createdBy:nm,createdAt:Date.now()
       };
@@ -12000,6 +12212,7 @@ function ordOpenInv(o){
     (o.salePrice?'<br>客户售价 '+fmt(o.salePrice)+' '+esc(o.saleCur||'EUR'):'');
   $('oInvNo').value=o.inv?o.inv.no:'';
   $('oInvDate').value=o.inv?o.inv.date:todayStr();
+  if(!CO.vat){try{$('oInvVat').value='0';}catch(e){}}
   $('oInvAmount').value=o.inv?o.inv.amount:(o.salePrice||'');
   $('oInvCur').value=o.inv?(o.inv.cur||'EUR'):(o.saleCur||'EUR');
   $('ordInvErr').style.display='none';
@@ -12453,7 +12666,7 @@ async function migSwitch(mode){
 function migRender(){
   const box=$('migBox');if(!box)return;
   const dry=_mig.dry,sn=_mig.snap,wr=_mig.written;
-  let h='<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">当前模式：<b style="color:var(--ink)">'+(STORE_MODE==='v2'?'逐条记录（v2）':'整表 JSON（v1）')+'</b>'+(DB_PREFIX?' · <span style="color:var(--brass)">预发布环境</span>':' · <span style="color:var(--bad)">生产环境</span>')+'。顺序：① 干跑 → ② 快照 → ③ 写入 v2 → ④ 切换；任何时候可 ⑤ 回滚到 v1（v2 下每次保存都影子写回 v1，回滚不丢数据）。<b>建议先在预发布环境完整演练。</b></div>';
+  let h='<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">当前模式：<b style="color:var(--ink)">'+(STORE_MODE==='v2'?'逐条记录（v2）':'整表 JSON（v1）')+'</b>'+((typeof APP_ENV!=='undefined'&&APP_ENV==='staging')?' · <span style="color:var(--brass)">预发布环境</span>':' · <span style="color:var(--bad)">生产环境</span>')+'。顺序：① 干跑 → ② 快照 → ③ 写入 v2 → ④ 切换；任何时候可 ⑤ 回滚到 v1（v2 下每次保存都影子写回 v1，回滚不丢数据）。<b>建议先在预发布环境完整演练。</b></div>';
   h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button type="button" class="btn-ghost" id="migDry">① 干跑（只读）</button><button type="button" class="btn-ghost" id="migSnap">② 生成快照</button><button type="button" class="btn-ghost" id="migWrite"'+((dry&&dry.ok&&sn)?'':' disabled')+'>③ 写入 v2</button><button type="button" class="btn" id="migGo"'+((wr&&wr.ok&&STORE_MODE!=='v2')?'':' disabled')+'>④ 切换到逐条记录</button><button type="button" class="btn-ghost" id="migBack"'+(STORE_MODE==='v2'?'':' disabled')+' style="color:var(--bad)">⑤ 回滚到整表</button></div>';
   if(dry){h+='<div style="font-size:12px;margin-bottom:6px"><b>干跑结果</b>（'+new Date(dry.at).toLocaleTimeString('zh-CN')+'）：'+(dry.ok?'<span style="color:var(--ok)">通过</span>':'<span style="color:var(--bad)">存在问题，不可继续</span>')+'<table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:4px"><tr style="background:var(--n-wash)"><th style="text-align:left;padding:3px 6px">台账</th><th>记录数</th><th>含已删除</th><th>重复id</th><th>缺id</th><th>v2 现有</th></tr>'+dry.cols.map(function(c){return '<tr><td style="padding:3px 6px">'+c.name+'</td><td style="text-align:center">'+c.n+'</td><td style="text-align:center">'+c.del+'</td><td style="text-align:center;color:'+(c.dup?'var(--bad)':'inherit')+'">'+c.dup+'</td><td style="text-align:center;color:'+(c.noId?'var(--bad)':'inherit')+'">'+c.noId+'</td><td style="text-align:center">'+c.v2n+'</td></tr>';}).join('')+'</table></div>';}
   if(sn)h+='<div style="font-size:12px;margin-bottom:6px"><b>快照</b>：<span style="font-family:var(--font-num)">'+esc(sn.root)+'</span>（'+new Date(sn.at).toLocaleTimeString('zh-CN')+'）</div>';
@@ -13444,7 +13657,7 @@ $('stornoOk').onclick=async function(){
         ariItems.push({
           id:'ai'+Date.now()+Math.random().toString(36).slice(2,7),
           customer:x.customer,orderNo:x.orderNo||'',currency:x.currency||'EUR',
-          term:x.term!=null?x.term:14,vatRate:x.vatRate??19,
+          term:x.term!=null?x.term:14,vatRate:x.vatRate??VAT_DEF,
           refSale:o2?(typeof ordSaleRef==='function'?ordSaleRef(o2):(o2.salePrice||null)):null,
           lines:o2?ordSvcLines(o2):(x.lines||[]),
           extra:true,fromOrder:true,
@@ -13546,7 +13759,7 @@ function aiRevCalc(l){
   const disc=Number(l.disc)||0;
 
   const net=(l.pm==='rate')?Math.round(qty*price*((Number(l.rate)||0)/100)*100)/100:Math.round(qty*price*(1-disc/100)*100)/100;
-  const vr=(l.vat==null||l.vat==='')?19:Number(l.vat)||0;
+  const vr=(l.vat==null||l.vat==='')?VAT_DEF:Number(l.vat)||0;
   return {net:net,vat:Math.round(net*vr/100*100)/100,vr:vr};
 }
 function aiRevRender(){
@@ -13581,7 +13794,7 @@ function aiRevRender(){
       i.style.cssText=st+';width:'+w+'px;text-align:right';i.disabled=_aiRevLocked;i.oninput=()=>{on(i.value);aiRevRefresh(idx);aiRevSum();};return i;};
     const iQty=mkN(l.qty==null?1:l.qty,62,'1',v=>_aiRevLines[idx].qty=v);
     const iPrice=mkN(l.price,92,'0.00',v=>_aiRevLines[idx].price=v);
-    const iVat=mkN(l.vat==null?19:l.vat,70,'19',v=>_aiRevLines[idx].vat=v);
+    const iVat=mkN(l.vat==null?VAT_DEF:l.vat,70,String(VAT_DEF),v=>_aiRevLines[idx].vat=v);
     const sNet=document.createElement('span');sNet.className='ai-rev-net';
     sNet.style.cssText='width:96px;text-align:right;font-family:var(--font-num);font-weight:700';
     sNet.textContent=fmt(c.net);
@@ -13657,7 +13870,7 @@ function aiRevPull(){
   if(!no){toast('请先填写 IMG 成单号，再从订单带出');return;}
   let o=(typeof ordItems!=='undefined'?ordItems:[]).find(x=>x&&!x.deleted&&x.orderNo===no);
   if(!o||!(o.svc||[]).length){
-    try{const raw=localStorage.getItem(ORD_KEY);
+    try{const raw=localStorage.getItem(storeKey(ORD_KEY));
       if(raw){const arr=JSON.parse(raw)||[];const c=arr.find(x=>x&&!x.deleted&&x.orderNo===no);if(c&&(c.svc||[]).length)o=c;}
     }catch(e){}
   }
@@ -13667,7 +13880,7 @@ function aiRevPull(){
   for(const sv of o.svc){
     if(sv.price==null)continue;
     if(exist.has(svcNorm(sv.name)))continue;
-    _aiRevLines.push({name:sv.name,en:sv.en||'',qty:sv.qty==null?1:sv.qty,price:sv.price,vat:sv.vat==null?19:sv.vat,disc:sv.disc||0,pm:(sv.pm==='rate'?'rate':undefined),rate:(sv.pm==='rate'?(Number(sv.rate)||0):undefined)});
+    _aiRevLines.push({name:sv.name,en:sv.en||'',qty:sv.qty==null?1:sv.qty,price:sv.price,vat:sv.vat==null?VAT_DEF:sv.vat,disc:sv.disc||0,pm:(sv.pm==='rate'?'rate':undefined),rate:(sv.pm==='rate'?(Number(sv.rate)||0):undefined)});
     add++;
   }
   aiRevRender();
@@ -13689,7 +13902,7 @@ function ariOpenEdit(x){
       return {name:l.name||'',en:l.en||'',
               qty:(l.qty==null?1:l.qty),
               price:(isFinite(price)?price:0),
-              vat:(l.vat==null?19:l.vat),disc:l.disc||0,pm:(l.pm==='rate'?'rate':undefined),rate:(l.pm==='rate'?(Number(l.rate)||0):undefined)};
+              vat:(l.vat==null?VAT_DEF:l.vat),disc:l.disc||0,pm:(l.pm==='rate'?'rate':undefined),rate:(l.pm==='rate'?(Number(l.rate)||0):undefined)};
     });
     try{aiRevRender();}catch(e){}
   }
@@ -13706,7 +13919,7 @@ function ariOpenEdit(x){
   $('aiOrderNo').value=x?x.orderNo||'':'';
   $('aiNet').value=x?(x.net!=null?x.net:(_preNet!=null&&_preNet!==0?_preNet:(x.refSale!=null?x.refSale:''))):'';
   {const ov=$('aiNetOverride'),rs=$('aiNetReason');if(ov){ov.checked=false;}if(rs){rs.value='';}const ob=$('aiNetOverrideBox');if(ob)ob.style.display='none';}
-  $('aiVatRate').value=x?String(x.vatRate??19):'19';
+  $('aiVatRate').value=CO.vat?(x?String(x.vatRate??19):'19'):'0';
   $('aiCur').value=x?x.currency||'EUR':'EUR';
   $('aiTerm').value=x?String(x.term??30):'14';
   $('aiNote').value=x?x.note||'':'';
@@ -14629,7 +14842,7 @@ const HR_STAFF=['Minglu','Christina','Bowen','Man','Yaxuan'];
 const HR_APPROVER='Peter';
 const HR_TYPES={vac:'年假',sick:'病假',comp:'调休（折加班）',ot:'加班登记'};
 let hrItems=[];let _hrStarted=false;
-function canHR(){return !!session&&(HR_STAFF.includes(session.name)||session.name===HR_APPROVER||session.name==='Emma');}
+function canHR(){return CO.full&&!!session&&(HR_STAFF.includes(session.name)||session.name===HR_APPROVER||session.name==='Emma');}
 function hrIsStaff(){return !!session&&HR_STAFF.includes(session.name);}
 function hrCanDecide(){return !!session&&session.name===HR_APPROVER;}
 
@@ -15040,7 +15253,7 @@ window.hrQuotaSuggest=hrQuotaSuggest;
 const BANK_PATH=DB_PREFIX+'img-bank/state';
 const BANK_KEY='img-bank-state';
 let bankItems=[];let _bankStarted=false;let bankFMonth='',bankFStatus='',bankFQ='';
-function canBank(){return !!session&&session.role==='finance';}
+function canBank(){return CO.full&&!!session&&session.role==='finance';}
 function bankCloudStart(){
   if(_bankStarted||!canBank())return;_bankStarted=true;
   store.get(BANK_KEY).then(r=>{if(r&&r.value){try{bankItems=JSON.parse(r.value);}catch(e){}bankAlertUpdate();}}).catch(()=>{});
@@ -15768,7 +15981,7 @@ const EXP_CATS=['Büromaterial','Lagermaterial','Bewirtung','Fachliteratur','Sof
 const EXP_CAT_ACCT={'Büromaterial':'办公费','Fachliteratur':'办公费','Arbeitsmittel':'办公费','Lagermaterial':'管理费用','Bewirtung':'管理费用','Software / Lizenzen':'管理费用','Telefon / Internet':'管理费用','Porto / Versand':'管理费用','Fahrtkosten (ÖPNV)':'管理费用','Taxi / Fahrdienst':'管理费用','Fortbildung':'管理费用','Sonstige':'其他应付款'};
 const EXP_STATUS={draft:'草稿',submitted:'待财务审核',approved:'已批准',rejected:'已驳回',paid:'已付款'};
 let expItems=[];let _expStarted=false;
-function canExp(){return !!session&&(session.role==='finance'||EXP_STAFF.includes(session.name));}
+function canExp(){return CO.full&&!!session&&(session.role==='finance'||EXP_STAFF.includes(session.name));}
 function canExpReview(){return !!session&&session.role==='finance';}
 function expMine(){return expItems.filter(x=>!x.deleted&&(canExpReview()||x.user===session.name));}
 function expCloudStart(){
@@ -16061,6 +16274,7 @@ function aoaWithTotal(aoa,headerRowIdx,numCols,label){
 }
 
 async function exportSheetStyled(rows,sheetName,fileBase,cols){
+  if(typeof coAoa==='function')rows=coAoa(rows);
   const wb=new ExcelJS.Workbook();
   const ws=wb.addWorksheet(String(sheetName||'Sheet').slice(0,31));
   const width=function(r){return r.filter(function(v){return v!==''&&v!==null&&v!==undefined;}).length;};
@@ -16190,7 +16404,7 @@ function a11yInit(){
     else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
   },true);
 }
-function ntfKey(){return 'img-ntf-read-'+((session&&session.name)||'x');}
+function ntfKey(){return storeKey('img-ntf-read-'+((session&&session.name)||'x'));}
 function ntfLastRead(){try{return Number(localStorage.getItem(ntfKey()))||0;}catch(e){return 0;}}
 function ntfMarkRead(){try{localStorage.setItem(ntfKey(),String(Date.now()));}catch(e){}ntfBadge();}
 function ntfCollect(){
@@ -17369,6 +17583,7 @@ const FN_MAP={'到账台账':{en:'AR-Payments',de:'Zahlungseingaenge'},'应付�
  '月度经营报表':{en:'Monthly-Report',de:'Monatsbericht'},'全平台备份':{en:'Full-Backup',de:'Komplett-Backup'},
  '对账单':{en:'Statement',de:'Abrechnung'},'客户档案':{en:'Customers',de:'Kundenstamm'},'供应商档案':{en:'Suppliers',de:'Lieferantenstamm'},'服务项目库':{en:'Service-Library',de:'Leistungskatalog'},'整单档案':{en:'Dossier',de:'Komplettakte'},'应付发票':{en:'AP-Invoices',de:'Eingangsrechnungen'}};
 function fnT(name){
+  if(typeof CO!=='undefined'&&CO.key!=='de')name=String(name).replace(/^IMG-Europe-/,CO.brand.replace(/\s+/g,'-')+'-');
   if(LANG==='zh')return name;
   let out=name;
   for(const k in FN_MAP)out=out.split(k).join(FN_MAP[k][LANG]||k);
@@ -18195,6 +18410,22 @@ Object.assign(I18N,{
 "％ 费率行核对":{en:"％ Rate lines check",de:"％ Prozentpositionen prüfen"},
 "明细里丢了费率标记的发票：核对清单，对得上的可一键补回（Emma）":{en:"Invoices whose lines lost the percentage marker: check list; matching ones can be restored in one click (Emma)",de:"Rechnungen, deren Positionen die Prozentkennzeichnung verloren haben: Prüfliste; passende können mit einem Klick ergänzt werden (Emma)"},
 "全部已核销":{en:"All allocated",de:"Alles zugeordnet"},
+"当前登录：":{en:"Signed in to: ",de:"Angemeldet bei: "},
+"德国公司":{en:"German company",de:"Deutsche Gesellschaft"},
+"香港公司":{en:"Hong Kong company",de:"Hongkong-Gesellschaft"},
+"改为登录香港公司 →":{en:"Switch to Hong Kong company →",de:"Zur Hongkong-Gesellschaft wechseln →"},
+"改为登录德国公司 →":{en:"Switch to German company →",de:"Zur deutschen Gesellschaft wechseln →"},
+"切换到香港公司 ↗":{en:"Open Hong Kong company ↗",de:"Hongkong-Gesellschaft öffnen ↗"},
+"切换到德国公司 ↗":{en:"Open German company ↗",de:"Deutsche Gesellschaft öffnen ↗"},
+"在新标签页打开香港公司（O B TRANS HK CO., LIMITED）；数据完全分开":{en:"Opens the Hong Kong company (O B TRANS HK CO., LIMITED) in a new tab; data is kept completely separate",de:"Öffnet die Hongkong-Gesellschaft (O B TRANS HK CO., LIMITED) in einem neuen Tab; die Daten sind vollständig getrennt"},
+"在新标签页打开德国公司（IMG Europe GmbH）；数据完全分开":{en:"Opens the German company (IMG Europe GmbH) in a new tab; data is kept completely separate",de:"Öffnet die deutsche Gesellschaft (IMG Europe GmbH) in einem neuen Tab; die Daten sind vollständig getrennt"},
+"→ 迁到香港公司":{en:"→ Move to Hong Kong company",de:"→ Zur Hongkong-Gesellschaft verschieben"},
+"这张单属于香港公司业务：迁到香港公司界面，德国这边不再显示。已有应付 / 应收关联的不能直接迁":{en:"This order belongs to the Hong Kong company: move it to the Hong Kong view; it will no longer be shown here. Orders with linked payables / receivables cannot be moved directly",de:"Dieser Auftrag gehört zur Hongkong-Gesellschaft: in die Hongkong-Ansicht verschieben; hier wird er nicht mehr angezeigt. Aufträge mit verknüpften Verbindlichkeiten / Forderungen können nicht direkt verschoben werden"},
+"📤 待国内付款清单":{en:"📤 Payment list for China finance",de:"📤 Zahlungsliste für Finanzabteilung China"},
+"所有未付清的应付发票，按到期日排序，导出 Excel 发给国内财务":{en:"All unpaid supplier invoices sorted by due date, exported to Excel for the finance team in China",de:"Alle offenen Eingangsrechnungen nach Fälligkeit sortiert, als Excel für die Finanzabteilung in China"},
+"订单 · 应收 · 应付（香港公司，数据与德国公司分开）":{en:"Orders · Receivables · Payables (Hong Kong company, data separate from the German company)",de:"Aufträge · Forderungen · Verbindlichkeiten (Hongkong-Gesellschaft, Daten getrennt von der deutschen Gesellschaft)"},
+"待付清单":{en:"Open payables",de:"Offene Posten"},
+"重新输入团队口令":{en:"Re-enter team passphrase",de:"Team-Passphrase neu eingeben"},
 "🧾 税额≠明细":{en:"🧾 VAT ≠ lines",de:"🧾 USt ≠ Positionen"},
 "📑 sevDesk 对账":{en:"📑 sevDesk reconciliation",de:"📑 sevDesk-Abgleich"},
 "发票税额与明细逐行计税不一致的正式发票（财务逐张选按明细/按头部）":{en:"Invoices whose VAT differs from line-by-line tax (finance chooses per invoice: by lines / by header rate)",de:"Rechnungen, deren USt von der zeilenweisen Berechnung abweicht (Buchhaltung wählt je Rechnung: nach Positionen / nach Kopfsatz)"},
@@ -18765,6 +18996,126 @@ I18N_RULES.push(
 [/^下午好，(.+)$/,{en:"Good afternoon, $1",de:"Guten Tag, $1"}],
 [/^晚上好，(.+)$/,{en:"Good evening, $1",de:"Guten Abend, $1"}]
 );
+
+const CO_OTHER=(typeof APP_CO!=='undefined'&&APP_CO==='hk')?'de':'hk';
+
+const CO_HIDE_HK=['tabBANK','tabHR','apExpBtn','ariDunBtn','ariArchBtn','ariReconBtn','ariVatBtn','ariRateBtn',
+  'coCard','lcCard','mdCard','bankRuleCard','hrCfgCard'];
+(function(){
+  const d=document.documentElement;d.classList.add('co-'+CO.key);
+  const st=document.createElement('style');st.id='coStyle';
+  st.textContent=
+
+    'html.co-hk{--pine:#17375E;--pine-ink:#17375E;--pine-deep:#0F2743}'+
+    'html.co-hk body.theme-dark{--pine:#1F4675;--pine-deep:#17375E;--pine-ink:#9CC4F2}'+
+    CO_HIDE_HK.map(function(id){return 'html.co-hk #'+id;}).join(',')+'{display:none!important}'+
+    'html.co-hk .co-de-only{display:none!important}html.co-de .co-hk-only{display:none!important}'+
+    '.co-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.16);border-radius:20px;padding:2px 4px 2px 10px;font-size:12px;font-weight:700;white-space:nowrap}'+
+    '.co-chip a{color:inherit;background:rgba(255,255,255,.2);border-radius:14px;padding:1px 9px;font-weight:600;text-decoration:none;font-size:11.5px}.co-chip a:hover{background:rgba(255,255,255,.34)}'+
+    'html.ui2 .co-chip{margin:2px 0 6px;justify-content:space-between}'+
+    '.co-login{margin:10px 0 14px;line-height:1.6;text-align:center;font-size:12px;color:var(--ink-soft)}.co-login b{color:var(--pine-ink)}.co-login a{color:var(--brass);font-weight:600;margin-left:6px}';
+  document.head.appendChild(st);
+
+  try{
+    const bm=document.querySelector('header.topbar .brand-mark');
+    if(bm){bm.textContent=CO.brand;
+      const chip=document.createElement('span');chip.className='co-chip';chip.id='coChip';
+      chip.innerHTML='<span id="coName">'+esc(CO.short)+'</span><a id="coSwitch" href="'+esc(coUrl(CO_OTHER))+'" target="_blank" rel="noopener" title="在新标签页打开'+esc(CO_LIST[CO_OTHER].short)+'（'+esc(CO_LIST[CO_OTHER].name)+'）；数据完全分开">'+esc('切换到'+CO_LIST[CO_OTHER].short)+' ↗</a>';
+      bm.parentNode.insertBefore(chip,bm.nextSibling);}
+    if(CO.key!=='de'){document.title=CO.brand+' 管理平台';const ft=document.querySelector('footer');if(ft&&ft.firstChild&&ft.firstChild.nodeType===3)ft.firstChild.nodeValue=ft.firstChild.nodeValue.replace('IMG Europe',CO.brand);}
+  }catch(e){}
+
+  try{
+    const lc=document.querySelector('.login-card');
+    if(lc){
+      if(CO.key!=='de'){const eb=lc.querySelector('.l-eyebrow'),ti=lc.querySelector('.l-title'),sub=lc.querySelector('.l-sub');
+        if(eb)eb.textContent=CO.name.toUpperCase();if(ti)ti.textContent=CO.brand+' 管理平台';if(sub)sub.textContent='订单 · 应收 · 应付（香港公司，数据与德国公司分开）';}
+      const dv=lc.querySelector('.l-divider');const box=document.createElement('div');box.className='co-login';box.id='coLogin';
+      box.innerHTML='<span>当前登录：</span><b><span>'+esc(CO.short)+'</span> · '+esc(CO.name)+'</b><a id="coLoginSwitch" href="'+esc(coUrl(CO_OTHER))+'">'+esc('改为登录'+CO_LIST[CO_OTHER].short)+' →</a>';
+      if(dv&&dv.parentNode)dv.parentNode.insertBefore(box,dv.nextSibling);else lc.appendChild(box);
+    }
+  }catch(e){}
+})();
+function coIs(k){return CO.key===k;}
+window.coIs=coIs;window.CO=CO;
+
+function coPayListRows(){
+  const today=todayStr();
+  const list=apItems.filter(function(it){if(it.deleted)return false;const amt=Number(it.amount)||0;const open=Math.round((amt-apPaid(it))*100)/100;return amt>0&&open>0.004;})
+    .sort(function(a,b){return String(a.due||'9999').localeCompare(String(b.due||'9999'))||String(a.supplier||'').localeCompare(String(b.supplier||''));});
+  const sup=function(n){return (meta.suppliers||[]).find(function(s){return !s.deleted&&s.name===n;})||{};};
+  const head=['到期日','状态','供应商','发票号','发票日期','成单号','发票金额','已付','待付','币种','收款 IBAN','BIC','备注'];
+  const rows=list.map(function(it){const amt=Number(it.amount)||0,paid=apPaid(it),s=sup(it.supplier);
+    return [it.due||'',(it.due&&it.due<today)?'已逾期':(it.due===today?'今天到期':'未到期'),it.supplier||'',it.invNo||'',it.invDate||'',it.orderNo||'',amt,paid||'',Math.round((amt-paid)*100)/100,it.currency||'EUR',s.iban||'',s.bic||'',it.note||''];});
+  return {head:head,rows:rows,list:list};
+}
+async function coPayListExport(){
+  const d=coPayListRows();if(!d.rows.length){toast('没有待付的应付发票');return false;}
+  try{await ensureXLSX();
+    const ws=XLSX.utils.aoa_to_sheet(xlT(aoaWithTotal([d.head].concat(d.rows),0)));
+    ws['!cols']=[{wch:11},{wch:9},{wch:30},{wch:18},{wch:11},{wch:12},{wch:12},{wch:10},{wch:12},{wch:6},{wch:28},{wch:12},{wch:30}];
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,trStr('待付清单'));
+    XLSX.writeFile(wb,fnT(CO.brand.replace(/\s+/g,'-')+'-待国内付款清单-'+todayStr())+'.xlsx');
+    toast('已导出 '+d.rows.length+' 张待付发票（按到期日排序）');return true;
+  }catch(e){toast('导出失败：'+(e&&e.message||e));return false;}
+}
+window.coPayListRows=coPayListRows;window.coPayListExport=coPayListExport;
+(function(){
+  if(CO.key==='de')return;
+  try{const ex=$('apExportBtn');if(ex&&ex.parentNode&&!$('coPayListBtn')){const b=document.createElement('button');b.type='button';b.className='btn-ghost';b.id='coPayListBtn';b.textContent='📤 待国内付款清单';b.title='所有未付清的应付发票，按到期日排序，导出 Excel 发给国内财务';b.onclick=coPayListExport;ex.parentNode.insertBefore(b,ex);}}catch(e){}
+})();
+
+function coMoveBlockers(o){
+  const no=o.orderNo;const ap=apItems.filter(function(x){return !x.deleted&&(x.orderNo===no||(x.costs||[]).some(function(c){return c&&c.orderNo===no;}));});
+  const ar=ariItems.filter(function(x){return !x.deleted&&x.orderNo===no;});
+  return {ap:ap,ar:ar,any:ap.length+ar.length>0};
+}
+async function coMoveOrder(o){
+  if(CO.key!=='de'||!session||session.name!=='Emma'||roGuard())return false;
+  if(!o||o.deleted)return false;if(!USE_CLOUD||!rtdb){toast('未连接云端，不能迁移');return false;}
+  const bl=coMoveBlockers(o);
+  if(bl.any){alert('「'+o.orderNo+'」不能直接迁到香港公司：\n\n'+(bl.ap.length?'· 德国平台上已有 '+bl.ap.length+' 张应付关联此单（'+bl.ap.slice(0,5).map(function(x){return x.invNo||x.supplier;}).join('、')+'）\n':'')+(bl.ar.length?'· 德国平台上已有 '+bl.ar.length+' 条应收关联此单（'+bl.ar.slice(0,5).map(function(x){return x.invNo||'待开票';}).join('、')+'）\n':'')+'\n请先确定这些记录归哪家公司，处理后再迁。');return false;}
+  if(!confirm('把订单「'+o.orderNo+'」迁到香港公司（'+CO_LIST.hk.name+'）？\n\n· 订单内容、报价、备注、附件原样带过去，单号不变\n· 德国公司这边不再显示此单（保留删除记录）\n· 迁移后请到香港公司界面核对'))return false;
+  const root=coRoot('hk');
+  try{
+    const now=Date.now();
+    const ex=(await _withTimeout(rtdb.ref(root+'img-ap/orders_v2/'+o.id).once('value'),15000,'读取香港订单库')).val();
+    const dupNo=(await _withTimeout(rtdb.ref(root+'img-ap/nos/'+nosKey(o.orderNo)).once('value'),15000,'读取香港占号')).val();
+    if(dupNo&&dupNo.id&&dupNo.id!==o.id)throw new Error('香港公司已有同号订单 '+o.orderNo+'，请先处理重号');
+    const rec=JSON.parse(JSON.stringify(o));delete rec.deleted;delete rec.deletedBy;delete rec.deletedAt;
+    rec.up=now;rec._up=now;rec.fromCo='de';rec.movedAt=now;rec.movedBy=session.name;
+    (rec.log=rec.log||[]).push({t:now,by:session.name,txt:'由德国公司平台迁入香港公司（单号不变）'});
+
+    let nf=0;
+    for(const f of (o.files||[])){if(!f||!f.fid||f.deleted||f.store==='gs')continue;
+      const v=(await _withTimeout(rtdb.ref(AP_FILES+'/'+f.fid).once('value'),60000,'读取附件 '+(f.name||f.fid))).val();
+      if(v!=null){await _withTimeout(rtdb.ref(root+'img-ap/files/'+f.fid).set(v),90000,'复制附件 '+(f.name||f.fid));nf++;}}
+    if(!ex)await _withTimeout(rtdb.ref(root+'img-ap/sys/storeMode').once('value'),15000,'读取香港存储模式').then(function(s){if(s.val()==null)return rtdb.ref(root+'img-ap/sys/storeMode').set('v2');});
+    await _withTimeout(rtdb.ref(root+'img-ap/orders_v2/'+o.id).set(rec),30000,'写入香港订单库');
+    await _withTimeout(rtdb.ref(root+'img-ap/orders_v2/_meta').update({_at:now,_by:session.name,_client:CLOUD_CLIENT_ID}),15000,'更新香港订单库标记');
+    await _withTimeout(rtdb.ref(root+'img-ap/nos/'+nosKey(o.orderNo)).set({id:o.id,by:session.name,at:now,why:'moved-from-de'}),15000,'香港占号');
+
+    const back=(await _withTimeout(rtdb.ref(root+'img-ap/orders_v2/'+o.id).once('value'),15000,'回读确认')).val();
+    if(!back||back.orderNo!==o.orderNo)throw new Error('回读香港订单库没有看到这张单，德国这边未做任何改动');
+
+    try{const c=(meta.clients||[]).find(function(x){return !x.deleted&&x.name===o.customer;});
+      if(c){const ms=(await _withTimeout(rtdb.ref(root+'img-ap/meta').once('value'),15000,'读取香港基础资料')).val();const hm=ms&&ms.json?JSON.parse(ms.json):{clients:[],suppliers:[],svcLib:[]};hm.clients=hm.clients||[];
+        if(!hm.clients.some(function(x){return !x.deleted&&x.name===c.name;})){hm.clients.push({id:'c'+now+Math.random().toString(36).slice(2,6),name:c.name,addr:c.addr||'',country:c.country||'',vat:c.vat||'',email:c.email||'',at:now});
+          await _withTimeout(rtdb.ref(root+'img-ap/meta').set({json:JSON.stringify(hm),_at:now,_by:session.name,_client:CLOUD_CLIENT_ID}),20000,'写入香港基础资料');}}}catch(e){console.warn('coMove 客户档案',e&&e.message);}
+
+    logAdd(o,'订单已迁至香港公司（'+CO_LIST.hk.name+'），德国平台不再处理');
+    o.deleted=true;o.movedTo='hk';o.movedAt=now;try{auditDel(o,'订单 '+o.orderNo,'迁至香港公司');}catch(e){}
+    await ordSave();try{renderORD();}catch(e){}
+    toast('「'+o.orderNo+'」已迁到香港公司'+(nf?'（含 '+nf+' 个附件）':'')+'。请打开香港公司界面核对');
+    return true;
+  }catch(e){alert('迁移没有完成：'+(e&&e.message||e)+'\n\n德国公司这边的订单没有被改动。');return false;}
+}
+window.coMoveOrder=coMoveOrder;window.coMoveBlockers=coMoveBlockers;
+
+(function(){
+  if(typeof VAULT_ON==='undefined'||!VAULT_ON)return;
+  try{const box=document.getElementById('coLogin');if(box){const a=document.createElement('a');a.href='#';a.id='vaultForgetLink';a.textContent='重新输入团队口令';a.style.cssText='display:block;margin:4px 0 0;font-weight:400;font-size:11.5px;color:var(--ink-soft)';a.onclick=function(e){e.preventDefault();if(confirm('清除这台设备上记住的团队口令？\n\n下次打开需要重新输入。数据不受影响。')){vaultForget();location.reload();}};box.appendChild(a);}}catch(e){}
+})();
 
 (function(){
   const mkSw=()=>{
