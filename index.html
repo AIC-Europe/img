@@ -1084,7 +1084,7 @@ td{font-size:12.5px}
       </div>
     </div>
   </main>
-  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v43.0</b></footer>
+  <footer>IMG Europe 内部工具 · 金额统计仅汇总 EUR 记录，其他币种单独列示 · <b>v43.1</b></footer>
 </div>
 
 <!-- 登记 / 编辑弹窗 -->
@@ -1886,7 +1886,7 @@ const store={
 };
 
 const CLOUD_PATH=DB_PREFIX+'img-ar/state';
-const APP_VERSION=43.0;
+const APP_VERSION=43.1;
 
 function versionWatch(){
   if(!USE_CLOUD||!rtdb)return;
@@ -2307,7 +2307,10 @@ function mergeRemote(remote){
   }
 }
 
-const ACCT_LIST=['Emma','Steven','Minglu','Teri','Bowen','Lucy','Peter','Christina','Man','Yaxuan'];
+const ACCT_LIST=['Emma','Steven','Minglu','Teri','Bowen','Lucy','Peter','Christina','Man','Yaxuan','Ferrari'];
+
+const ACCT_SCOPE={'Ferrari':{co:['hk'],mods:['tabORD','tabAR'],write:['tabAR'],home:'tabAR',tag:'开票'}};
+const ACCT_STAFF=ACCT_LIST.filter(function(n){return !ACCT_SCOPE[n];});
 const AUTH_DOMAIN_SUFFIX='@img-europe.local';
 
 const AUTH_PROXY_NEW='';
@@ -2432,6 +2435,7 @@ $('loginBtn').onclick=async()=>{
   const u=$('loginUser').value.trim();
   const canonical=ACCT_LIST.find(k=>k.toLowerCase()===u.toLowerCase());
   if(!canonical){err.textContent='用户名不存在，请输入：'+ACCT_LIST.join(' / ')+'。';err.style.display='block';return;}
+  if(typeof scopeCoOk==='function'&&!scopeCoOk(canonical)){err.textContent=scopeCoMsg(canonical);err.style.display='block';return;}
   const pw=$('loginPass').value;
   if(!pw){err.textContent='请输入密码。';err.style.display='block';return;}
 
@@ -2502,8 +2506,9 @@ $('loginBtn').onclick=async()=>{
   $('loginBtn').textContent='正在进入…';
   await loadAll();
   $('loginBtn').textContent='进入平台';
-  session={name:canonical,role:RO_ACCTS.includes(canonical)?'readonly':(FIN_ACCTS.includes(canonical)?'finance':'business')};
+  session=(typeof scopeSession==='function'&&scopeSession(canonical))||{name:canonical,role:RO_ACCTS.includes(canonical)?'readonly':(FIN_ACCTS.includes(canonical)?'finance':'business')};
   enterApp();
+  try{scopeEnter();}catch(e){}
 
   try{authStatWrite(canonical,AUTH_DEGRADED?'degraded':(_proxyOn&&!window.__proxyBypass?'proxy':'direct'),(_proxyOn&&!window.__proxyBypass)?String(AUTH_PROXY||''):'');}catch(e){}
 };
@@ -6136,6 +6141,7 @@ function anaAvailable(){
   return out;
 }
 function anaOpen(){
+  if(typeof scopeOn==='function'&&scopeOn())return;
   if(document.getElementById('anaOvl'))return;
   const groups=anaAvailable();
   const ov=document.createElement('div');ov.id='anaOvl';
@@ -6168,6 +6174,7 @@ function gsIndex(q){
 }
 let _gsSel=0,_gsList=[];
 function gsOpen(){
+  if(typeof scopeOn==='function'&&scopeOn())return;
   if(document.getElementById('gsOvl'))return;
   const ov=document.createElement('div');ov.id='gsOvl';ov.innerHTML='<div id="gsBox" role="dialog" aria-label="全局搜索"><input id="gsIn" type="text" placeholder="输入成单号、发票号、客户或供应商（至少 2 个字）" autocomplete="off"><div id="gsRes"></div><div class="gs-foot">↑↓ 选择 · Enter 打开 · Esc 关闭</div></div>';
   document.body.appendChild(ov);
@@ -8076,7 +8083,7 @@ function bulkOvl(title,descHtml,bodyHtml,onReady){
 function ordBulkOpen(){
   const list=ordFiltered().filter(function(o){return !o.deleted;});
   if(!list.length){toast('当前筛选下没有订单');return;}
-  const names=ACCT_LIST.filter(function(n){return FIN_ACCTS.indexOf(n)<0&&RO_ACCTS.indexOf(n)<0;});
+  const names=ACCT_STAFF.filter(function(n){return FIN_ACCTS.indexOf(n)<0&&RO_ACCTS.indexOf(n)<0;});
   const preview=list.slice(0,8).map(function(o){return esc(o.orderNo);}).join('、')+(list.length>8?' …':'');
   bulkOvl('🧰 订单批量操作','作用于<b>当前筛选结果</b>：共 <b>'+list.length+'</b> 单（'+preview+'）。先用月份/阶段/负责人/搜索把范围缩到你要的，再执行。',
     '<label style="display:flex;gap:8px;align-items:center">批量修改负责人为 <select id="bulkOwner" style="border:1.5px solid var(--line);border-radius:8px;padding:4px 8px"><option value="">— 请选择 —</option>'+names.map(function(n){return '<option value="'+esc(n)+'">'+esc(n)+'</option>';}).join('')+'</select></label>',
@@ -9037,7 +9044,7 @@ window.hoPreview=hoPreview;window.hoApply=hoApply;
 function hoOpen(){
   if(!session||session.role!=='finance'){toast('交接由财务执行');return;}
   const old=document.getElementById('hoOvl');if(old)old.remove();
-  const people=(typeof ACCT_LIST!=='undefined'?ACCT_LIST:[]).filter(function(n){return n!=='Peter';});
+  const people=(typeof ACCT_STAFF!=='undefined'?ACCT_STAFF:[]).filter(function(n){return n!=='Peter';});
   const ovl=document.createElement('div');ovl.id='hoOvl';
   ovl.style.cssText='position:fixed;inset:0;background:rgba(20,28,26,.45);z-index:2400;display:flex;align-items:center;justify-content:center';
   const card=document.createElement('div');
@@ -12683,6 +12690,7 @@ function renderBASE(){
   baseBackupHintUpdate();
   try{hrCfgCardEnsure();}catch(e){}
   try{locCardEnsure();}catch(e){}
+  try{coImportCardEnsure();}catch(e){}
   try{
     let card=$('migCard');
     if(session&&session.name==='Emma'&&USE_CLOUD&&rtdb){
@@ -12760,6 +12768,7 @@ async function ordExport(){
 }
 
 function switchMod(id){
+  if(typeof scopeBlocks==='function'&&scopeBlocks(id))return;
   if(id==='tabBASE'&&!canAnalytics())return;
   if(id==='tabHR'&&!(typeof canHR==='function'&&canHR()))return;
   if(id==='tabBANK'&&!(typeof canBank==='function'&&canBank()))return;
@@ -12770,6 +12779,7 @@ function switchMod(id){
   }
   try{document.body.dataset.mod={tabHOME:'home',tabORD:'ord',tabAR:'ar',tabAP:'ap',tabBASE:'base',tabHR:'hr',tabBANK:'bank'}[id]||'';}catch(e){}
   if(id==='tabHOME'){try{homeRender();}catch(e){}}
+  try{if(typeof scopeAfterSwitch==='function')scopeAfterSwitch(id);}catch(e){}
 }
 $('tabHOME').onclick=()=>switchMod('tabHOME');
 $('tabHR').onclick=()=>{if(!canHR())return;switchMod('tabHR');try{renderHR();}catch(e){}};
@@ -14569,6 +14579,7 @@ function canLog(){return !!session&&LOG_ACCTS.includes(session.name);}
 
 function roGuard(){
   if(!isRO())return false;
+  if(typeof scopeOn==='function'&&scopeOn()){toast('此账号在这里只能查看，不能修改');return true;}
   toast('管理层为只读账户，如需修改请联系财务或业务负责人');
   return true;
 }
@@ -18784,7 +18795,12 @@ Object.assign(I18N,{
 "免费等候（小时）":{en:"Free waiting time (hours)",de:"Freie Wartezeit (Stunden)"},
 "超时每半小时（EUR）":{en:"Waiting charge per half hour (EUR)",de:"Wartezeit je halbe Stunde (EUR)"},
 "取消界限（提前几小时）":{en:"Cancellation cut-off (hours before)",de:"Stornofrist (Stunden vorher)"},
-"取消收运费的 %":{en:"Cancellation charge (% of freight)",de:"Stornokosten (% der Fracht)"}
+"取消收运费的 %":{en:"Cancellation charge (% of freight)",de:"Stornokosten (% der Fracht)"},
+"📥 从德国公司导入基础资料":{en:"📥 Import master data from the German company",de:"📥 Stammdaten aus der deutschen Gesellschaft importieren"},
+"从德国公司导入…":{en:"Import from German company…",de:"Aus deutscher Gesellschaft importieren…"},
+"把德国公司的客户、供应商（含收款账号）、服务项、地点簿复制过来。只新增这里没有的，已有的不改；可以重复点，德国公司以后新增的会补过来。导入后两家公司各自维护。":{en:"Copies customers, suppliers (incl. bank details), service items and locations from the German company. Only adds what is missing here; existing records are not changed. Can be repeated. Afterwards each company maintains its own data.",de:"Kopiert Kunden, Lieferanten (inkl. Bankverbindung), Leistungsarten und Orte aus der deutschen Gesellschaft. Es wird nur ergänzt, was hier fehlt; Bestehendes bleibt unverändert. Wiederholbar. Danach pflegt jede Gesellschaft ihre Daten selbst."},
+"开票":{en:"Invoicing",de:"Fakturierung"},
+"限定":{en:"Restricted",de:"Eingeschränkt"}
 });
 I18N_RULES.push(
 [/^按创建月份统计；滞留\ =\ 未完结且超\ (\d+(?:[.,]\d+)?)\ 天无任何操作$/,{en:"By creation month; stalled = open and no action for $1 days",de:"Nach Anlagemonat; liegend = offen und $1 Tage ohne Aktion"}],
@@ -19112,10 +19128,134 @@ async function coMoveOrder(o){
 }
 window.coMoveOrder=coMoveOrder;window.coMoveBlockers=coMoveBlockers;
 
+function coImportPlan(src){
+  const out={clients:[],suppliers:[],svcLib:[],locations:[]};if(!src||typeof src!=='object')return out;
+  const live=function(x){return x&&!x.deleted&&!x.inactive&&!x.mergedInto&&String(x.name||'').trim();};
+  ['clients','suppliers'].forEach(function(k){
+    const have=new Set((meta[k]||[]).map(function(x){return normName(x.name);}));const ids=new Set((meta[k]||[]).map(function(x){return x.id;}));
+    const delN=new Set((meta[k+'DelNames']||[]).map(normName));const delI=new Set(meta[k+'Del']||[]);
+    for(const x of (src[k]||[])){if(!live(x))continue;if(k==='suppliers'&&x.isEmployee)continue;const n=normName(x.name);
+      if(have.has(n)||ids.has(x.id)||delN.has(n)||delI.has(x.id))continue;have.add(n);out[k].push(x);}
+  });
+  {const have=new Set((meta.svcLib||[]).map(function(x){return svcNorm(x.name);}));const ids=new Set((meta.svcLib||[]).map(function(x){return x.id;}));
+    const delN=new Set((meta.svcLibDelNames||[]).map(svcNorm));const delI=new Set(meta.svcLibDel||[]);
+    for(const x of (src.svcLib||[])){if(!live(x))continue;const n=svcNorm(x.name);if(have.has(n)||ids.has(x.id)||delN.has(n)||delI.has(x.id))continue;have.add(n);out.svcLib.push(x);}}
+  {const cur=(meta.locations||[]);const have=new Set(cur.map(locKey));const ids=new Set(cur.map(function(x){return x.id;}));
+    for(const x of (src.locations||[])){if(!live(x))continue;const kx=locKey(x);if(have.has(kx)||ids.has(x.id))continue;have.add(kx);out.locations.push(x);}}
+  return out;
+}
+async function coImportBase(){
+  if(CO.key==='de'||!session||session.name!=='Emma'||roGuard())return false;
+  if(!USE_CLOUD||!rtdb){toast('未连接云端，不能导入');return false;}
+  try{
+    const s=(await _withTimeout(rtdb.ref(coRoot('de')+'img-ap/meta').once('value'),20000,'读取德国公司基础资料')).val();
+    if(!s||!s.json)throw new Error('没有读到德国公司的基础资料');
+    const src=JSON.parse(s.json);const pl=coImportPlan(src);
+    const n=pl.clients.length+pl.suppliers.length+pl.svcLib.length+pl.locations.length;
+    if(!n){toast('没有需要导入的：德国公司的客户、供应商、服务项、地点，香港公司都已经有了');return false;}
+    if(!confirm('从德国公司（'+CO_LIST.de.name+'）导入基础资料到'+CO.short+'：\n\n· 客户 '+pl.clients.length+' 个\n· 供应商 '+pl.suppliers.length+' 个（含收款账号）\n· 服务项 '+pl.svcLib.length+' 个\n· 地点 '+pl.locations.length+' 个\n\n只新增'+CO.short+'没有的，已有的不改。导入后两家公司的资料各自维护，互不影响。'))return false;
+    const now=Date.now();const cp=function(x){const y=JSON.parse(JSON.stringify(x));y.at=now;y.up=now;y.fromCo='de';return y;};
+    meta.clients=meta.clients||[];meta.suppliers=meta.suppliers||[];meta.svcLib=meta.svcLib||[];meta.locations=meta.locations||[];
+    pl.clients.forEach(function(x){meta.clients.push(cp(x));});
+    pl.suppliers.forEach(function(x){meta.suppliers.push(cp(x));});
+    pl.svcLib.forEach(function(x){meta.svcLib.push(cp(x));});
+    pl.locations.forEach(function(x){const y=cp(x);delete y.audit;delete y.useCount;delete y.lastUsed;meta.locations.push(y);});
+    try{baseLogAdd('从德国公司导入基础资料：客户 '+pl.clients.length+'、供应商 '+pl.suppliers.length+'、服务项 '+pl.svcLib.length+'、地点 '+pl.locations.length);}catch(e){}
+    await metaSave();
+    try{renderBASE();}catch(e){}
+    toast('已导入：客户 '+pl.clients.length+'、供应商 '+pl.suppliers.length+'、服务项 '+pl.svcLib.length+'、地点 '+pl.locations.length);
+    return pl;
+  }catch(e){alert('导入没有完成：'+(e&&e.message||e));return false;}
+}
+function coImportCardEnsure(){
+  let card=document.getElementById('coImpCard');const host=document.getElementById('baseCards');if(!host)return;
+  const show=CO.key!=='de'&&session&&session.name==='Emma';
+  if(!show){if(card)card.remove();return;}
+  if(!card){card=document.createElement('div');card.className='base-card';card.id='coImpCard';
+    card.innerHTML='<h3>📥 从德国公司导入基础资料</h3><div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;line-height:1.6">把德国公司的客户、供应商（含收款账号）、服务项、地点簿复制过来。只新增这里没有的，已有的不改；可以重复点，德国公司以后新增的会补过来。导入后两家公司各自维护。</div><button class="btn-ghost" id="coImpBtn" type="button">从德国公司导入…</button>';
+    host.parentNode.insertBefore(card,host);
+    card.querySelector('#coImpBtn').onclick=function(){coImportBase();};}
+}
+window.metaGet=function(){return meta;};window.coImportPlan=coImportPlan;window.coImportBase=coImportBase;window.coImportCardEnsure=coImportCardEnsure;
+
 (function(){
   if(typeof VAULT_ON==='undefined'||!VAULT_ON)return;
   try{const box=document.getElementById('coLogin');if(box){const a=document.createElement('a');a.href='#';a.id='vaultForgetLink';a.textContent='重新输入团队口令';a.style.cssText='display:block;margin:4px 0 0;font-weight:400;font-size:11.5px;color:var(--ink-soft)';a.onclick=function(e){e.preventDefault();if(confirm('清除这台设备上记住的团队口令？\n\n下次打开需要重新输入。数据不受影响。')){vaultForget();location.reload();}};box.appendChild(a);}}catch(e){}
 })();
+
+const SCOPE_MOD_KEY={tabHOME:'home',tabORD:'ord',tabAR:'ar',tabAP:'ap',tabBASE:'base',tabHR:'hr',tabBANK:'bank'};
+function scopeOf(name){return (typeof ACCT_SCOPE!=='undefined'&&ACCT_SCOPE[name])||null;}
+function scopeOn(){return !!session&&!!session.scope;}
+function scopeCur(){try{return document.body.dataset.mod||'';}catch(e){return '';}}
+
+function scopeCoOk(name){const s=scopeOf(name);return !s||!s.co||s.co.indexOf(CO.key)>=0;}
+function scopeCoMsg(name){const s=scopeOf(name);const k=s&&s.co&&s.co[0];const c=k&&CO_LIST[k];return '账号 '+name+' 只用于'+(c?c.short:'另一家公司')+'，请到'+(c?c.short:'对应公司')+'界面登录。';}
+
+function scopeSession(name){
+  const s=scopeOf(name);if(!s)return null;
+  const wr=(s.write||[]).map(function(t){return SCOPE_MOD_KEY[t];});
+  const o={name:name,scope:s};
+  Object.defineProperty(o,'role',{enumerable:true,get:function(){return wr.indexOf(scopeCur())>=0?'finance':'readonly';}});
+  try{document.body.dataset.mod=SCOPE_MOD_KEY[s.home||s.mods[0]]||'';}catch(e){}
+  return o;
+}
+
+function scopeBlocks(id){
+  if(!scopeOn())return false;
+  if(session.scope.mods.indexOf(id)>=0)return false;
+  try{if(id!=='tabHOME')toast('此账号只能使用：'+session.scope.mods.map(function(t){const b=$(t);return b?String(b.textContent||'').replace(/\d+/g,'').trim():t;}).join('、'));}catch(e){}
+  return true;
+}
+
+const SCOPE_HIDE=['tabHOME','tabANA','tabAP','tabBASE','tabBANK','tabHR','gsBtn','ntfBtn','logBtn','baseBackupBar','rcBtn','laneBtn','quoteBtn','benchBtn',
+  'ordAddBtn','ordMore','subKAN','ordExportBtn','ordInqSaBtn','ordMrBtn','ordCaBtn','ordSupBtn','ordStatsBtn','ordBulkBtn','hoBtn',
+  'ariRcBigBtn','gmBtn','blBtn','cpBtn','tmBtn','cashBtn','closeBtn','ariArcBtn','ariBulkBtn'];
+
+function scopeViewOk(t){
+  if(t.closest('.ap-file,.ap-prev,a[href],.lk-ari,.lk-pay,.lk2-ari'))return true;
+  const b=t.closest('button');if(b&&/^(缩小|关闭|Minimi[sz]e|Close|Schließen|Verkleinern)/.test(String(b.textContent||'').trim()))return true;
+  return false;
+}
+let _scopeToastAt=0;
+function scopeViewGuard(e){
+  if(!scopeOn()||session.role!=='readonly')return;
+  const t=e.target;if(!t||!t.closest)return;
+  let block=false;
+  if(t.closest('#kanView'))block=true;
+  else if(t.closest('#ordBody')){
+    if(t.closest('tr.detail'))block=!scopeViewOk(t);
+    else block=!!t.closest('button,select,input,textarea,[contenteditable],.chip,[draggable="true"]')&&!scopeViewOk(t);
+  }
+  if(!block)return;
+  e.stopImmediatePropagation();e.preventDefault();
+  if(e.type==='click'&&Date.now()-_scopeToastAt>2500){_scopeToastAt=Date.now();try{toast('此账号在这里只能查看，不能修改');}catch(_){}}
+}
+['click','dblclick','change','input','keydown','paste','drop','dragstart'].forEach(function(ev){document.addEventListener(ev,scopeViewGuard,true);});
+function scopeApply(){
+  const on=scopeOn();
+  try{document.documentElement.classList.toggle('scope-on',on);}catch(e){}
+  if(!on)return;
+  if(!document.getElementById('scopeStyle')){const st=document.createElement('style');st.id='scopeStyle';
+    st.textContent=SCOPE_HIDE.map(function(id){return 'html.scope-on #'+id;}).join(',')+'{display:none!important}'+
+
+      'html.scope-on #ordTable thead th:nth-child(6),html.scope-on #ordTable thead th:nth-child(7),html.scope-on #ordBody tr.row>td:nth-child(6),html.scope-on #ordBody tr.row>td:nth-child(7){display:none}';document.head.appendChild(st);}
+  try{document.querySelectorAll('.ui2-grp').forEach(function(g){let n=g.nextElementSibling,any=false;while(n&&!n.classList.contains('ui2-grp')){if(n.classList.contains('mod-btn')&&getComputedStyle(n).display!=='none')any=true;n=n.nextElementSibling;}g.style.display=any?'':'none';});}catch(e){}
+  try{const pf=$('ordStProfit');const card=pf&&pf.closest('.stat');if(card)card.style.display='none';}catch(e){}
+  try{const tag=$('userRoleTag');if(tag){tag.style.display='';tag.textContent=session.scope.tag||'限定';tag.style.background='var(--info-bg)';tag.style.color='var(--info)';}}catch(e){}
+}
+
+function scopeAfterSwitch(id){
+  if(!scopeOn())return;
+  try{if(id==='tabAR'){render();if(typeof renderARI==='function')renderARI();}}catch(e){}
+}
+function scopeEnter(){
+  if(!scopeOn())return;
+  scopeApply();
+  const home=session.scope.home||session.scope.mods[0];
+  try{switchMod(home);}catch(e){}
+}
+window.scopeOn=scopeOn;window.scopeOf=scopeOf;window.scopeBlocks=scopeBlocks;window.scopeCoOk=scopeCoOk;
+window.switchMod=switchMod;window.roGuard=roGuard;window.scopeRoleGet=function(){return session?session.role:null;};window.acctStaffGet=function(){return ACCT_STAFF.slice();};
 
 (function(){
   const mkSw=()=>{
